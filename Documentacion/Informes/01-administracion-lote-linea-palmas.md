@@ -1,6 +1,6 @@
 # Lote linea palmas
 
-**Módulo:** Administración · **Clave:** `lote-linea-palmas` · **Estado:** Planificado
+**Módulo:** Administración · **Clave:** `lote-linea-palmas` · **Estado:** Implementado
 
 ## Propósito
 Detalle de palmas por línea de cada lote (censo), incluidas erradicadas. Permite cuadrar el censo contra las palmas declaradas del lote; para agronomía y sanidad.
