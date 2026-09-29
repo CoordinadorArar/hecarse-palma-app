@@ -1,6 +1,6 @@
 # Peso promedio racimos por lote
 
-**Módulo:** Administración · **Clave:** `peso-promedio-racimos-lote` · **Estado:** Planificado
+**Módulo:** Administración · **Clave:** `peso-promedio-racimos-lote` · **Estado:** Implementado
 
 ## Propósito
 Muestra el peso promedio de racimo (kg/racimo) por lote y periodo, usado para liquidar cosecha y estimar producción. Para jefes de campo y liquidación.

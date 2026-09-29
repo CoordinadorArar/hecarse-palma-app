@@ -1,6 +1,6 @@
 const URL_INF = BASE_URL + 'informes/reportes/';
 const COLORES = ['#41a867', '#2f7a4b', '#7cc49a', '#4a5b6c', '#f0a500', '#8795a4', '#c9e6d6'];
-const NUMERICOS = ['entero', 'decimal', 'moneda'];
+const NUMERICOS = ['entero', 'decimal', 'moneda', 'porcentaje', 'variacion'];
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 
@@ -15,10 +15,12 @@ const sinAcentos = (valor) => texto(valor).normalize('NFD').replace(/[̀-ͯ]/g, 
 const FORMATOS = {
     entero: new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }),
     decimal: new Intl.NumberFormat('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-    moneda: new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 })
+    moneda: new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }),
+    porcentaje: new Intl.NumberFormat('es-CO', { style: 'percent', minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+    variacion: new Intl.NumberFormat('es-CO', { style: 'percent', minimumFractionDigits: 1, maximumFractionDigits: 1, signDisplay: 'exceptZero' })
 };
 
-const formatear = (valor, formato = 'decimal') => (FORMATOS[formato] ? FORMATOS[formato].format(Number(valor || 0)) : texto(valor));
+const formatear = (valor, formato = 'decimal') => (valor == null ? '—' : FORMATOS[formato] ? FORMATOS[formato].format(Number(valor || 0)).replace(/^-(?=[^1-9]*$)/, '') : texto(valor));
 const partes = (valor) => texto(valor).split(/\s+[–—-]\s+/);
 const codigoNombre = (valor) => {
     const [codigo, ...resto] = partes(valor);
@@ -27,6 +29,10 @@ const codigoNombre = (valor) => {
         ? `<span class="font-monospace fw-semibold">${escaparHtml(codigo)}</span> — <span class="gp-truncar d-inline-block align-bottom" title="${escaparHtml(resto.join(' – '))}">${escaparHtml(resto.join(' – '))}</span>`
         : escaparHtml(valor);
 };
+
+const desvioPeso = (fila) => fila.pesoCalculado != null && Math.abs(Number(fila.diferencia)) > 0.05 * Number(fila.pesoCalculado);
+const variacionAlta = (fila) => fila.variacion != null && Math.abs(fila.variacion) >= 0.2;
+const contar = (total, uno, varios) => (total ? `${formatear(total, 'entero')} ${total === 1 ? uno : varios}` : '');
 
 const ESPECIFICOS = {
     'lotes-por-fincas': {
@@ -109,6 +115,61 @@ const ESPECIFICOS = {
         titulo: 'Hectáreas netas por año de siembra',
         detalle: { hNetas: ['Ha netas', 'decimal'], edad: ['Edad', 'texto'], lotes: ['Lotes', 'entero'], palmasProduccion: ['Palmas producción', 'entero'], pctHa: ['% de Ha netas', 'texto'] },
         ordenServidor: true
+    },
+    labores: {
+        ocultas: ['grupo', 'desCorta', 'sinGrupo'],
+        unidad: ['labor', 'labores'],
+        ordenServidor: true,
+        alerta: (fila) => Boolean(fila.sinGrupo),
+        alertaTitulo: 'Labores sin grupo válido',
+        ayudas: { grupo: 'Incluye «Sin grupo».', estado: 'Por defecto solo labores activas.' },
+        anchos: { codigo: 'width:80px', labor: 'min-width:200px', clase: 'width:120px', uMedida: 'width:80px', signo: 'width:70px', concepto: 'min-width:170px', ciclos: 'width:70px', tarea: 'width:80px', parametros: 'min-width:200px', estado: 'width:90px' },
+        subtitulo: (fila, filas) => {
+            const sinConcepto = filas.filter((actual) => texto(actual.concepto) === '').length;
+            const inactivas = estado.filtros?.estado === 'T' ? filas.filter((actual) => actual.estado === 'Inactiva').length : 0;
+            return [fila.sinGrupo ? 'Grupo vacío o inexistente en el catálogo' : '', sinConcepto ? `${formatear(sinConcepto, 'entero')} sin concepto de nómina` : '', inactivas ? `${formatear(inactivas, 'entero')} ${inactivas === 1 ? 'inactiva' : 'inactivas'}` : ''].filter(Boolean).join(' · ');
+        },
+        titulo: 'Labores por grupo',
+        categoria: (valor) => partes(valor).slice(1).join(' – ') || valor,
+        detalle: { sinConcepto: ['Sin concepto de nómina', 'entero'], porLote: ['Registran por lote', 'entero'], pct: ['% del total', 'texto'] },
+        destacar: ['Racimo', 'Báscula', 'Jornal'],
+        subtexto: { labor: (fila) => fila.desCorta },
+        vacioCelda: { concepto: 'Sin concepto' }
+    },
+    'peso-promedio-racimos-lote': {
+        ocultas: ['grupo', 'pesoXRacimos', 'difXRacimos', 'kgConRacimos'],
+        unidad: ['lote', 'lotes'],
+        ordenServidor: true,
+        pageLength: 100,
+        anchos: { finca: 'min-width:170px', seccion: 'width:80px', lote: 'min-width:200px', vigencia: 'width:190px', origen: 'width:100px', pesoRacimo: 'width:110px', pesoCalculado: 'width:120px', diferencia: 'width:110px', kg: 'width:120px', racimos: 'width:90px' },
+        marca: { diferencia: desvioPeso },
+        marcaTitulo: 'Difiere más de 5 % del peso calculado',
+        subtitulo: (fila, filas) => [
+            contar(filas.filter((actual) => actual.origen === 'Manual').length, 'manual', 'manuales'),
+            contar(filas.filter((actual) => actual.pesoCalculado == null).length, 'sin cosecha registrada', 'sin cosecha registrada'),
+            contar(filas.filter(desvioPeso).length, 'con desvío > 5 %', 'con desvío > 5 %')
+        ].filter(Boolean).join(' · '),
+        detalle: { pesoCalculado: ['Peso calculado', 'decimal'], kg: ['Kg cosechados', 'decimal'], racimos: ['Racimos', 'entero'], lotes: ['Lotes', 'entero'], origen: ['Origen', 'texto'] }
+    },
+    'lista-precio-novedades': {
+        ocultas: ['grupo', 'destajoRegistrado', 'sinGrupo', 'sinPrecio'],
+        unidad: ['labor', 'labores'],
+        ordenServidor: true,
+        pageLength: 100,
+        alerta: (fila) => Boolean(fila.sinGrupo),
+        alertaTitulo: 'Labores sin grupo válido',
+        anchos: { codigo: 'width:80px', labor: 'min-width:200px', uMedida: 'width:80px', destajo: 'width:120px', contratistas: 'width:120px', otros: 'width:120px', porcentaje: 'width:100px', baseSueldo: 'width:100px', destajoAnterior: 'width:120px', variacion: 'width:110px' },
+        subtexto: { labor: (fila) => (fila.sinPrecio ? 'Sin precio en el año' : '') },
+        marca: { variacion: variacionAlta },
+        marcaTitulo: 'Variación de 20 % o más frente al año anterior',
+        subtitulo: (fila, filas) => [
+            fila.sinGrupo ? 'Grupo vacío o inexistente en el catálogo' : '',
+            contar(filas.filter((actual) => actual.sinPrecio).length, 'sin precio', 'sin precio'),
+            contar(filas.filter((actual) => actual.baseSueldo === 'Sí').length, 'a base sueldo', 'a base sueldo'),
+            contar(filas.filter(variacionAlta).length, 'con variación ≥ 20 %', 'con variación ≥ 20 %')
+        ].filter(Boolean).join(' · '),
+        categoria: (valor) => partes(valor).slice(1).join(' – ') || valor,
+        detalle: { actual: ['Destajo actual', 'moneda'], anterior: ['Destajo año anterior', 'moneda'], grupo: ['Grupo', 'texto'] }
     }
 };
 
@@ -390,25 +451,28 @@ const opcionesGrafica = (grafica) => {
 
     const categorias = orden.map((indice) => grafica.categorias[indice]);
     const detalle = grafica.detalle ? orden.map((indice) => grafica.detalle[indice]) : null;
-    const series = grafica.series.map((serie) => ({ name: serie.nombre, type: serie.tipo, data: orden.map((indice) => Number(serie.datos[indice] || 0)) }));
+    const series = grafica.series.map((serie) => ({ name: serie.nombre, type: serie.tipo, data: orden.map((indice) => (serie.datos[indice] == null ? null : Number(serie.datos[indice]))) }));
     const etiqueta = espec.categoria || ((valor) => valor);
     const formato = grafica.formato || 'decimal';
     const ejes = { fontSize: '12px', colors: '#5c6b7a' };
     const estiloTitulo = { fontSize: '12px', color: '#5c6b7a', fontWeight: 600 };
     const pequena = window.innerWidth < 576;
+    const linea = grafica.tipo === 'line';
     const alto = grafica.horizontal ? Math.min(520, Math.max(240, categorias.length * 44 + 60)) : (pequena ? 280 : 320);
     const recortar = (valor) => (texto(valor).length > 24 ? `${texto(valor).slice(0, 23)}…` : valor);
+    const menor = grafica.tipo === 'bar' ? Math.min(0, ...series.flatMap((serie) => serie.data.filter((valor) => valor != null))) : 0;
+    const porcentual = ['porcentaje', 'variacion'].includes(formato);
     const mayor = Math.max(0, ...(grafica.apilada ? categorias.map((_, indice) => series.reduce((total, serie) => total + serie.data[indice], 0)) : series.flatMap((serie) => serie.data)));
     const base = mayor / (espec.etiquetaBarra ? 0.65 : 0.8);
     const potencia = mayor > 0 ? 10 ** Math.floor(Math.log10(base)) : 1;
     const paso = base / potencia > 5 ? potencia * 2 : (base / potencia <= 2 ? potencia / 2 : potencia);
     const marcas = mayor > 0 ? Math.ceil(base / paso) : undefined;
     const tope = mayor > 0 ? Number((marcas * paso).toFixed(6)) : undefined;
-    const escala = { min: 0, max: tope, tickAmount: marcas };
+    const escala = menor < 0 ? { forceNiceScale: true } : { min: 0, max: tope, tickAmount: marcas };
     const salto = !grafica.horizontal && pequena && categorias.length > 12 ? Math.ceil(categorias.length / 6) : 0;
     const yaxis = {
-        labels: { maxWidth: 160, style: ejes, formatter: grafica.horizontal ? recortar : (valor) => formatear(valor, paso >= 1 ? 'entero' : formato) },
-        ...(!grafica.horizontal ? escala : {}),
+        labels: { maxWidth: 160, style: ejes, formatter: grafica.horizontal ? recortar : (valor) => formatear(valor, paso >= 1 && !linea ? 'entero' : formato) },
+        ...(linea ? { forceNiceScale: true } : (!grafica.horizontal ? escala : {})),
         ...(!grafica.horizontal && grafica.ejeY ? { title: { text: grafica.ejeY, style: estiloTitulo } } : {})
     };
 
@@ -420,9 +484,10 @@ const opcionesGrafica = (grafica) => {
         },
         colors: grafica.colores || (series.length === 1 ? ['#41a867'] : COLORES),
         series,
-        plotOptions: { bar: { horizontal: Boolean(grafica.horizontal), borderRadius: 4, borderRadiusApplication: 'end', barHeight: '60%', ...(espec.etiquetaBarra ? { dataLabels: { position: 'top' } } : {}) } },
+        ...(linea ? { markers: { size: 4, strokeWidth: 2, strokeColors: '#fff', hover: { size: 6 } }, stroke: { width: 2.5, curve: 'straight', dashArray: grafica.guiones || 0 } } : {}),
+        plotOptions: { bar: { horizontal: Boolean(grafica.horizontal), borderRadius: 4, borderRadiusApplication: 'end', barHeight: '60%', ...(espec.etiquetaBarra ? { dataLabels: { position: 'top' } } : {}), ...(menor < 0 ? { colors: { ranges: [{ from: menor, to: -1e-9, color: '#4a5b6c' }] } } : {}) } },
         dataLabels: {
-            enabled: Boolean(grafica.horizontal),
+            enabled: Boolean(grafica.horizontal && !grafica.apilada),
             formatter: espec.etiquetaBarra
                 ? (valor, opciones) => [formatear(valor, formato), texto(detalle?.[opciones.dataPointIndex]?.pctHa)].filter(Boolean).join(' · ')
                 : (valor) => formatear(valor, formato),
@@ -432,8 +497,8 @@ const opcionesGrafica = (grafica) => {
         xaxis: {
             categories: categorias.map(etiqueta),
             title: { text: grafica.ejeX || undefined, style: estiloTitulo },
-            labels: { style: ejes, formatter: grafica.horizontal ? (valor) => formatear(valor, paso >= 1 ? 'entero' : formato) : (salto ? (valor) => (categorias.map(etiqueta).indexOf(valor) % salto ? '' : valor) : undefined), ...(salto ? { rotate: 0 } : {}) },
-            ...(grafica.horizontal && !grafica.apilada ? escala : {})
+            labels: { style: ejes, formatter: grafica.horizontal ? (valor) => formatear(valor, paso >= 1 && !porcentual ? 'entero' : formato) : (salto ? (valor) => (categorias.map(etiqueta).indexOf(valor) % salto ? '' : valor) : undefined), ...(salto ? { rotate: 0 } : {}) },
+            ...(grafica.horizontal ? escala : {})
         },
         yaxis,
         grid: { borderColor: '#eef1f4', strokeDashArray: 3, padding: { left: 8, right: 16 } },
@@ -443,7 +508,7 @@ const opcionesGrafica = (grafica) => {
                 theme: 'light',
                 custom: ({ dataPointIndex }) => {
                     const filas = [...series.map((serie) => [serie.name, formatear(serie.data[dataPointIndex], formato)]),
-                        ...Object.entries(espec.detalle || {}).map(([clave, [titulo, tipo]]) => [titulo, formatear(detalle[dataPointIndex]?.[clave], tipo)])];
+                        ...Object.entries(espec.detalle || {}).filter(([clave]) => detalle[dataPointIndex]?.[clave] !== undefined).map(([clave, [titulo, tipo]]) => [titulo, formatear(detalle[dataPointIndex]?.[clave], tipo)])];
 
                     return `<div class="inf-tooltip"><div class="fw-semibold mb-1">${codigoNombre(categorias[dataPointIndex])}</div>
                         ${filas.map(([titulo, valor]) => `<div class="d-flex justify-content-between gap-3"><span>${escaparHtml(titulo)}:</span><span class="inf-num">${escaparHtml(valor)}</span></div>`).join('')}</div>`;
@@ -460,6 +525,8 @@ const renderCelda = (columna) => (dato, tipo, fila) => {
     if (NUMERICOS.includes(columna.tipo)) {
         if (tipo !== 'display') return Number(dato || 0);
 
+        if (dato == null) return '<span class="text-muted">—</span>';
+
         const marca = espec.marca?.[columna.clave]?.(fila)
             ? `<span class="gp-punto-cambio me-1" title="${escaparHtml(espec.marcaTitulo || '')}"></span>`
             : '';
@@ -467,21 +534,34 @@ const renderCelda = (columna) => (dato, tipo, fila) => {
         return marca + formatear(dato, columna.tipo);
     }
 
-    if (tipo !== 'display') return texto(dato);
+    if (tipo !== 'display') return texto(dato) || texto(espec.vacioCelda?.[columna.clave]);
 
     if (columna.tipo === 'estado') {
         if (texto(dato) === '') return '';
 
-        return /^(activo|vigente|si|1|producci[oó]n)$/i.test(texto(dato))
+        return /^(activ[oa]|vigente|s[ií]|1|producci[oó]n|autom[aá]tico)$/i.test(texto(dato))
             ? `<span class="gp-chip-fila verde">${escaparHtml(dato)}</span>`
             : `<span class="gp-chip-fila inf-chip-pronto">${escaparHtml(dato)}</span>`;
     }
 
+    if (columna.tipo === 'etiquetas') {
+        const etiquetas = texto(dato).split(/\s*[·|]\s*/).filter(Boolean);
+
+        return etiquetas.length
+            ? `<div class="inf-etiquetas">${etiquetas.map((parte) => `<span class="gp-chip-fila ${(espec.destacar || []).some((inicio) => parte.startsWith(inicio)) ? 'verde' : 'inf-chip-filtro'}">${escaparHtml(parte)}</span>`).join('')}</div>`
+            : '<span class="text-muted">—</span>';
+    }
+
+    if (espec.vacioCelda?.[columna.clave] && texto(dato) === '') return `<span class="gp-chip-fila ambar">${escaparHtml(espec.vacioCelda[columna.clave])}</span>`;
+
     if (columna.tipo === 'fecha' || columna.alineacion === 'centro') return `<span class="font-monospace">${escaparHtml(dato)}</span>`;
 
-    if (partes(dato).length > 1 && /^[\w.-]{1,20}$/.test(partes(dato)[0])) return codigoNombre(dato);
+    const subtexto = espec.subtexto?.[columna.clave];
+    const contenido = !subtexto && partes(dato).length > 1 && /^[\w.-]{1,20}$/.test(partes(dato)[0])
+        ? codigoNombre(dato)
+        : (texto(dato).length > 40 ? `<span class="gp-truncar d-inline-block align-bottom" title="${escaparHtml(dato)}">${escaparHtml(dato)}</span>` : escaparHtml(dato));
 
-    return texto(dato).length > 40 ? `<span class="gp-truncar d-inline-block align-bottom" title="${escaparHtml(dato)}">${escaparHtml(dato)}</span>` : escaparHtml(dato);
+    return texto(subtexto?.(fila)) ? `${contenido}<div class="gp-subtexto gp-truncar" title="${escaparHtml(subtexto(fila))}">${escaparHtml(subtexto(fila))}</div>` : contenido;
 };
 
 const claseColumna = (columna) => (NUMERICOS.includes(columna.tipo) ? 'inf-num' : (columna.tipo === 'estado' || columna.tipo === 'fecha' || columna.alineacion === 'centro' ? 'text-center' : ''));
@@ -491,18 +571,24 @@ const pintarTabla = (respuesta) => {
     const columnas = respuesta.columnas;
     const ocultas = espec.ocultas || [];
     const visibles = columnas.filter((columna) => !ocultas.includes(columna.clave));
-    const primeraNumerica = Math.max(1, visibles.findIndex((columna) => NUMERICOS.includes(columna.tipo)));
+    const conTotal = columnas.some((columna) => columna.total);
+    const primeraNumerica = conTotal ? Math.max(1, visibles.findIndex((columna) => NUMERICOS.includes(columna.tipo))) : visibles.length;
     const indiceGrupo = columnas.findIndex((columna) => columna.clave === respuesta.agrupar);
     const posicion = new Map();
     respuesta.filas.forEach((fila, indice) => posicion.has(fila[respuesta.agrupar]) || posicion.set(fila[respuesta.agrupar], String(indice).padStart(6, '0')));
     const suma = (filas, clave) => filas.reduce((total, fila) => total + Number(fila[clave] || 0), 0);
+    const agregado = (filas, columna) => {
+        if (columna.total !== 'ponderado') return suma(filas, columna.clave);
+        const denominador = suma(filas, columna.denominador);
+        return denominador ? suma(filas, columna.numerador) / denominador : null;
+    };
     const tabla = $id('tabla_informe');
 
     tabla.classList.toggle('gp-tabla-ancha', visibles.length > 10);
     tabla.style.minWidth = visibles.length > 10 ? '' : `${visibles.length * 110}px`;
-    tabla.innerHTML = `<thead class="gp-thead"><tr>${columnas.map((columna) => `<th class="${claseColumna(columna)}" style="${espec.anchos?.[columna.clave] || ''}">${escaparHtml(columna.titulo)}</th>`).join('')}</tr></thead>
+    tabla.innerHTML = `<thead class="gp-thead"><tr>${columnas.map((columna) => `<th class="${claseColumna(columna)}" style="${espec.anchos?.[columna.clave] || ''}" title="${escaparHtml(columna.ayuda || '')}">${escaparHtml(columna.titulo)}</th>`).join('')}</tr></thead>
         <tbody></tbody>
-        <tfoot class="inf-pie"><tr>${columnas.map(() => '<th></th>').join('')}</tr></tfoot>`;
+        ${conTotal ? `<tfoot class="inf-pie"><tr>${columnas.map(() => '<th></th>').join('')}</tr></tfoot>` : ''}`;
 
     const cantidad = (filas) => {
         const total = filas.filter(espec.cuenta || (() => true)).length;
@@ -528,7 +614,7 @@ const pintarTabla = (respuesta) => {
                     <div class="d-flex flex-wrap align-items-center gap-2"><span class="fw-semibold">${codigoNombre(grupo)}</span><span class="gp-chip-fila ${alerta ? `ambar" title="${escaparHtml(espec.alertaTitulo || '')}` : 'verde'}">${cantidad(datos)}</span></div>
                     ${subtitulo ? `<div class="gp-subtexto">${escaparHtml(subtitulo)}</div>` : ''}
                 </td>`);
-                visibles.slice(primeraNumerica).forEach((columna) => fila.append(`<td class="${claseColumna(columna)}">${columna.total ? formatear(suma(datos, columna.clave), columna.tipo) : ''}</td>`));
+                visibles.slice(primeraNumerica).forEach((columna) => fila.append(`<td class="${claseColumna(columna)}">${columna.total ? formatear(agregado(datos, columna), columna.tipo) : ''}</td>`));
 
                 return fila;
             }
@@ -550,7 +636,7 @@ const pintarTabla = (respuesta) => {
                 celda.textContent = vacia;
             });
         },
-        footerCallback: function () {
+        footerCallback: conTotal ? function () {
             const api = this.api();
             const datos = api.rows({ search: 'applied' }).data().toArray();
 
@@ -558,12 +644,13 @@ const pintarTabla = (respuesta) => {
                 const pie = api.column(indice).footer();
 
                 pie.className = claseColumna(columna);
-                pie.innerHTML = columna.total ? formatear(suma(datos, columna.clave), columna.tipo) : '';
+                pie.title = columna.ayuda || '';
+                pie.innerHTML = columna.total ? formatear(agregado(datos, columna), columna.tipo) : '';
             });
 
             api.column(columnas.indexOf(visibles[0])).footer().innerHTML = 'Total general';
-        },
-        pageLength: 25,
+        } : undefined,
+        pageLength: espec.pageLength || 25,
         lengthMenu: [[25, 50, 100, -1], [25, 50, 100, 'Todos']],
         autoWidth: false,
         dom: "<'d-flex flex-wrap justify-content-between align-items-center gap-2 px-3 py-2'lf><'table-responsive't><'d-flex flex-wrap justify-content-between align-items-center gap-2 px-3 py-2'ip>",

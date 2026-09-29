@@ -112,7 +112,7 @@ class ReportesController extends BaseController
         $libro     = new Spreadsheet();
         $hoja      = $libro->getActiveSheet();
         $ultima    = Coordinate::stringFromColumnIndex(max(1, count($columnas)));
-        $formatos  = ['entero' => '#,##0', 'decimal' => '#,##0.00', 'moneda' => '#,##0'];
+        $formatos  = ['entero' => '#,##0', 'decimal' => '#,##0.00', 'moneda' => '#,##0', 'porcentaje' => '0.0%', 'variacion' => '+0.0%;-0.0%;0.0%'];
 
         $hoja->setTitle('Informe');
         $hoja->setCellValueExplicit('A1', $contexto['informe']['nombre'], DataType::TYPE_STRING);

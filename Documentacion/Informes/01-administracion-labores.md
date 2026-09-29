@@ -1,6 +1,6 @@
 # Labores
 
-**Módulo:** Administración · **Clave:** `labores` · **Estado:** Planificado
+**Módulo:** Administración · **Clave:** `labores` · **Estado:** Implementado
 
 ## Propósito
 Catálogo de labores (novedades agronómicas) con su grupo, unidad de medida, concepto de nómina y parámetros de captura. Referencia para administración y nómina.

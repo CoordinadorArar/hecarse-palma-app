@@ -1,6 +1,6 @@
 # Lista de precio novedades
 
-**Módulo:** Administración · **Clave:** `lista-precio-novedades` · **Estado:** Planificado
+**Módulo:** Administración · **Clave:** `lista-precio-novedades` · **Estado:** Implementado
 
 ## Propósito
 Muestra la tarifa anual de cada labor (destajo, contratistas, otros, porcentaje, base sueldo). Referencia para nómina, contratistas y control de costos.

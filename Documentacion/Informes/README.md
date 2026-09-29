@@ -29,9 +29,9 @@ Plan de los 40 informes del sistema anterior (menú "Informes") que se replican 
 | [Lotes por sec/bloq](01-administracion-lotes-por-seccion-bloque.md) ✅ | spSeleccionaLotesPorFincaSeccion | Barras horizontales |
 | [Lotes por variedad](01-administracion-lotes-por-variedad.md) ✅ | spSeleccionaLotesPorFincaSeccion | Barras horizontales |
 | [Lotes por año siembra](01-administracion-lotes-por-anio-siembra.md) ✅ | spSeleccionaLotesPorFincaSeccion | Barras verticales |
-| [Labores](01-administracion-labores.md) | spSeleccionaLaboresEmpresa | Barra de resumen |
-| [Peso promedio racimos por lote](01-administracion-peso-promedio-racimos-lote.md) | aLotePesosPeriodo (lectura directa) | Línea mensual |
-| [Lista de precio novedades](01-administracion-lista-precio-novedades.md) | spSeleccionaNovedadPrecios | Barras horizontales |
+| [Labores](01-administracion-labores.md) ✅ | spSeleccionaLaboresEmpresa | Barra de resumen |
+| [Peso promedio racimos por lote](01-administracion-peso-promedio-racimos-lote.md) ✅ | aLotePesosPeriodo (lectura directa) | Línea mensual |
+| [Lista de precio novedades](01-administracion-lista-precio-novedades.md) ✅ | spSeleccionaNovedadPrecios | Barras horizontales |
 | [Finca - Lote metros de canal](01-administracion-finca-lote-metros-canal.md) | spSeleccionaLoteCanalInforme | Barras apiladas horizontales |
 | [Lote linea palmas](01-administracion-lote-linea-palmas.md) | spSeleccionaLoteDetalle | Barras verticales |
 

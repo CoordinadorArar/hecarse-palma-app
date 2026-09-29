@@ -2,10 +2,13 @@
 
 namespace App\Libraries\Informes;
 
+use App\Libraries\Informes\Administracion\Labores;
+use App\Libraries\Informes\Administracion\ListaPrecioNovedades;
 use App\Libraries\Informes\Administracion\LotesPorAnioSiembra;
 use App\Libraries\Informes\Administracion\LotesPorFincas;
 use App\Libraries\Informes\Administracion\LotesPorSeccionBloque;
 use App\Libraries\Informes\Administracion\LotesPorVariedad;
+use App\Libraries\Informes\Administracion\PesoPromedioRacimosLote;
 
 class Catalogo
 {
@@ -24,9 +27,9 @@ class Catalogo
             ['lotes-por-seccion-bloque', 'Lotes por sec/bloq', 'bi bi-grid-3x3-gap', LotesPorSeccionBloque::class, 'Agrupa los lotes por finca y sección (bloque) mostrando área y palmas por sección. Sirve a administración de campo para ver la distribución interna de cada finca.'],
             ['lotes-por-variedad', 'Lotes por variedad', 'bi bi-flower1', LotesPorVariedad::class, 'Muestra la composición del cultivo por variedad de palma (lotes, hectáreas y palmas). Apoya decisiones agronómicas y de renovación.'],
             ['lotes-por-anio-siembra', 'Lotes por año siembra', 'bi bi-calendar3', LotesPorAnioSiembra::class, 'Distribuye lotes, hectáreas y palmas por año de siembra (edad del cultivo). Clave para proyectar producción y planear renovación.'],
-            ['labores', 'Labores', 'bi bi-tools', null, 'Catálogo de labores (novedades agronómicas) con su grupo, unidad de medida, concepto de nómina y parámetros de captura. Referencia para administración y nómina.'],
-            ['peso-promedio-racimos-lote', 'Peso promedio racimos por lote', 'bi bi-speedometer2', null, 'Muestra el peso promedio de racimo (kg/racimo) por lote y periodo, usado para liquidar cosecha y estimar producción. Para jefes de campo y liquidación.'],
-            ['lista-precio-novedades', 'Lista de precio novedades', 'bi bi-tags', null, 'Muestra la tarifa anual de cada labor (destajo, contratistas, otros, porcentaje, base sueldo). Referencia para nómina, contratistas y control de costos.'],
+            ['labores', 'Labores', 'bi bi-tools', Labores::class, 'Catálogo de labores (novedades agronómicas) con su grupo, unidad de medida, concepto de nómina y parámetros de captura. Referencia para administración y nómina.'],
+            ['peso-promedio-racimos-lote', 'Peso promedio racimos por lote', 'bi bi-speedometer2', PesoPromedioRacimosLote::class, 'Muestra el peso promedio de racimo (kg/racimo) por lote y periodo, usado para liquidar cosecha y estimar producción. Para jefes de campo y liquidación.'],
+            ['lista-precio-novedades', 'Lista de precio novedades', 'bi bi-tags', ListaPrecioNovedades::class, 'Muestra la tarifa anual de cada labor (destajo, contratistas, otros, porcentaje, base sueldo). Referencia para nómina, contratistas y control de costos.'],
             ['finca-lote-metros-canal', 'Finca - Lote metros de canal', 'bi bi-water', null, 'Metros de canal registrados por lote y tipo de canal, agrupados por finca. Sirve para planear y valorar labores de limpieza/mantenimiento de canales.'],
             ['lote-linea-palmas', 'Lote linea palmas', 'bi bi-list-ol', null, 'Detalle de palmas por línea de cada lote (censo), incluidas erradicadas. Permite cuadrar el censo contra las palmas declaradas del lote; para agronomía y sanidad.'],
         ],
