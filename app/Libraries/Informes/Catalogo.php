@@ -2,8 +2,10 @@
 
 namespace App\Libraries\Informes;
 
+use App\Libraries\Informes\Administracion\FincaLoteMetrosCanal;
 use App\Libraries\Informes\Administracion\Labores;
 use App\Libraries\Informes\Administracion\ListaPrecioNovedades;
+use App\Libraries\Informes\Administracion\LoteLineaPalmas;
 use App\Libraries\Informes\Administracion\LotesPorAnioSiembra;
 use App\Libraries\Informes\Administracion\LotesPorFincas;
 use App\Libraries\Informes\Administracion\LotesPorSeccionBloque;
@@ -30,8 +32,8 @@ class Catalogo
             ['labores', 'Labores', 'bi bi-tools', Labores::class, 'Catálogo de labores (novedades agronómicas) con su grupo, unidad de medida, concepto de nómina y parámetros de captura. Referencia para administración y nómina.'],
             ['peso-promedio-racimos-lote', 'Peso promedio racimos por lote', 'bi bi-speedometer2', PesoPromedioRacimosLote::class, 'Muestra el peso promedio de racimo (kg/racimo) por lote y periodo, usado para liquidar cosecha y estimar producción. Para jefes de campo y liquidación.'],
             ['lista-precio-novedades', 'Lista de precio novedades', 'bi bi-tags', ListaPrecioNovedades::class, 'Muestra la tarifa anual de cada labor (destajo, contratistas, otros, porcentaje, base sueldo). Referencia para nómina, contratistas y control de costos.'],
-            ['finca-lote-metros-canal', 'Finca - Lote metros de canal', 'bi bi-water', null, 'Metros de canal registrados por lote y tipo de canal, agrupados por finca. Sirve para planear y valorar labores de limpieza/mantenimiento de canales.'],
-            ['lote-linea-palmas', 'Lote linea palmas', 'bi bi-list-ol', null, 'Detalle de palmas por línea de cada lote (censo), incluidas erradicadas. Permite cuadrar el censo contra las palmas declaradas del lote; para agronomía y sanidad.'],
+            ['finca-lote-metros-canal', 'Finca - Lote metros de canal', 'bi bi-water', FincaLoteMetrosCanal::class, 'Metros de canal registrados por lote y tipo de canal, agrupados por finca. Sirve para planear y valorar labores de limpieza/mantenimiento de canales.'],
+            ['lote-linea-palmas', 'Lote linea palmas', 'bi bi-list-ol', LoteLineaPalmas::class, 'Detalle de palmas por línea de cada lote (censo), incluidas erradicadas. Permite cuadrar el censo contra las palmas declaradas del lote; para agronomía y sanidad.'],
         ],
         'revision-labores' => [
             ['labores-tercero-fecha', 'Labores tercero por fecha', 'bi bi-person-lines-fill', null, 'Resumen de lo ejecutado y devengado por cada trabajador en un rango de fechas (cantidad, jornales, valor por labor). Para supervisores y nómina antes de liquidar.'],

@@ -170,6 +170,60 @@ const ESPECIFICOS = {
         ].filter(Boolean).join(' · '),
         categoria: (valor) => partes(valor).slice(1).join(' – ') || valor,
         detalle: { actual: ['Destajo actual', 'moneda'], anterior: ['Destajo año anterior', 'moneda'], grupo: ['Grupo', 'texto'] }
+    },
+    'finca-lote-metros-canal': {
+        ocultas: ['finca'],
+        unidad: ['lote', 'lotes'],
+        cuenta: (fila) => fila.haUnica != null,
+        ayudas: { tipoCanal: 'Solo lotes con canal de este tipo.', estado: 'Por defecto solo lotes activos.' },
+        anchos: { seccion: 'width:90px', lote: 'min-width:200px', anioSiembra: 'width:90px', tipoCanal: 'min-width:170px', hNetas: 'width:100px', metros: 'width:110px', mHa: 'width:100px' },
+        marca: { hNetas: (fila) => Number(fila.hNetas) <= 0 },
+        marcaTitulo: 'Lote sin Ha netas: m/Ha no calculable',
+        subtitulo: (fila, filas) => {
+            const conCanal = filas.filter((actual) => actual.haUnica != null);
+            const ha = conCanal.reduce((total, actual) => total + Number(actual.haUnica || 0), 0);
+            return [
+                `${formatear(conCanal.length, 'entero')} de ${contar(Number(fila.lotesFinca), 'lote con canal', 'lotes con canal') || '0 lotes con canal'}`,
+                `Ha netas: ${formatear(ha, 'decimal')}`,
+                contar(conCanal.filter((actual) => Number(actual.hNetas) <= 0).length, 'sin Ha netas', 'sin Ha netas')
+            ].filter(Boolean).join(' · ');
+        },
+        titulo: 'Metros de canal por finca',
+        categoria: (valor) => partes(valor).slice(1).join(' – ') || valor,
+        detalle: { total: ['Total metros', 'entero'], lotes: ['Lotes con canal', 'entero'], mHa: ['m/Ha', 'decimal'] }
+    },
+    'lote-linea-palmas': {
+        ocultas: ['finca'],
+        unidad: ['lote', 'lotes'],
+        pageLength: 100,
+        anchos: { lote: 'min-width:200px', lineasDeclaradas: 'width:100px', lineasCenso: 'width:100px', palmasBrutas: 'width:110px', palmasCenso: 'width:110px', erradicadas: 'width:100px', palmasProduccion: 'width:120px', produccionCenso: 'width:120px', diferencia: 'width:100px', estado: 'width:90px', linea: 'width:90px', lado: 'width:100px', palmas: 'width:120px', produccion: 'width:130px' },
+        marca: {
+            lineasCenso: (fila) => fila.lineasCenso !== fila.lineasDeclaradas,
+            palmasCenso: (fila) => fila.palmasCenso != null && fila.palmasCenso !== fila.palmasBrutas,
+            diferencia: (fila) => Number(fila.diferencia) !== 0,
+            palmas: (fila) => Boolean(fila.atipica),
+            produccion: (fila) => Boolean(fila.negativa)
+        },
+        marcaTitulo: (fila, clave) => ({
+            lineasCenso: fila.sinCenso ? 'Sin censo registrado' : 'Difiere de las líneas del lote',
+            palmasCenso: 'Difiere de las palmas brutas del lote',
+            diferencia: 'La producción del lote no cuadra con el censo',
+            palmas: 'Línea atípica frente a la mediana del lote',
+            produccion: 'Erradicadas superan las palmas de la línea'
+        })[clave] || '',
+        subtitulo: (fila, filas) => {
+            const lineas = filas.reduce((total, actual) => total + Number(actual.lineasCenso || 0), 0);
+            const conDiferencia = filas.filter((actual) => actual.conDiferencia).length;
+            const sinCenso = filas.filter((actual) => actual.sinCenso).length;
+
+            return [
+                contar(lineas, 'línea en censo', 'líneas en censo') || '0 líneas en censo',
+                contar(conDiferencia, 'lote con diferencia', 'lotes con diferencia'),
+                contar(sinCenso, 'sin censo', 'sin censo'),
+                conDiferencia || sinCenso ? '' : 'Censo cuadrado'
+            ].filter(Boolean).join(' · ');
+        },
+        detalle: { palmas: ['Total palmas', 'entero'], lado: ['Lado', 'texto'], observacion: ['Observación', 'texto'] }
     }
 };
 
@@ -469,7 +523,7 @@ const opcionesGrafica = (grafica) => {
     const marcas = mayor > 0 ? Math.ceil(base / paso) : undefined;
     const tope = mayor > 0 ? Number((marcas * paso).toFixed(6)) : undefined;
     const escala = menor < 0 ? { forceNiceScale: true } : { min: 0, max: tope, tickAmount: marcas };
-    const salto = !grafica.horizontal && pequena && categorias.length > 12 ? Math.ceil(categorias.length / 6) : 0;
+    const salto = !grafica.horizontal && categorias.length > (pequena ? 12 : 40) ? Math.ceil(categorias.length / (pequena ? 6 : 20)) : 0;
     const yaxis = {
         labels: { maxWidth: 160, style: ejes, formatter: grafica.horizontal ? recortar : (valor) => formatear(valor, paso >= 1 && !linea ? 'entero' : formato) },
         ...(linea ? { forceNiceScale: true } : (!grafica.horizontal ? escala : {})),
@@ -507,7 +561,7 @@ const opcionesGrafica = (grafica) => {
             ? {
                 theme: 'light',
                 custom: ({ dataPointIndex }) => {
-                    const filas = [...series.map((serie) => [serie.name, formatear(serie.data[dataPointIndex], formato)]),
+                    const filas = [...series.filter((serie) => linea || serie.data[dataPointIndex] != null).map((serie) => [serie.name, formatear(serie.data[dataPointIndex], formato)]),
                         ...Object.entries(espec.detalle || {}).filter(([clave]) => detalle[dataPointIndex]?.[clave] !== undefined).map(([clave, [titulo, tipo]]) => [titulo, formatear(detalle[dataPointIndex]?.[clave], tipo)])];
 
                     return `<div class="inf-tooltip"><div class="fw-semibold mb-1">${codigoNombre(categorias[dataPointIndex])}</div>
@@ -528,7 +582,7 @@ const renderCelda = (columna) => (dato, tipo, fila) => {
         if (dato == null) return '<span class="text-muted">—</span>';
 
         const marca = espec.marca?.[columna.clave]?.(fila)
-            ? `<span class="gp-punto-cambio me-1" title="${escaparHtml(espec.marcaTitulo || '')}"></span>`
+            ? `<span class="gp-punto-cambio me-1" title="${escaparHtml((typeof espec.marcaTitulo === 'function' ? espec.marcaTitulo(fila, columna.clave) : espec.marcaTitulo) || '')}"></span>`
             : '';
 
         return marca + formatear(dato, columna.tipo);

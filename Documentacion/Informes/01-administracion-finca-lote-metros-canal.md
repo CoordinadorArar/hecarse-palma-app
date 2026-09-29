@@ -1,6 +1,6 @@
 # Finca - Lote metros de canal
 
-**Módulo:** Administración · **Clave:** `finca-lote-metros-canal` · **Estado:** Planificado
+**Módulo:** Administración · **Clave:** `finca-lote-metros-canal` · **Estado:** Implementado
 
 ## Propósito
 Metros de canal registrados por lote y tipo de canal, agrupados por finca. Sirve para planear y valorar labores de limpieza/mantenimiento de canales.

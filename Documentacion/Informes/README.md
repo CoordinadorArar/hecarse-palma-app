@@ -32,8 +32,8 @@ Plan de los 40 informes del sistema anterior (menú "Informes") que se replican 
 | [Labores](01-administracion-labores.md) ✅ | spSeleccionaLaboresEmpresa | Barra de resumen |
 | [Peso promedio racimos por lote](01-administracion-peso-promedio-racimos-lote.md) ✅ | aLotePesosPeriodo (lectura directa) | Línea mensual |
 | [Lista de precio novedades](01-administracion-lista-precio-novedades.md) ✅ | spSeleccionaNovedadPrecios | Barras horizontales |
-| [Finca - Lote metros de canal](01-administracion-finca-lote-metros-canal.md) | spSeleccionaLoteCanalInforme | Barras apiladas horizontales |
-| [Lote linea palmas](01-administracion-lote-linea-palmas.md) | spSeleccionaLoteDetalle | Barras verticales |
+| [Finca - Lote metros de canal](01-administracion-finca-lote-metros-canal.md) ✅ | spSeleccionaLoteCanalInforme | Barras apiladas horizontales |
+| [Lote linea palmas](01-administracion-lote-linea-palmas.md) ✅ | spSeleccionaLoteDetalle | Barras verticales |
 
 ### 2. Revisión Labores
 | Informe | Procedimiento legado | Gráfica |
