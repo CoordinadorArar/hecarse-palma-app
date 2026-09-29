@@ -118,6 +118,14 @@
   text-align: center;
 }
 
+.inf-etiquetas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .25rem;
+  white-space: normal;
+  min-width: 200px;
+}
+
 .inf-grafica {
   min-height: 240px;
 }
