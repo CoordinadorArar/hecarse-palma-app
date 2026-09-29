@@ -52,10 +52,10 @@ class Database extends Config
 
     // public array $conexion_disrayco = [
     //     'DSN'          => '',
-    //     'hostname'     => '172.24.15.23',
-    //     'username'     => 'web',
-    //     'password'     => 'M0r0cho',
-    //     'database'     => 'tienda_disrayco_85',
+    //     'hostname'     => '',
+    //     'username'     => '',
+    //     'password'     => '',
+    //     'database'     => '',
     //     'DBDriver'     => 'MySQLi',
     //     'DBPrefix'     => '',
     //     'pConnect'     => false,
