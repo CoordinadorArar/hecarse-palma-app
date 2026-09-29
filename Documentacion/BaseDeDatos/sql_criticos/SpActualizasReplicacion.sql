@@ -1,0 +1,4 @@
+-- Procedimiento: SpActualizasReplicacion
+-- Extraido de AppPalma (172.28.254.26) via consultaweb, solo lectura
+
+CREATE PROCEDURE SpActualizasReplicacion @id int,@empresaA int,@empresaB int,@noRegistro int,@fechaRegistro datetime,@tabla varchar(50),@usuario varchar(50),@Retorno int output  AS begin tran sReplicacion update sReplicacion set empresaA = @empresaA,empresaB = @empresaB,noRegistro = @noRegistro,fechaRegistro = @fechaRegistro,tabla = @tabla,usuario = @usuario where id = @id if (@@error = 0 ) begin set @Retorno = 0 commit tran sReplicacion end else begin set @Retorno = 1 rollback tran sReplicacion end

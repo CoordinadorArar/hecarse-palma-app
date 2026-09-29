@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="CLI Arguments" tests="2" assertions="3" errors="0" failures="1" skipped="0" time="1.246070">
+    <testsuite name="HealthTest" file="C:\Users\Desarrollo02\Documents\DESARROLLO\Hecarse\Sitios Web\Palma\tests\unit\HealthTest.php" tests="2" assertions="3" errors="0" failures="1" skipped="0" time="1.246070">
+      <testcase name="testIsDefinedAppPath" file="C:\Users\Desarrollo02\Documents\DESARROLLO\Hecarse\Sitios Web\Palma\tests\unit\HealthTest.php" line="13" class="HealthTest" classname="HealthTest" assertions="1" time="0.545057"/>
+      <testcase name="testBaseUrlHasBeenSet" file="C:\Users\Desarrollo02\Documents\DESARROLLO\Hecarse\Sitios Web\Palma\tests\unit\HealthTest.php" line="18" class="HealthTest" classname="HealthTest" assertions="2" time="0.701014">
+        <failure type="PHPUnit\Framework\ExpectationFailedException">HealthTest::testBaseUrlHasBeenSet&#13;
+baseURL "" in app/Config/App.php is not valid URL
+Failed asserting that false is true.
+&#13;
+C:\Users\Desarrollo02\Documents\DESARROLLO\Hecarse\Sitios Web\Palma\tests\unit\HealthTest.php:45</failure>
+      </testcase>
+    </testsuite>
+  </testsuite>
+</testsuites>

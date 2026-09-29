@@ -1,0 +1,11 @@
+    /* Estilos para usuarios activos */
+    .activo {
+        background-color: #d4edda96 !important;
+        /* Verde claro */
+    }
+
+    /* Estilos para usuarios inactivos */
+    .inactivo {
+        background-color: #f8d7da !important;
+        /* Rojo claro */
+    }

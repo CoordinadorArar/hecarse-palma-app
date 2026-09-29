@@ -1,0 +1,65 @@
+# Disable directory browsing
+Options -Indexes
+
+# ----------------------------------------------------------------------
+# Rewrite engine
+# ----------------------------------------------------------------------
+
+<IfModule mod_rewrite.c>
+    Options +FollowSymlinks
+    RewriteEngine On
+
+    # Bloquear archivos y carpetas ocultos
+    # Ej: .env, .git, .gitignore, .htaccess, etc.
+    RewriteRule (^|/)\. - [F,L]
+
+    # Si CI está en subcarpeta, ajusta RewriteBase
+    # RewriteBase /
+
+    # Redirect Trailing Slashes...
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_URI} (.+)/$
+    RewriteRule ^ %1 [L,R=301]
+
+    # Rewrite "www.example.com -> example.com"
+    RewriteCond %{HTTPS} !=on
+    RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
+    RewriteRule ^ http://%1%{REQUEST_URI} [R=301,L]
+
+    # Excepciones para acceso directo
+    RewriteRule (?i)^(Seguridad|RecursosInfos|recursosinfos)(/.*)?$ - [L]
+
+    # Front controller
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^([\s\S]*)$ index.php/$1 [L,NC,QSA]
+
+    # Authorization header
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+</IfModule>
+
+<IfModule !mod_rewrite.c>
+    ErrorDocument 404 index.php
+</IfModule>
+
+# Disable server signature start
+ServerSignature Off
+# Disable server signature end
+
+# Reglas de protección (opcional; mantenlas comentadas si necesitas ejecutar .php dentro de esas carpetas)
+# <FilesMatch "\.(htaccess|htpasswd|ini|phps|fla|psd|log|sh|bak|sql|inc|php)$">
+#   Require all denied
+# </FilesMatch>
+
+# <Files .env>
+#     Require all denied
+# </Files>
+
+# <LimitExcept GET POST HEAD>
+#     Require all denied
+# </LimitExcept>
+
+# <Files .htaccess>
+#     Require all denied
+# </Files>

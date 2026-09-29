@@ -1,0 +1,32 @@
+*/config/development
+*/logs/log-*.php
+!*/logs/index.html
+*/cache/*
+!system/cache/*
+!*/cache/index.html
+!*/cache/.htaccess
+
+user_guide_src/build/*
+user_guide_src/cilexer/build/*
+user_guide_src/cilexer/dist/*
+user_guide_src/cilexer/pycilexer.egg-info/*
+
+#codeigniter 3
+application/logs/*
+!application/logs/index.html
+!application/logs/.htaccess
+/vendor/
+
+#Ignorar el archivo .env
+.env
+#Archivos locales y temporales
+writable/debugbar/*
+!writable/debugbar/.gitkeep
+writable/session/*
+!writable/session/index.html
+writable/logs/*
+!writable/logs/index.html
+writable/uploads/*
+!writable/uploads/index.html
+.vscode/sftp.json
+.claude/settings.local.json

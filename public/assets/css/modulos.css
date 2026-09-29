@@ -1,0 +1,28 @@
+.select2 .select2-container, .select2-container--default, .select2-selection, .select2-selection--single{
+    height: 100% !important;
+}
+
+.select2 .select2-selection__placeholder{
+    vertical-align: middle !important;
+}
+
+#tabla_modulos tr.inactivo td{
+    opacity: .55;
+    font-style: italic;
+}
+
+#tabla_modulos .nivel-loseta{
+    display: inline-block;
+    padding-left: 0;
+    font-weight: 700;
+}
+
+#tabla_modulos .nivel-modulo{
+    display: inline-block;
+    padding-left: 1.5rem;
+}
+
+#tabla_modulos .nivel-submodulo{
+    display: inline-block;
+    padding-left: 3rem;
+}

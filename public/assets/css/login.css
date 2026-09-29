@@ -1,0 +1,16 @@
+/* Para desactivar el color de fondo en autocompletado del navegador */
+input:-webkit-autofill {
+    background-color: transparent !important;
+    -webkit-box-shadow: 0 0 0 1000px white inset !important;
+    box-shadow: 0 0 0 1000px white inset !important;
+}
+
+/* Para que no se vea el color de fondo al enfocar */
+input:focus {
+    background-color: white !important;
+    outline: none;
+}
+
+.togglePassword:hover {
+    cursor: pointer;
+}

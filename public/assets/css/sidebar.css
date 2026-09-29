@@ -1,0 +1,18 @@
+.sidebar-nav .nav-content a i {
+  font-size: 14px;
+  line-height: 1;
+  margin-right: 8px;
+  border-radius: 0;
+  background-color: transparent;
+}
+
+.sidebar-nav .nav-content a.active,
+.sidebar-nav .nav-content a.active i {
+  color: #41a867;
+  background-color: transparent;
+}
+
+.sidebar-nav .nav-link.nav-link-pendiente {
+  opacity: .6;
+  cursor: default;
+}
