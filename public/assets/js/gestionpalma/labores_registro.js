@@ -133,7 +133,12 @@ const enviar = async (accion, datos) => {
 // ── Filtros ───────────────────────────────────────────────────────────────────
 
 $id('btn_buscar').addEventListener('click', listar);
-['filtro_empresa', 'filtro_grupo', 'filtro_estado'].forEach((id) => {
+$id('filtro_empresa').addEventListener('change', (e) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('empresa', e.target.value);
+    window.location.assign(url);
+});
+['filtro_grupo', 'filtro_estado'].forEach((id) => {
     $id(id).addEventListener('change', listar);
 });
 $id('btn_limpiar_busqueda').addEventListener('click', () => {
@@ -182,8 +187,18 @@ $id('labor_descripcion').addEventListener('input', () => {
 
 const modalLabor = () => bootstrap.Modal.getOrCreateInstance($id('modalLabor'));
 
+const mostrarHeredados = (mostrar) => {
+    $id('labor_heredados').classList.toggle('show', mostrar);
+    $id('labor_heredados_toggle').classList.toggle('collapsed', !mostrar);
+    $id('labor_heredados_toggle').setAttribute('aria-expanded', String(mostrar));
+};
+
+$id('modalLabor').addEventListener('shown.bs.modal', () => {
+    $id($id('labor_modo').value === 'editar' ? 'labor_descripcion' : 'labor_codigo').focus();
+});
+
 const bloquearLlave = (bloquear) => {
-    $id('labor_empresa').disabled = bloquear;
+    $id('labor_empresa').disabled = true;
     $id('labor_codigo').disabled = bloquear;
     $id('labor_concepto').disabled = bloquear;
     $id('labor_aviso_llave').classList.toggle('d-none', !bloquear);
@@ -191,6 +206,8 @@ const bloquearLlave = (bloquear) => {
 
 const prepararFormulario = () => {
     $id('formulario_labor').reset();
+    $id('formulario_labor').classList.remove('was-validated');
+    mostrarHeredados(false);
     delete $id('labor_des_corta').dataset.tocado;
     aplicarManejaRango();
     aplicarManejaCanal();
@@ -204,6 +221,7 @@ const abrirNuevo = () => {
     $id('labor_empresa').value = filtroEmpresa();
     $id('labor_grupo').value = filtroGrupo();
     $id('labor_activo').checked = true;
+    $id('labor_clase').required = true;
     bloquearLlave(false);
     modalLabor().show();
 };
@@ -282,6 +300,8 @@ window.editarLabor = async (empresa, codigo, concepto) => {
         aplicarManejaRango();
         aplicarManejaCanal();
         aplicarImpuesto();
+        $id('labor_clase').required = false;
+        mostrarHeredados(['labor_maneja_canal', 'labor_impuesto', 'labor_maneja_saldo', 'labor_maneja_bascula'].some((id) => $id(id).checked));
         bloquearLlave(true);
         modalLabor().show();
     } catch (error) {
@@ -291,6 +311,16 @@ window.editarLabor = async (empresa, codigo, concepto) => {
 
 $id('formulario_labor').addEventListener('submit', async (e) => {
     e.preventDefault();
+
+    const form = e.target;
+    if (!form.checkValidity()) {
+        form.classList.add('was-validated');
+        const campo = form.querySelector('input:invalid, select:invalid, textarea:invalid');
+        if (campo && campo.closest('#labor_heredados')) mostrarHeredados(true);
+        if (campo && $(campo).hasClass('select2-hidden-accessible')) $(campo).select2('open');
+        else if (campo) campo.focus();
+        return;
+    }
 
     const btn = $id('btn_guardar_labor');
     const edicion = $id('labor_modo').value === 'editar';

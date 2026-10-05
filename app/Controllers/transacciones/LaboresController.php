@@ -593,8 +593,16 @@ class LaboresController extends BaseController
                 return 'La sección ' . $seccion . ' no pertenece a la finca ' . $finca . ' (línea ' . $orden . ').';
             }
 
-            if (! $this->laboresModel->loteDeFinca($empresa, $finca, $lote)) {
+            $seccionLote = $this->laboresModel->seccionDeLote($empresa, $finca, $lote);
+
+            if ($seccionLote === null) {
                 return 'El lote ' . $lote . ' no pertenece a la finca ' . $finca . ' (línea ' . $orden . ').';
+            }
+
+            if ($seccion === '') {
+                $seccion = $seccionLote;
+            } elseif ($seccion !== $seccionLote) {
+                return 'El lote ' . $lote . ' no pertenece a la sección ' . $seccion . ' (línea ' . $orden . ').';
             }
 
             $cantidad = $this->decimalDe($fila['cantidad'] ?? null);
@@ -664,7 +672,12 @@ class LaboresController extends BaseController
                     return 'Los jornales del tercero ' . $tercero . ' en la línea ' . $orden . ' deben ser un número mayor o igual a cero con máximo 2 decimales.';
                 }
 
-                $precio        = $this->laboresModel->precioLabor($empresa, $novedad, (int) substr($fechaLinea, 0, 4), $tercero, $fechaLinea, $finca, $lote, $seccion);
+                try {
+                    $precio = $this->laboresModel->precioLabor($empresa, $novedad, (int) substr($fechaLinea, 0, 4), $tercero, $fechaLinea, $finca, $lote, $seccion);
+                } catch (\Throwable $e) {
+                    return 'No se pudo calcular el precio de la labor ' . $novedad . ', intente de nuevo.';
+                }
+
                 $sumaCantidad += (int) round($cantidadT * 100);
                 $sumaJornales += (int) round($jornalesT * 100);
 
@@ -721,7 +734,7 @@ class LaboresController extends BaseController
                 return 'La fecha ' . $fecha . ' no pertenece al periodo ' . $this->etiquetaPeriodo($anio, $mes)
                     . ' (del ' . $periodo['fechaInicial'] . ' al ' . $periodo['fechaFinal'] . ').';
             }
-        } elseif (substr($fecha, 0, 7) !== $this->etiquetaPeriodo($anio, $mes)) {
+        } elseif ($mes <= 12 && substr($fecha, 0, 7) !== $this->etiquetaPeriodo($anio, $mes)) {
             return 'La fecha ' . $fecha . ' no pertenece al periodo ' . $this->etiquetaPeriodo($anio, $mes) . '.';
         }
 

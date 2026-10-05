@@ -129,7 +129,9 @@ const estado = { anio: null, filas: [], grupos: [] };
 const CAMPOS = ['precioDestajo', 'precioContratistas', 'precioOtros', 'porcentaje'];
 
 const aNumero = (texto) => {
-    const limpio = String(texto ?? '').replace(/\./g, '').replace(',', '.').replace(/[^\d.-]/g, '');
+    const crudo = String(texto ?? '');
+    const decimalPunto = /^\s*-?\d*\.\d*\s*$/.test(crudo) && !/^\s*-?[1-9]\d{0,2}\.\d{3}\s*$/.test(crudo);
+    const limpio = (decimalPunto ? crudo : crudo.replace(/\./g, '').replace(',', '.')).replace(/[^\d.-]/g, '');
     const numero = parseFloat(limpio);
     return isNaN(numero) ? 0 : numero;
 };
@@ -640,6 +642,7 @@ $id('formulario_anio').addEventListener('submit', async (e) => {
 
     modalAnio().hide();
     Toast.fire({ icon: 'success', title: `Año ${result.anio} creado con ${result.insertados} precios.` });
+    $id('filtro_empresa').value = $id('anio_empresa').value;
     await listar();
     abrirEditor(result.anio);
 });

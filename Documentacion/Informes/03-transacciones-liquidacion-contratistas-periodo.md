@@ -1,6 +1,6 @@
 # Liquidación contratistas por periodo
 
-**Módulo:** Transacciones · **Clave:** `liquidacion-contratistas-periodo` · **Estado:** Planificado
+**Módulo:** Transacciones · **Clave:** `liquidacion-contratistas-periodo` · **Estado:** Implementado
 
 ## Propósito
 Detalla las labores ejecutadas por trabajadores de contratistas en un rango de fechas, agrupadas por contratista (proveedor), para liquidar y pagar a cada contratista. Lo usan nómina y cuentas por pagar.
@@ -50,7 +50,11 @@ Totales de pie: Valor total; subtotal por contratista y por trabajador.
 - Eje Y: contratista (de mayor a menor valor); eje X: valor a liquidar.
 - Por qué: comparación de categorías con nombres largos.
 
-## Supuestos a validar
-- Si se filtra por fecha de transacción (`fechaT`, legado) o fecha de labor.
-- Si deben excluirse las líneas ya liquidadas/pagadas (`aTransaccionTercero.ejecutado`).
-- Trabajadores sin proveedor asociado quedan fuera por el INNER JOIN de la vista; confirmar si se muestran como "Proveedor no asociado".
+## Supuestos resueltos
+- No se usa `vSeleccionaLiquidacionContratista`: `aTransaccionTercero.contratista` nunca es 1 y la vista no devuelve filas. Contratista = trabajador con `nFuncionario.contratista = 1`.
+- Proveedor: `nFuncionario.proveedor` se resuelve contra `cTercero` por `nit` o, si es numérico, por `id`. Si no resuelve se agrupa en "Proveedor no asociado" (al final) y se avisa.
+- Se filtra por fecha de la transacción (`aTransaccion.fecha`), como el legado; la columna Fecha muestra esa misma fecha. Rango máximo de 1 año y límite de 20.000 líneas.
+- Solo documentos no anulados; se excluyen los de `aTransaccionEliminada`. Las líneas con signo 2 restan en cantidad y valor.
+- No se filtra por `ejecutado` (nunca es 1).
+- Filtro Contratista: proveedores resueltos de funcionarios contratistas (valor `cTercero.id`).
+- Alertas por línea: sin precio, precio distinto al más frecuente de la labor en el rango y valores negativos.

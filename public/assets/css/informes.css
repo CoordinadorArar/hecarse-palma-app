@@ -130,6 +130,30 @@
   min-height: 240px;
 }
 
+.inf-grafica-scroll {
+  max-height: 560px;
+  overflow-y: auto;
+}
+
+table.dataTable.inf-tabla-fija > thead > tr > th:first-child,
+.inf-tabla-fija > tbody > tr:not(.dtrg-group) > td:first-child,
+.inf-tabla-fija > tfoot > tr > th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background-color: #fff;
+  background-image: linear-gradient(to left, #e3e8ee 1px, transparent 1px);
+}
+
+table.dataTable.inf-tabla-fija > thead > tr > th:first-child {
+  z-index: 2;
+  background-color: #eaf6ef;
+}
+
+.inf-tabla-fija > tfoot > tr > th:first-child {
+  background-color: #f7f9fb;
+}
+
 .inf-desactualizado {
   opacity: .6;
   transition: opacity .2s;
@@ -185,8 +209,13 @@
 }
 
 #form_filtros .form-select.is-invalid,
-#form_filtros .form-control.is-invalid {
+#form_filtros .form-control.is-invalid,
+#form_filtros .inf-select2:has(select.is-invalid) .select2-selection {
   border-color: #dc3545;
+}
+
+#form_filtros .inf-select2:has(select.is-invalid) ~ .invalid-feedback {
+  display: block;
 }
 
 #form_filtros .select2-container--default .select2-selection--single .select2-selection__rendered {
@@ -239,4 +268,37 @@
   .inf-exportar {
     width: 100%;
   }
+
+  .inf-grafica-scroll {
+    max-height: 420px;
+  }
+
+  .inf-tabla-fija > * > tr:not(.dtrg-group) > :first-child {
+    width: auto !important;
+    min-width: 0 !important;
+  }
+
+  .inf-celda-fija {
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .inf-celda-fija .gp-truncar {
+    max-width: 100%;
+  }
+
+  .inf-tabla-fija > tbody > tr.dtrg-group > td,
+  .inf-tabla-fija > tbody > tr.dtrg-group > td :not(.gp-chip-fila) {
+    white-space: normal;
+    min-width: 0;
+    max-width: 100%;
+  }
+}
+
+.inf-tabla > tbody > tr.dtrg-group > td .inf-subtitulo-ajustado {
+  white-space: normal;
+  width: 0;
+  min-width: 100%;
 }

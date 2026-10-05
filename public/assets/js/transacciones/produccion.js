@@ -81,6 +81,7 @@ const estado = {
 
 let turnoPeriodos = 0;
 let turnoPrecio = 0;
+let turnoPrevio = 0;
 
 const empresaId = () => $id('empresa').value;
 
@@ -255,9 +256,9 @@ const pintarMedidor = () => {
     const neto = aNumero($id('pesoNeto').value);
     const asignados = estado.lineas.reduce((suma, linea) => suma + linea.kg, 0);
 
-    $id('med_kg').classList.toggle('tx-texto-ambar', estado.fallaPrevio);
+    $id('med_kg').classList.toggle('tx-texto-ambar', Boolean(estado.fallaPrevio));
     $id('med_kg_texto').textContent = estado.fallaPrevio
-        ? 'Kg asignados — no se pudo calcular'
+        ? `Kg asignados — ${estado.fallaPrevio === true ? 'no se pudo calcular' : estado.fallaPrevio}`
         : (hayPesos() || estado.lineas.length === 0
             ? `Kg asignados ${fmt(asignados)} de ${fmt(neto)} — los calcula el sistema`
             : `Kg asignados ${fmt(asignados)} de ${fmt(neto)} — reparto solo por racimos`);
@@ -587,6 +588,8 @@ const previsualizar = () => {
     clearTimeout(temporizador);
 
     temporizador = setTimeout(async () => {
+        const turno = ++turnoPrevio;
+
         if (estado.lineas.length === 0 || !estado.tiqueteCargado) {
             estado.fallaPrevio = false;
             estado.lineas.forEach((linea) => { linea.kg = 0; });
@@ -600,11 +603,15 @@ const previsualizar = () => {
         try {
             resultado = await pedir('previsualizar', estado.edicion ? { ...cuerpoBase(), numero: estado.edicion } : cuerpoBase());
         } catch (error) {
-            estado.fallaPrevio = true;
+            if (turno !== turnoPrevio) return;
+
+            estado.fallaPrevio = texto(error.datos?.message) || true;
             pintarMedidor();
 
             return;
         }
+
+        if (turno !== turnoPrevio) return;
 
         estado.fallaPrevio = false;
 
@@ -647,10 +654,14 @@ const habilitarCaptura = () => {
 const calcularNeto = () => {
     const bruto = aNumero($id('pesoBruto').value);
     const tara = aNumero($id('pesoTara').value);
-    const invalido = tara > bruto && bruto > 0;
+    const invalido = tara > bruto;
 
     $id('pesoTara').classList.toggle('is-invalid', invalido);
     mostrar($id('error_tara'), invalido);
+    $id('pesoBruto').classList.remove('is-invalid');
+    mostrar($id('error_bruto'), false);
+    $id('pesoNeto').classList.remove('is-invalid');
+    mostrar($id('error_neto'), false);
     $id('pesoNeto').value = invalido ? '' : fmt(Math.max(0, bruto - tara), 2);
 
     pintarMedidor();
@@ -815,6 +826,7 @@ const alternarExterno = async (encendido) => {
         }
 
         limpiarTiquete();
+        estado.encontrado = false;
     }
 
     estado.externo = encendido;
@@ -895,7 +907,10 @@ const consultarPeso = async (finca, lote) => {
     let resultado;
 
     try {
-        resultado = await pedir('pesoPromedio', { empresa: empresaId(), fecha: $id('fecha').value, finca, lote });
+        resultado = await pedir('pesoPromedio', {
+            empresa: empresaId(), fecha: $id('fecha').value, finca, lote,
+            ...($id('periodo').value ? { anio: $id('anio').value, mes: $id('periodo').value } : {})
+        });
     } catch (error) {
         avisar(error);
 
@@ -1040,7 +1055,9 @@ const eliminarLinea = async (id) => {
         html: `Se eliminarán también los ${escaparHtml(String(linea.trabajadores.length))} trabajadores registrados en ella.`,
         showCancelButton: true,
         confirmButtonText: 'Sí, eliminar',
-        cancelButtonText: 'Cancelar'
+        confirmButtonColor: '#d6293e',
+        cancelButtonText: 'Cancelar',
+        focusCancel: true
     });
 
     if (!respuesta.isConfirmed) return;
@@ -1093,7 +1110,9 @@ const pintarPrecio = () => {
     const seleccion = tercerosModal();
     const ayuda = $id('ayuda_precio');
 
-    if (seleccion.length <= 1) {
+    if (seleccion.length > 0 && $id('trab_fecha').value === '') {
+        ayuda.textContent = 'Indique la fecha para consultar el precio';
+    } else if (seleccion.length <= 1) {
         const sugerido = seleccion.length === 1 ? estado.modal.precios[seleccion[0].tercero] : undefined;
 
         ayuda.textContent = sugerido === undefined ? '' : (sugerido === null ? 'Sin precio en la lista' : 'Precio sugerido del lote');
@@ -1139,7 +1158,7 @@ const sugerirPrecio = async () => {
     estado.modal.precios = {};
     pintarSeleccion();
 
-    if (!linea || seleccion.length === 0 || novedad === '') return;
+    if (!linea || seleccion.length === 0 || novedad === '' || $id('trab_fecha').value === '') return;
 
     const precios = await Promise.all(seleccion.map((item) => pedir('precioLabor', {
         empresa: empresaId(), novedad, fecha: $id('trab_fecha').value,
@@ -1207,8 +1226,15 @@ const abrirModalTrabajador = async (idLinea, bloqueClave, idTrabajador) => {
         + `${trabajador ? 'Editar trabajador' : 'Agregar trabajador'} &middot; ${escaparHtml(bloque.rotulo)}`;
     $id('chip_modal_linea').textContent = `Registro ${estado.lineas.indexOf(linea) + 1} — ${linea.lote}`;
 
+    const periodo = periodoActual();
+
+    $id('trab_fecha').min = periodo && !sinFechas(periodo) ? texto(periodo.fechaInicial).substring(0, 10) : '';
+    $id('trab_fecha').max = periodo && !sinFechas(periodo) ? texto(periodo.fechaFinal).substring(0, 10) : '';
+    $id('trab_fecha').classList.remove('is-invalid');
     $id('trab_fecha').value = trabajador ? trabajador.fecha : $id('fecha').value;
-    $id('trab_cantidad').value = trabajador ? fmt(trabajador.cantidad, 2) : '';
+    const pendiente = linea.kg - linea.trabajadores.reduce((suma, item) => suma + item.cantidad, 0);
+
+    $id('trab_cantidad').value = trabajador ? fmt(trabajador.cantidad, 2) : (pendiente > 0 ? fmt(pendiente, 2) : '');
     $id('trab_precio').value = trabajador ? fmt(trabajador.precio, 2) : '';
     $id('trab_jornales').value = trabajador ? fmt(trabajador.jornales, 2) : '0';
     $id('ayuda_precio').textContent = '';
@@ -1265,12 +1291,20 @@ const guardarTrabajador = async () => {
     mostrar($id('error_trab_cantidad'), cantidad <= 0);
     $id('error_trab_cantidad').textContent = 'Indique la cantidad.';
 
-    const faltaPrecio = seleccion.length > 1 && sinPrecioModal().length > 0 && aNumero($id('trab_precio').value) <= 0;
+    const faltaPrecio = aNumero($id('trab_precio').value) <= 0 && (seleccion.length === 1 || (seleccion.length > 1 && sinPrecioModal().length > 0));
 
     $id('trab_precio').classList.toggle('is-invalid', faltaPrecio);
-    $id('trab_precio').parentElement.querySelector('.invalid-feedback').textContent = 'Escriba el precio para los terceros sin precio sugerido.';
+    $id('trab_precio').parentElement.querySelector('.invalid-feedback').textContent = seleccion.length === 1
+        ? 'Indique el precio (mayor que cero).'
+        : 'Escriba el precio para los terceros sin precio sugerido.';
 
-    if (seleccion.length === 0 || novedad === '' || cantidad <= 0 || faltaPrecio) return;
+    const campoFecha = $id('trab_fecha');
+    const fechaInvalida = campoFecha.value === '' || (campoFecha.min !== '' && campoFecha.value < campoFecha.min) || (campoFecha.max !== '' && campoFecha.value > campoFecha.max);
+
+    campoFecha.classList.toggle('is-invalid', fechaInvalida);
+    campoFecha.parentElement.querySelector('.invalid-feedback').textContent = campoFecha.value === '' ? 'Indique la fecha.' : 'La fecha debe estar dentro del periodo';
+
+    if (seleccion.length === 0 || novedad === '' || cantidad <= 0 || faltaPrecio || fechaInvalida) return;
 
     const datos = {
         novedad,
@@ -1319,6 +1353,12 @@ const guardarTrabajador = async () => {
     renderizar();
 
     ids.forEach((id) => document.querySelector(`tr[data-trabajador="${id}"]`)?.classList.add('gp-flash-guardado'));
+
+    const asignado = linea.trabajadores.reduce((suma, item) => suma + item.cantidad, 0);
+
+    if (linea.kg > 0 && asignado > linea.kg) {
+        Toast.fire({ icon: 'warning', title: `Los trabajadores suman ${fmt(asignado, 2)} kg y la línea tiene ${fmt(linea.kg, 2)} kg.` });
+    }
 };
 
 const eliminarTrabajador = async (idLinea, idTrabajador) => {
@@ -1400,7 +1440,7 @@ const modoEdicion = (numero) => {
     cancelar.dataset.original = numero ? '<i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Cancelar edición' : cancelar.dataset.base;
     guardar.innerHTML = guardar.dataset.original;
     cancelar.innerHTML = cancelar.dataset.original;
-    guardar.title = numero ? 'Guardar los cambios de la transacción' : 'Guardar la transacción';
+    guardar.title = numero ? 'Guardar los cambios de la transacción (Ctrl+S)' : 'Guardar la transacción (Ctrl+S)';
     cancelar.title = numero ? 'Cancelar la edición' : 'Cancelar la transacción';
     if ($id('tab_registro')) {
         $id('tab_registro').innerHTML = numero
@@ -1560,6 +1600,20 @@ const enviarGuardar = async (confirmaciones) => {
         $id('error_periodo').textContent = $id('periodo').value === '' ? 'Seleccione el periodo' : 'Elija un periodo abierto';
         $id('periodo').classList.add('is-invalid');
         $id('periodo').focus();
+
+        return;
+    }
+
+    const sinBruto = aNumero($id('pesoBruto').value) <= 0;
+    const sinNeto = aNumero($id('pesoNeto').value) <= 0;
+
+    $id('pesoBruto').classList.toggle('is-invalid', sinBruto);
+    mostrar($id('error_bruto'), sinBruto);
+    $id('pesoNeto').classList.toggle('is-invalid', sinNeto && !sinBruto);
+    mostrar($id('error_neto'), sinNeto && !sinBruto);
+
+    if (sinBruto || sinNeto) {
+        (sinBruto ? $id('pesoBruto') : $id('pesoTara')).focus();
 
         return;
     }
@@ -1781,6 +1835,12 @@ document.addEventListener('DOMContentLoaded', () => {
         alternarExterno(true);
     });
     $id('tiquete_externo').addEventListener('change', (evento) => alternarExterno(evento.target.checked));
+    $id('tiquete').addEventListener('input', () => {
+        if (!estado.encontrado) return;
+
+        estado.encontrado = false;
+        activarDetalle();
+    });
     $id('tiquete').addEventListener('keydown', (evento) => {
         if (evento.key === 'Enter') {
             evento.preventDefault();
@@ -1867,7 +1927,10 @@ document.addEventListener('DOMContentLoaded', () => {
     $id('ayuda_precio').addEventListener('click', (evento) => {
         if (evento.target.closest('#btn_usar_sugeridos')) usarSugeridos();
     });
-    $id('trab_fecha').addEventListener('change', sugerirPrecio);
+    $id('trab_fecha').addEventListener('change', () => {
+        $id('trab_fecha').classList.remove('is-invalid');
+        sugerirPrecio();
+    });
 
     $id('formulario_trabajador').addEventListener('submit', (evento) => {
         evento.preventDefault();
@@ -1878,6 +1941,21 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!estado.guardando && (estado.edicion ? PERMISOS.editar : PERMISOS.registrar)) enviarGuardar({});
     });
     $id('btn_cancelar').addEventListener('click', cancelar);
+
+    document.addEventListener('keydown', (evento) => {
+        if (!(evento.ctrlKey || evento.metaKey) || evento.key.toLowerCase() !== 's') return;
+
+        evento.preventDefault();
+
+        if ($id('btn_guardar') && !$id('btn_guardar').disabled && $id('btn_guardar').offsetParent !== null && !document.querySelector('.modal.show') && !(Swal.isVisible() && !Swal.getPopup()?.classList.contains('swal2-toast'))) $id('btn_guardar').click();
+    });
+
+    window.addEventListener('beforeunload', (e) => {
+        if (!estado.guardando && !estado.saliendo && hayCambios()) {
+            e.preventDefault();
+            e.returnValue = '';
+        }
+    });
 
     $id('tiquete').focus();
 });

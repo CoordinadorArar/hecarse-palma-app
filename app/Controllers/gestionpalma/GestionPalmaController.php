@@ -27,6 +27,19 @@ class GestionPalmaController extends BaseController
         return view('gestionpalma/onboarding', $data);
     }
 
+    protected function empresaSeleccionada(array $empresas): int
+    {
+        $solicitada = (int) $this->request->getGet('empresa');
+
+        foreach ($empresas as $empresa) {
+            if ($solicitada > 0 && (int) $empresa['id'] === $solicitada) {
+                return $solicitada;
+            }
+        }
+
+        return $empresas ? (int) $empresas[0]['id'] : 0;
+    }
+
     protected function enConstruccion($id_loseta, $modulo, $icono, $descripcion): string|RedirectResponse
     {
         helper('ConstruirDataVista');

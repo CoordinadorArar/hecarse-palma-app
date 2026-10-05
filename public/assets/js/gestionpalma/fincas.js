@@ -126,7 +126,11 @@ const listar = async () => {
 
 // ── Filtros ───────────────────────────────────────────────────────────────────
 
-$id('filtro_empresa').addEventListener('change', listar);
+$id('filtro_empresa').addEventListener('change', (e) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('empresa', e.target.value);
+    window.location.assign(url);
+});
 $id('filtro_estado').addEventListener('change', listar);
 
 // ── Ciudad (typeahead) ────────────────────────────────────────────────────────
@@ -223,7 +227,7 @@ document.addEventListener('click', (e) => {
 const modalFinca = () => bootstrap.Modal.getOrCreateInstance($id('modalFinca'));
 
 const bloquearLlave = (bloquear) => {
-    $id('finca_empresa').disabled = bloquear;
+    $id('finca_empresa').disabled = true;
     $id('finca_codigo').disabled = bloquear;
     $id('finca_aviso_llave').classList.toggle('d-none', !bloquear);
 };

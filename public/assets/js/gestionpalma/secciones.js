@@ -159,7 +159,11 @@ const enviar = async (accion, datos) => {
 
 // ── Filtros ───────────────────────────────────────────────────────────────────
 
-$id('filtro_empresa').addEventListener('change', listar);
+$id('filtro_empresa').addEventListener('change', (e) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('empresa', e.target.value);
+    window.location.assign(url);
+});
 $id('filtro_finca').addEventListener('change', listar);
 $id('filtro_estado').addEventListener('change', listar);
 

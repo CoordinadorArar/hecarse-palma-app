@@ -203,14 +203,18 @@ $etiqueta    = static fn ($valor) => ucfirst(mb_strtolower(trim(preg_replace('/\
 
                             <div class="col-12 col-md-6 col-lg-4">
                                 <label class="form-label mb-1 small fw-semibold text-muted" for="cap_labor">Labor <span class="text-danger">*</span></label>
-                                <div class="tx-select-ancho">
-                                    <select class="form-select" id="cap_labor">
-                                        <option value="">Seleccione una opción&hellip;</option>
-                                        <?php foreach ($labores ?? [] as $labor): ?>
-                                            <option value="<?= esc($labor['codigo'], 'attr') ?>" data-um="<?= esc(trim((string) $labor['uMedida']), 'attr') ?>" data-nombre="<?= esc(trim((string) $labor['descripcion']), 'attr') ?>"><?= esc(trim($labor['codigo'])) ?> &mdash; <?= esc(trim((string) $labor['descripcion'])) ?></option>
-                                        <?php endforeach; ?>
-                                    </select>
+                                <div class="d-flex gap-2">
+                                    <input type="text" class="form-control font-monospace text-uppercase tx-labor-codigo" id="cap_codigo" placeholder="Código" aria-label="Código de labor" autocomplete="off" maxlength="20">
+                                    <div class="tx-select-ancho">
+                                        <select class="form-select" id="cap_labor">
+                                            <option value="">Seleccione una opción&hellip;</option>
+                                            <?php foreach ($labores ?? [] as $labor): ?>
+                                                <option value="<?= esc($labor['codigo'], 'attr') ?>" data-um="<?= esc(trim((string) $labor['uMedida']), 'attr') ?>" data-nombre="<?= esc(trim((string) $labor['descripcion']), 'attr') ?>"><?= esc(trim($labor['codigo'])) ?> &mdash; <?= esc(trim((string) $labor['descripcion'])) ?></option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
                                 </div>
+                                <div class="invalid-feedback d-block d-none" id="error_codigo">No existe una labor con ese código.</div>
                                 <div class="invalid-feedback d-block d-none" id="error_labor">Seleccione la labor.</div>
                             </div>
 
@@ -356,7 +360,7 @@ $etiqueta    = static fn ($valor) => ucfirst(mb_strtolower(trim(preg_replace('/\
                 <button type="button" class="btn btn-outline-secondary" id="btn_cancelar" title="Cancelar la transacción">
                     <i class="bi bi-x-circle me-1" aria-hidden="true"></i>Cancelar
                 </button>
-                <button type="button" class="btn btn-primary" id="btn_guardar" title="Guardar la transacción" disabled>
+                <button type="button" class="btn btn-primary" id="btn_guardar" title="Guardar la transacción (Ctrl+S)" disabled>
                     <i class="bi bi-floppy me-1" aria-hidden="true"></i>Guardar
                 </button>
             </div>

@@ -1,6 +1,6 @@
 # Labores tercero por fecha
 
-**Módulo:** Revisión Labores · **Clave:** `labores-tercero-fecha` · **Estado:** Planificado
+**Módulo:** Revisión Labores · **Clave:** `labores-tercero-fecha` · **Estado:** Implementado
 
 ## Propósito
 Resumen de lo ejecutado y devengado por cada trabajador en un rango de fechas (cantidad, jornales, valor por labor). Para supervisores y nómina antes de liquidar.
@@ -48,7 +48,8 @@ Totales de pie: jornales y valor total.
 - Eje Y: trabajador (top 15 por valor); eje X: valor total.
 - Por qué: compara trabajadores (muchas categorías, nombres largos).
 
-## Supuestos a validar
-- Filtrar por `fechaTransaccion` (legado) o por `fechaLabor`.
-- Si se incluyen labores no ejecutadas en nómina (`ejecutadoNomina`).
-- `vTransaccionAgronomico` usa `SELECT DISTINCT`: validar que no colapse filas idénticas legítimas.
+## Supuestos resueltos
+- Se filtra por la fecha de la labor (`aTransaccionTercero.fechaNovedad`; si está vacía en registros antiguos, `aTransaccionNovedad.fecha`), no por `fechaTransaccion`.
+- Se incluyen todas las labores, sin filtrar por `ejecutadoNomina`.
+- Se consulta sobre las tablas base (`aTransaccionTercero` + `aTransaccionNovedad` + `aTransaccion` + `aNovedad`), no sobre `vTransaccionAgronomico`, para evitar que su `SELECT DISTINCT` colapse filas idénticas legítimas. Se excluyen anuladas y, si existe, `aTransaccionEliminada`; con `signo = 2` cantidad y valor restan.
+- El trabajador se cruza con `cTercero` por `nit` y, si no, por `codigo`. El cargo sale de `nContratos` → `nCargo` (por id o código del tercero); `aTransaccionTercero.contrato` está vacío y hoy ningún contrato tiene cargo, por lo que la columna queda en blanco.

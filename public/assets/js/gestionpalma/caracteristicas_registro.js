@@ -16,6 +16,8 @@ const URL_CARACTERISTICAS = BASE_URL + 'gestion-palma/caracteristicas/registro/'
 
 const $id = (id) => document.getElementById(id);
 
+const escapar = (texto) => String(texto ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
 const filtroEmpresa = () => $id('filtro_empresa').value;
 const filtroGrupo = () => $id('filtro_grupo').value;
 const filtroEstado = () => $id('filtro_estado').value;
@@ -127,7 +129,12 @@ const listar = async () => {
 // ── Filtros ───────────────────────────────────────────────────────────────────
 
 $id('btn_buscar').addEventListener('click', listar);
-['filtro_empresa', 'filtro_grupo', 'filtro_estado'].forEach((id) => {
+$id('filtro_empresa').addEventListener('change', (e) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('empresa', e.target.value);
+    window.location.assign(url);
+});
+['filtro_grupo', 'filtro_estado'].forEach((id) => {
     $id(id).addEventListener('change', listar);
 });
 $id('btn_limpiar_busqueda').addEventListener('click', () => {
@@ -232,15 +239,15 @@ const revisarDuplicado = () => {
         duplicadoBloqueante = true;
         caja.className = 'gp-nota-alerta';
         caja.innerHTML = conGrupo
-            ? `<i class="bi bi-exclamation-triangle-fill me-1" aria-hidden="true"></i>Ya existe «${escrito}» en este grupo. Cambie la descripción o elija otro grupo.`
-            : `<i class="bi bi-exclamation-triangle-fill me-1" aria-hidden="true"></i>Ya existe «${escrito}» sin grupo. Cambie la descripción o asigne un grupo.`;
+            ? `<i class="bi bi-exclamation-triangle-fill me-1" aria-hidden="true"></i>Ya existe «${escapar(escrito)}» en este grupo. Cambie la descripción o elija otro grupo.`
+            : `<i class="bi bi-exclamation-triangle-fill me-1" aria-hidden="true"></i>Ya existe «${escapar(escrito)}» sin grupo. Cambie la descripción o asigne un grupo.`;
         contenedor.classList.remove('d-none');
         return;
     }
 
     if (conGrupo && otros.length > 0) {
         caja.className = 'gp-nota';
-        caja.innerHTML = `<i class="bi bi-info-circle me-1"></i>Esta descripción ya existe en ${otros.join(', ')}. Es válido registrarla también en este grupo.`;
+        caja.innerHTML = `<i class="bi bi-info-circle me-1"></i>Esta descripción ya existe en ${otros.map(escapar).join(', ')}. Es válido registrarla también en este grupo.`;
         contenedor.classList.remove('d-none');
         return;
     }
@@ -266,7 +273,7 @@ const aplicarManejaGrupo = () => {
 };
 
 const bloquearLlave = (bloquear) => {
-    $id('car_empresa').disabled = bloquear;
+    $id('car_empresa').disabled = true;
     $id('car_codigo').disabled = bloquear;
     $id('car_aviso_llave').classList.toggle('d-none', !bloquear);
     $id('car_ayuda_codigo').classList.toggle('d-none', bloquear);

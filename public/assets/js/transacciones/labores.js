@@ -401,7 +401,9 @@ const tarjetaLinea = (linea, indice) => {
             <span><span class="font-monospace fw-semibold">${escaparHtml(linea.novedad)}</span> — <span class="gp-truncar d-inline-block align-bottom" title="${labor}">${escaparHtml(linea.novedadNombre)}</span></span>
             <span class="gp-chip-fila tx-chip-neutro">${escaparHtml(linea.uMedida)}</span>
             <span class="tx-sep">&middot;</span>
-            <span class="text-nowrap">${fechaCorta(linea.fecha)}</span>
+            ${periodoActual() && !fechaEnPeriodo(linea.fecha)
+        ? `<span class="text-nowrap text-danger" title="La fecha de la línea está fuera del periodo seleccionado"><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>${fechaCorta(linea.fecha)}</span>`
+        : `<span class="text-nowrap">${fechaCorta(linea.fecha)}</span>`}
             <span class="tx-sep">&middot;</span>
             <span class="font-monospace">${CFG.referencia ? '' : `${escaparHtml(linea.finca)} / `}${linea.seccion ? escaparHtml(linea.seccion) : '<span class="text-muted">—</span>'} / ${escaparHtml(linea.lote)}</span>
             <span class="tx-chip-cont verde">${fmt(linea.trabajadores.length)} trab.</span>
@@ -486,7 +488,7 @@ const pintarLineas = () => {
     }
     mostrar($id('contenedor_lineas'), hay);
     mostrar($id('estado_sin_lineas'), !hay);
-    $id('btn_liquidar').disabled = !hay;
+    $id('btn_liquidar').disabled = !hay || estado.liquidando;
 
     $id('total_lineas').textContent = fmt(lineas.length);
     $id('total_trabajadores').textContent = fmt(trabajadoresDe().length);
@@ -601,7 +603,7 @@ const revisarPalmas = () => {
         : `Palmas del plan: <span class="tx-num fw-semibold">${fmt(palmas)}</span>`;
 };
 
-const cargarPlanes = async (finca, valor = '') => {
+const cargarPlanes = async (finca, valor = '', estricto = false) => {
     const selector = $id('referencia');
 
     reiniciarSelect('referencia', finca ? 'Cargando planes…' : 'Seleccione una finca primero');
@@ -613,7 +615,7 @@ const cargarPlanes = async (finca, valor = '') => {
     let filas = [];
 
     try {
-        filas = (await pedir('planes', { empresa: empresaId(), finca })).filas || [];
+        filas = (await pedir('planes', { empresa: empresaId(), finca, fecha: $id('fecha').value })).filas || [];
     } catch (error) {
         avisar(error);
     }
@@ -627,13 +629,24 @@ const cargarPlanes = async (finca, valor = '') => {
         return `<option value="${numero}" data-rango="${escaparHtml(rango)}">${numero} · ${escaparHtml(rango)}</option>`;
     }).join('');
 
-    if (valor && !filas.some((fila) => texto(fila.numero) === valor)) selector.add(new Option(valor, valor));
+    const vencida = Boolean(valor) && !filas.some((fila) => texto(fila.numero) === valor);
+
+    if (vencida && !estricto) selector.add(new Option(valor, valor));
 
     selector.disabled = selector.options.length <= 1;
-    selector.value = valor;
+    selector.value = vencida && estricto ? '' : valor;
     selector.dataset.previo = selector.value;
     mostrar($id('ayuda_sin_planes'), filas.length === 0);
     $('#referencia').trigger('change.select2');
+
+    if (vencida && estricto) {
+        errorCampo('error_referencia', true);
+        cargarLotes(finca, '');
+    }
+};
+
+const recargarPlanes = () => {
+    if (CFG.referencia && !EXT.activo?.() && $id('cap_finca').value) cargarPlanes($id('cap_finca').value, $id('referencia').value, true);
 };
 
 const confirmarCambio = async (id, titulo, accion) => {
@@ -703,7 +716,34 @@ const contarTerceros = () => {
     mostrar(chip, total > 0);
 };
 
-const errorCampo = (id, visible) => mostrar($id(id), visible);
+const CONTROLES = {
+    error_labor: 'cap_labor', error_um: 'cap_um', error_fecha_labor: 'cap_fecha', error_finca: 'cap_finca', error_referencia: 'referencia',
+    error_lote: 'cap_lote', error_terceros: 'cap_terceros', error_cantidad: 'cap_cantidad', error_jornales: 'cap_jornales'
+};
+
+const marcarControl = (id, invalido) => {
+    const control = $id(CONTROLES[id]);
+
+    if (control) (control.closest('.tx-select-ancho') || control).classList.toggle('is-invalid', invalido);
+
+    if (id === 'error_fecha_labor' && control?.disabled) {
+        $id('fecha').classList.toggle('is-invalid', invalido || ($id('fecha').value !== '' && periodoActual() !== null && !fechaEnPeriodo($id('fecha').value)));
+    }
+};
+
+const enfocarControl = (id) => {
+    const control = $id(CONTROLES[id]);
+
+    if (!control) return;
+
+    if (control.closest('.tx-select-ancho')) $(control).select2('open');
+    else (control.disabled && id === 'error_fecha_labor' ? $id('fecha') : control).focus();
+};
+
+const errorCampo = (id, visible) => {
+    mostrar($id(id), visible);
+    marcarControl(id, visible);
+};
 
 const cargarLineas = () => {
     const labor = $id('cap_labor');
@@ -736,8 +776,11 @@ const cargarLineas = () => {
 
     Object.entries(errores).forEach(([id, visible]) => errorCampo(id, visible));
 
-    if (Object.values(errores).some(Boolean)) {
+    const primero = Object.keys(errores).find((id) => errores[id]);
+
+    if (primero) {
         Toast.fire({ icon: 'warning', title: 'Revise los datos de la línea' });
+        enfocarControl(primero);
 
         return;
     }
@@ -772,6 +815,7 @@ const cargarLineas = () => {
     $id('cap_jornales').value = '0';
     pintarLineas();
     Toast.fire({ icon: 'success', title: `Línea cargada · ${terceros.length} ${terceros.length === 1 ? 'trabajador' : 'trabajadores'}` });
+    $('#cap_terceros').select2('open');
     precioLinea(linea);
 };
 
@@ -827,12 +871,13 @@ const exigirPeriodo = () => {
 };
 
 const liquidar = async () => {
-    if (estado.lineas.length === 0 || !exigirPeriodo()) return;
+    if (estado.liquidando || estado.lineas.length === 0 || !exigirPeriodo()) return;
 
     const boton = $id('btn_liquidar');
     const original = boton.innerHTML;
     const lineas = [...estado.lineas];
 
+    estado.liquidando = true;
     boton.disabled = true;
     boton.innerHTML = '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>Liquidando…';
 
@@ -852,6 +897,7 @@ const liquidar = async () => {
         Swal.fire({ icon: 'warning', title: 'No se pudo liquidar', html: escaparHtml(error.message), confirmButtonText: 'Entendido' });
     }
 
+    estado.liquidando = false;
     boton.innerHTML = original;
     pintarLineas();
 };
@@ -901,7 +947,7 @@ const modoEdicion = (numero) => {
 
     estado.edicion = numero;
     guardar.innerHTML = `<i class="bi bi-floppy me-1" aria-hidden="true"></i>${numero ? 'Guardar cambios' : 'Guardar'}`;
-    guardar.title = numero ? 'Guardar los cambios de la transacción' : 'Guardar la transacción';
+    guardar.title = numero ? 'Guardar los cambios de la transacción (Ctrl+S)' : 'Guardar la transacción (Ctrl+S)';
     cancelar.title = numero ? 'Cancelar la edición' : 'Cancelar la transacción';
     campoNumero.value = numero || 'Se asigna al guardar';
     campoNumero.classList.toggle('tx-neto', !numero);
@@ -949,10 +995,13 @@ const limpiarTodo = () => {
     reiniciarSelect('cap_lote', 'Seleccione una finca primero');
     $id('cap_finca').dataset.previo = '';
 
-    if (CFG.referencia) {
-        cargarPlanes('');
+    if ($id('cap_codigo')) {
         $id('cap_codigo').value = '';
         $id('cap_codigo').classList.remove('is-invalid');
+    }
+
+    if (CFG.referencia) {
+        cargarPlanes('');
         revisarPalmas();
     }
 
@@ -999,10 +1048,10 @@ const alertaBloqueo = (fila, accion) => {
     return false;
 };
 
-const cargarEdicion = async (numero) => {
+const cargarEdicion = async (numero, tipo = '') => {
     if (!PERMISOS.editar || !$id('zona_formulario')) return;
 
-    if (estado.edicion === numero) {
+    if (estado.edicion === numero && (!tipo || $id('tipo').value === tipo)) {
         bootstrap.Tab.getOrCreateInstance($id('tab_registro')).show();
 
         return;
@@ -1025,7 +1074,7 @@ const cargarEdicion = async (numero) => {
     let resultado;
 
     try {
-        resultado = await pedir('detalle', { empresa: empresaId(), numero });
+        resultado = await pedir('detalle', { empresa: empresaId(), numero, ...(CFG.referencia && tipo ? { tipo } : {}) });
     } catch (error) {
         Swal.fire({ icon: 'warning', title: error.status === 403 ? 'Acción no permitida' : 'No se puede editar la transacción', html: escaparHtml(error.message), confirmButtonText: 'Entendido' });
 
@@ -1127,6 +1176,26 @@ const guardar = async () => {
         Swal.fire({ icon: 'warning', title: 'La transacción no tiene líneas', html: 'Cargue al menos una línea de detalle antes de guardar.', confirmButtonText: 'Entendido' });
 
         return;
+    }
+
+    const sinPrecio = EXT.activo?.() ? 0 : pendientes();
+    const sinTarifas = EXT.activo?.() ? 0 : trabajadoresDe().filter(sinTarifa).length;
+
+    if (sinPrecio > 0 || sinTarifas > 0) {
+        const respuesta = await Swal.fire({
+            icon: 'warning',
+            title: 'Hay trabajadores sin precio',
+            html: [
+                sinPrecio > 0 ? `<b>${escaparHtml(fmt(sinPrecio))}</b> ${sinPrecio === 1 ? 'trabajador tiene' : 'trabajadores tienen'} el precio pendiente de liquidar.` : '',
+                sinTarifas > 0 ? `<b>${escaparHtml(fmt(sinTarifas))}</b> ${sinTarifas === 1 ? 'trabajador no tiene' : 'trabajadores no tienen'} tarifa para su labor y lote.` : ''
+            ].filter(Boolean).join('<br>') + '<br>¿Desea guardar de todos modos?',
+            showCancelButton: true,
+            confirmButtonText: 'Guardar de todos modos',
+            cancelButtonText: 'Revisar',
+            focusCancel: true
+        });
+
+        if (!respuesta.isConfirmed || estado.guardando) return;
     }
 
     const boton = $id('btn_guardar');
@@ -1274,6 +1343,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (inicio && fin && !fechaEnPeriodo($id('fecha').value)) {
             $id('fecha').value = inicio;
             sincronizarFechas();
+            recargarPlanes();
         }
 
         revisarPeriodo();
@@ -1285,6 +1355,11 @@ document.addEventListener('DOMContentLoaded', () => {
         revisarPeriodo();
         pintarLineas();
     }));
+    $id('fecha').addEventListener('change', () => {
+        if ($id('cap_fecha').disabled) errorCampo('error_fecha_labor', false);
+
+        recargarPlanes();
+    });
     $id('todas_fechas')?.addEventListener('change', sincronizarFechas);
     $id('observacion').addEventListener('input', contarObservacion);
 
@@ -1407,12 +1482,30 @@ document.addEventListener('DOMContentLoaded', () => {
             pintarLineas();
         }
     });
-    $id('lista_lineas').addEventListener('click', (evento) => {
+    $id('lista_lineas').addEventListener('click', async (evento) => {
         const linea = evento.target.closest('[data-quitar-linea]');
         const trabajador = evento.target.closest('[data-quitar-trabajador]');
 
         if (linea) {
-            estado.lineas = estado.lineas.filter((item) => item.id !== Number(linea.dataset.quitarLinea));
+            const id = Number(linea.dataset.quitarLinea);
+            const actual = estado.lineas.find((item) => item.id === id);
+
+            if (!actual) return;
+
+            const respuesta = await Swal.fire({
+                icon: 'warning',
+                title: `¿Eliminar la línea ${escaparHtml(String(estado.lineas.indexOf(actual) + 1))}?`,
+                html: `Se eliminarán también los ${escaparHtml(String(actual.trabajadores.length))} trabajadores registrados en ella.`,
+                showCancelButton: true,
+                confirmButtonText: 'Sí, eliminar',
+                confirmButtonColor: '#d6293e',
+                cancelButtonText: 'Cancelar',
+                focusCancel: true
+            });
+
+            if (!respuesta.isConfirmed) return;
+
+            estado.lineas = estado.lineas.filter((item) => item.id !== id);
             pintarLineas();
         }
 
@@ -1423,4 +1516,19 @@ document.addEventListener('DOMContentLoaded', () => {
         if (estado.edicion ? PERMISOS.editar : PERMISOS.registrar) guardar();
     });
     $id('btn_cancelar').addEventListener('click', cancelar);
+
+    document.addEventListener('keydown', (evento) => {
+        if (!(evento.ctrlKey || evento.metaKey) || evento.key.toLowerCase() !== 's') return;
+
+        evento.preventDefault();
+
+        if ($id('btn_guardar') && !$id('btn_guardar').disabled && $id('btn_guardar').offsetParent !== null && !document.querySelector('.modal.show') && !(Swal.isVisible() && !Swal.getPopup()?.classList.contains('swal2-toast'))) $id('btn_guardar').click();
+    });
+
+    window.addEventListener('beforeunload', (e) => {
+        if (!estado.guardando && !estado.saliendo && hayCambios()) {
+            e.preventDefault();
+            e.returnValue = '';
+        }
+    });
 });

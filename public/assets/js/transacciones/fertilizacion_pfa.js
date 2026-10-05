@@ -155,6 +155,7 @@ const cargarPfa = () => {
     $id('pfa_error_item').textContent = errorItem;
     mostrar($id('pfa_error_item'), errorItem !== '');
     mostrar($id('pfa_error_lote'), lote.value === '');
+    lote.closest('.tx-select-ancho').classList.toggle('is-invalid', lote.value === '');
     errorCampo('error_finca', $id('cap_finca').value === '');
     um.classList.toggle('is-invalid', um.value === '');
     $id('pfa_dosis').classList.toggle('is-invalid', !(dosis > 0));
@@ -166,7 +167,29 @@ const cargarPfa = () => {
         document.querySelector(`[data-lote-pfa="${CSS.escape(grupo.codigo)}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 
-    if (errorItem || lote.value === '' || um.value === '' || !(dosis > 0) || !(pBulto > 0)) return;
+    if ($id('cap_finca').value === '') {
+        $('#cap_finca').select2('open');
+
+        return;
+    }
+
+    if (lote.value === '') {
+        $('#pfa_lote').select2('open');
+
+        return;
+    }
+
+    if (errorItem) {
+        if (!duplicado) $('#pfa_item').select2('open');
+
+        return;
+    }
+
+    if (um.value === '' || !(dosis > 0) || !(pBulto > 0)) {
+        (um.value === '' ? um : $id(!(dosis > 0) ? 'pfa_dosis' : 'pfa_pbulto')).focus();
+
+        return;
+    }
 
     if (pfa.lotes.reduce((suma, actual) => suma + actual.items.length, 0) >= 2000) {
         Toast.fire({ icon: 'warning', title: 'El plan admite máximo 2000 insumos' });
@@ -289,7 +312,7 @@ Object.assign(EXT, {
         $id('pfa_dosis').value = '';
         $id('pfa_pbulto').value = '50';
         ['pfa_um', 'pfa_dosis', 'pfa_pbulto', 'pfa_fecha_final'].forEach((id) => $id(id).classList.remove('is-invalid'));
-        $id('pfa_item').closest('.tx-select-ancho').classList.remove('is-invalid');
+        ['pfa_item', 'pfa_lote'].forEach((id) => $id(id).closest('.tx-select-ancho').classList.remove('is-invalid'));
         ['pfa_error_item', 'pfa_error_lote'].forEach((id) => mostrar($id(id), false));
         reiniciarSelect('pfa_lote', 'Seleccione una finca primero');
         palmasPfa();
@@ -418,6 +441,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     $('#pfa_lote').on('change', () => {
         mostrar($id('pfa_error_lote'), false);
+        $id('pfa_lote').closest('.tx-select-ancho').classList.remove('is-invalid');
         palmasPfa();
     });
     $id('pfa_um').addEventListener('change', () => $id('pfa_um').classList.remove('is-invalid'));
@@ -434,11 +458,30 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
     $id('pfa_cargar').addEventListener('click', cargarPfa);
-    $id('pfa_lista').addEventListener('click', (evento) => {
+    $id('pfa_lista').addEventListener('click', async (evento) => {
         const lote = evento.target.closest('[data-quitar-lote]');
         const item = evento.target.closest('[data-quitar-item]');
 
-        if (lote) quitarLotePfa(lote.dataset.quitarLote);
+        if (lote) {
+            const actual = pfa.lotes.find((grupo) => grupo.codigo === lote.dataset.quitarLote);
+
+            if (actual && actual.items.length > 1) {
+                const respuesta = await Swal.fire({
+                    icon: 'warning',
+                    title: `¿Eliminar el lote ${escaparHtml(actual.codigo)}?`,
+                    html: `Se eliminarán también los ${escaparHtml(String(actual.items.length))} insumos registrados en él.`,
+                    showCancelButton: true,
+                    confirmButtonText: 'Sí, eliminar',
+                    confirmButtonColor: '#d6293e',
+                    cancelButtonText: 'Cancelar',
+                    focusCancel: true
+                });
+
+                if (!respuesta.isConfirmed) return;
+            }
+
+            quitarLotePfa(lote.dataset.quitarLote);
+        }
 
         if (item) {
             const grupo = pfa.lotes.find((actual) => actual.codigo === item.dataset.lote);

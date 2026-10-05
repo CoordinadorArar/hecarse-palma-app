@@ -43,7 +43,7 @@ class LotesController extends GestionPalmaController
         }
 
         $empresas   = $this->lotesModel->getEmpresas();
-        $empresaSel = $empresas ? (int) $empresas[0]['id'] : 0;
+        $empresaSel = $this->empresaSeleccionada($empresas);
 
         $filas = $empresaSel > 0 ? $this->lotesModel->listar($empresaSel) : [];
 
@@ -78,7 +78,7 @@ class LotesController extends GestionPalmaController
         }
 
         $empresas   = $this->pesosLoteModel->getEmpresas();
-        $empresaSel = $empresas ? (int) $empresas[0]['id'] : 0;
+        $empresaSel = $this->empresaSeleccionada($empresas);
 
         $anioSel = (int) date('Y');
         $mesSel  = (int) date('n');
@@ -206,8 +206,8 @@ class LotesController extends GestionPalmaController
             return $this->error($codigo[0]);
         }
 
-        if ($this->lotesModel->existe($empresa, $codigo, $finca)) {
-            return $this->error("Ya existe un lote con el código {$codigo} en la finca {$finca}.");
+        if (($fincaExistente = $this->lotesModel->fincaDelCodigo($empresa, $codigo)) !== null) {
+            return $this->error("Ya existe un lote con el código {$codigo} en la finca {$fincaExistente}.");
         }
 
         $datos = $this->datosLote($empresa, $finca);
@@ -642,7 +642,9 @@ class LotesController extends GestionPalmaController
             return $this->error($datos);
         }
 
-        $this->pesosLoteModel->crear($empresa, $anio, $mes, $finca, $lote, $datos, $this->session->get('usu_id'));
+        if (! $this->pesosLoteModel->crear($empresa, $anio, $mes, $finca, $lote, $datos, $this->session->get('usu_id'))) {
+            return $this->error('No se pudo crear el peso. La operación fue revertida.');
+        }
 
         return $this->respuestaTablaPesos($empresa, $anio, $mes, 'Peso creado correctamente.');
     }
@@ -673,7 +675,9 @@ class LotesController extends GestionPalmaController
             return $this->error($datos);
         }
 
-        $this->pesosLoteModel->actualizar($empresa, $anio, $mes, $finca, $lote, $datos, $this->session->get('usu_id'));
+        if (! $this->pesosLoteModel->actualizar($empresa, $anio, $mes, $finca, $lote, $datos, $this->session->get('usu_id'))) {
+            return $this->error('No se pudo actualizar el peso. La operación fue revertida.');
+        }
 
         return $this->respuestaTablaPesos($empresa, $anio, $mes, 'Peso actualizado correctamente.');
     }
@@ -698,7 +702,9 @@ class LotesController extends GestionPalmaController
 
         [$anio, $mes, $finca, $lote] = $clave;
 
-        $this->pesosLoteModel->eliminar($empresa, $anio, $mes, $finca, $lote, $this->session->get('usu_id'));
+        if (! $this->pesosLoteModel->eliminar($empresa, $anio, $mes, $finca, $lote, $this->session->get('usu_id'))) {
+            return $this->error('No se pudo eliminar el peso. La operación fue revertida.');
+        }
 
         return $this->respuestaTablaPesos($empresa, $anio, $mes, 'Peso eliminado correctamente.');
     }
@@ -798,7 +804,7 @@ class LotesController extends GestionPalmaController
             return 'La descripción es obligatoria.';
         }
 
-        if (strlen($descripcion) > 550) {
+        if (mb_strlen($descripcion) > 550) {
             return 'La descripción no puede superar los 550 caracteres.';
         }
 
@@ -862,6 +868,10 @@ class LotesController extends GestionPalmaController
             return $palmasProduccion;
         }
 
+        if ($palmasProduccion > $palmasBrutas) {
+            return 'Las palmas de producción no pueden superar las palmas brutas.';
+        }
+
         $noLineas = $this->enteroRequerido('NoLineas', 'El número de líneas');
 
         if (is_string($noLineas)) {
@@ -884,6 +894,10 @@ class LotesController extends GestionPalmaController
 
         if (is_string($hNetas)) {
             return $hNetas;
+        }
+
+        if ($this->campo('hBrutas') !== '' && $this->campo('hNetas') !== '' && $hNetas > $hBrutas) {
+            return 'Las hectáreas netas no pueden superar las hectáreas brutas.';
         }
 
         $dSiembra = $this->decimalOpcional('dSiembra', 'La distancia de siembra');
@@ -1046,7 +1060,7 @@ class LotesController extends GestionPalmaController
             return 0.0;
         }
 
-        if (preg_match('/^\d{1,3}([.,]\d{3})+$/', $texto)) {
+        if (substr_count($texto, '.') > 1 && ! str_contains($texto, ',')) {
             $texto = str_replace(['.', ','], '', $texto);
         } else {
             $decimal = strrpos($texto, ',') > strrpos($texto, '.') ? ',' : '.';
@@ -1389,7 +1403,7 @@ class LotesController extends GestionPalmaController
             return 'El peso del racimo es obligatorio.';
         }
 
-        if (preg_match('/^\d{1,3}([.,]\d{3})+$/', $texto)) {
+        if (substr_count($texto, '.') > 1 && ! str_contains($texto, ',')) {
             $texto = str_replace(['.', ','], '', $texto);
         } else {
             $decimal = strrpos($texto, ',') > strrpos($texto, '.') ? ',' : '.';
@@ -1416,6 +1430,14 @@ class LotesController extends GestionPalmaController
 
         $inicial = $inicial !== '' ? $inicial : null;
         $final   = $final !== '' ? $final : null;
+
+        foreach ([$inicial, $final] as $fecha) {
+            $dt = $fecha === null ? null : \DateTime::createFromFormat('!Y-m-d', $fecha);
+
+            if ($fecha !== null && ($dt === false || $dt->format('Y-m-d') !== $fecha)) {
+                return 'Las fechas deben tener el formato AAAA-MM-DD y ser válidas.';
+            }
+        }
 
         if ($inicial !== null && $final !== null && strtotime($final) < strtotime($inicial)) {
             return 'La fecha final no puede ser anterior a la fecha inicial.';

@@ -93,7 +93,7 @@ class ContabilidadController extends GestionPalmaController
             rsort($anios);
         }
 
-        $empresaSel = $empresas ? (int) $empresas[0]['id'] : 0;
+        $empresaSel = $this->empresaSeleccionada($empresas);
         $anioSel    = in_array($actual, $anios, true) ? $actual : (int) ($anios[0] ?? $actual);
 
         $filas = $empresaSel > 0 ? $this->periodosModel->listar($empresaSel, $anioSel) : [];
@@ -125,7 +125,7 @@ class ContabilidadController extends GestionPalmaController
         }
 
         $empresas   = $this->tercerosModel->getEmpresas();
-        $empresaSel = $empresas ? (int) $empresas[0]['id'] : 0;
+        $empresaSel = $this->empresaSeleccionada($empresas);
 
         $filas = $empresaSel > 0 ? $this->tercerosModel->listar($empresaSel, '', '', '1') : [];
 
@@ -267,8 +267,14 @@ class ContabilidadController extends GestionPalmaController
         $anio = (int) $this->request->getPost('anio');
         $mes  = (int) $this->request->getPost('mes');
 
-        if (! $this->periodosModel->existe($empresa, $anio, $mes)) {
+        $existente = $this->periodosModel->obtener($empresa, $anio, $mes);
+
+        if ($existente === null) {
             return $this->error('El periodo no existe.');
+        }
+
+        if ((int) $existente['cerrado'] === 1) {
+            return $this->error('Abra el periodo antes de modificarlo.');
         }
 
         $fechas = $this->fechasValidas();
@@ -308,6 +314,10 @@ class ContabilidadController extends GestionPalmaController
 
         if ($periodo === null) {
             return $this->error('El periodo no existe.');
+        }
+
+        if ((int) $periodo['cerrado'] === 1) {
+            return $this->error('Abra el periodo antes de modificarlo.');
         }
 
         if ($this->periodosModel->tieneMovimientos($empresa, $periodo['periodo'])) {
@@ -453,6 +463,12 @@ class ContabilidadController extends GestionPalmaController
 
         if ($anio === null) {
             return $this->error('Debe seleccionar un año válido.');
+        }
+
+        $cerrados = array_filter($this->periodosModel->listar($empresa, $anio), static fn ($p) => (int) $p['cerrado'] === 1);
+
+        if ($cerrados !== []) {
+            return $this->error('No se puede eliminar el año: tiene periodos cerrados. Abra los periodos antes de eliminarlos.');
         }
 
         $bloqueados = $this->periodosModel->periodosConMovimientos($empresa, $anio);
@@ -651,10 +667,10 @@ class ContabilidadController extends GestionPalmaController
             return $this->error('El tercero no existe.');
         }
 
-        if ($this->tercerosModel->tieneDependencias($empresa, $id, $tercero['codigo'])) {
+        if ($this->tercerosModel->tieneDependencias($empresa, $id, $tercero['nit'])) {
             return $this->response->setJSON([
                 'success'   => false,
-                'message'   => '«' . trim((string) $tercero['descripcion']) . '» está siendo utilizado en Nómina y no se puede eliminar.'
+                'message'   => '«' . trim((string) $tercero['descripcion']) . '» está siendo utilizado en Nómina o Agronomía y no se puede eliminar.'
                     . ' Si ya no lo utiliza, desmárquelo como Activo.',
                 'bloqueado' => true,
             ])->setStatusCode(422);
@@ -957,10 +973,16 @@ class ContabilidadController extends GestionPalmaController
             return 'Debe seleccionar un tipo de documento válido.';
         }
 
-        $nit = preg_replace('/\D/', '', $this->campo('nit'));
+        $nit = in_array($tipoDocumento, ['13', '31'], true)
+            ? preg_replace('/\D/', '', $this->campo('nit'))
+            : preg_replace('/[^A-Z0-9]/', '', mb_strtoupper($this->campo('nit')));
 
-        if ($nit === '' || strlen($nit) < 5) {
+        if ($nit === '' || mb_strlen($nit) < 5) {
             return 'El Nit ingresado no es válido.';
+        }
+
+        if ($tipoDocumento === '31' && mb_strlen($nit) > 15) {
+            return 'El NIT no puede superar 15 dígitos para calcular el DV.';
         }
 
         $apellido1   = $this->campo('apellido1');
@@ -984,7 +1006,7 @@ class ContabilidadController extends GestionPalmaController
             return 'La descripción es obligatoria.';
         }
 
-        if ($razonSocial === '') {
+        if ($razonSocial === '' || ($tipo === 1 && $completo !== '')) {
             $razonSocial = mb_substr($completo !== '' ? $completo : $descripcion, 0, self::LIMITES_TERCERO['razonSocial'][0]);
         }
 

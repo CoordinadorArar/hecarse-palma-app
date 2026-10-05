@@ -337,7 +337,7 @@
                                 <label class="form-label mb-1 small fw-semibold text-muted" for="empleado_salario">Salario</label>
                                 <div class="input-group">
                                     <span class="input-group-text bg-light"><i class="bi bi-cash-coin"></i></span>
-                                    <input type="number" class="form-control text-end font-monospace" id="empleado_salario" min="0" step="1000" value="0">
+                                    <input type="number" class="form-control text-end font-monospace" id="empleado_salario" min="0" step="1" value="0">
                                 </div>
                             </div>
 

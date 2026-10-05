@@ -103,18 +103,21 @@ class PreciosLaborModel extends Model
                     ISNULL(p.baseSueldo, 0) AS baseSueldo, 1 AS existe,
                     CASE WHEN n.codigo IS NULL THEN 1 ELSE 0 END AS huerfana
              FROM aNovedadLotePrecio p
-             LEFT JOIN aNovedad n ON n.empresa = p.empresa AND RTRIM(n.codigo) = RTRIM(p.novedad)
-             LEFT JOIN aGrupoNovedad g ON g.empresa = n.empresa AND RTRIM(g.codigo) = RTRIM(n.grupo)
+             OUTER APPLY (SELECT TOP 1 a.empresa, a.codigo, a.descripcion, a.grupo, a.uMedida FROM aNovedad a
+                          WHERE a.empresa = p.empresa AND RTRIM(a.codigo) = RTRIM(p.novedad) ORDER BY a.activo DESC) n
+             OUTER APPLY (SELECT TOP 1 gn.descripcion FROM aGrupoNovedad gn
+                          WHERE gn.empresa = n.empresa AND RTRIM(gn.codigo) = RTRIM(n.grupo)) g
              WHERE p.empresa = ? AND p.[año] = ?
              UNION ALL
-             SELECT RTRIM(n.codigo), NULL, n.descripcion,
-                    ISNULL(RTRIM(n.grupo), ''), ISNULL(g.descripcion, ''), ISNULL(RTRIM(n.uMedida), ''),
+             SELECT RTRIM(n.codigo), NULL, MIN(n.descripcion),
+                    ISNULL(MIN(RTRIM(n.grupo)), ''), ISNULL(MIN(g.descripcion), ''), ISNULL(MIN(RTRIM(n.uMedida)), ''),
                     0, 0, 0, 0, 0, 0, 0
              FROM aNovedad n
              LEFT JOIN aGrupoNovedad g ON g.empresa = n.empresa AND RTRIM(g.codigo) = RTRIM(n.grupo)
              WHERE n.empresa = ? AND n.activo = 1
                AND NOT EXISTS (SELECT 1 FROM aNovedadLotePrecio x
                                 WHERE x.empresa = n.empresa AND x.[año] = ? AND RTRIM(x.novedad) = RTRIM(n.codigo))
+             GROUP BY RTRIM(n.codigo)
              ORDER BY novedad ASC",
             [$empresa, $anio, $empresa, $anio]
         )->getResultArray();
@@ -173,7 +176,7 @@ class PreciosLaborModel extends Model
     public function totalLaboresActivas(int $empresa): int
     {
         $fila = $this->db->query(
-            'SELECT COUNT(*) AS total FROM aNovedad WHERE empresa = ? AND activo = 1',
+            'SELECT COUNT(DISTINCT RTRIM(codigo)) AS total FROM aNovedad WHERE empresa = ? AND activo = 1',
             [$empresa]
         )->getRowArray();
 
@@ -241,6 +244,14 @@ class PreciosLaborModel extends Model
                             $empresa, $anio,
                         ]
                     ) !== false;
+
+                    if ($ok) {
+                        $existentes[trim((string) $fila['novedad'])] = $this->db->query(
+                            'SELECT TOP 1 novedad, registro FROM aNovedadLotePrecio
+                             WHERE empresa = ? AND [año] = ? AND novedad = ? ORDER BY registro DESC',
+                            [$empresa, $anio, $fila['novedad']]
+                        )->getRowArray();
+                    }
 
                     $creados++;
                 }
@@ -333,9 +344,10 @@ class PreciosLaborModel extends Model
         try {
             $ok = $this->db->query(
                 'INSERT INTO aNovedadLotePrecio (' . self::COLUMNAS . ')
-                 SELECT n.empresa, ?, RTRIM(n.codigo), ROW_NUMBER() OVER (ORDER BY n.codigo ASC) - 1,
+                 SELECT n.empresa, ?, RTRIM(n.codigo), ROW_NUMBER() OVER (ORDER BY RTRIM(n.codigo) ASC) - 1,
                         0, 0, 0, 0, ?, ?, 1, 0
-                 FROM aNovedad n WHERE n.empresa = ? AND n.activo = 1',
+                 FROM aNovedad n WHERE n.empresa = ? AND n.activo = 1
+                 GROUP BY n.empresa, RTRIM(n.codigo)',
                 [$anio, date('Y-m-d H:i:s'), $usuario, $empresa]
             ) !== false;
 

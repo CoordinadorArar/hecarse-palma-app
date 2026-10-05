@@ -136,7 +136,11 @@ const enviar = async (accion, datos) => {
 
 // ── Filtros ───────────────────────────────────────────────────────────────────
 
-$id('filtro_empresa').addEventListener('change', listar);
+$id('filtro_empresa').addEventListener('change', (e) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('empresa', e.target.value);
+    window.location.assign(url);
+});
 $id('filtro_finca').addEventListener('change', listar);
 $id('filtro_estado').addEventListener('change', listar);
 $id('filtro_descuadre').addEventListener('change', listar);
@@ -146,8 +150,8 @@ $id('filtro_descuadre').addEventListener('change', listar);
 const repoblarSecciones = (finca, seleccion = '') => {
     const lista = SECCIONES_POR_FINCA[finca] || [];
     const select = $id('lote_seccion');
-    select.innerHTML = '<option value="">Seleccione&hellip;</option>' +
-        lista.map((s) => `<option value="${s.codigo}">${s.descripcion}</option>`).join('');
+    select.innerHTML = '<option value="">Seleccione&hellip;</option>';
+    lista.forEach((s) => select.add(new Option(s.descripcion, s.codigo)));
     select.value = lista.some((s) => s.codigo === seleccion) ? seleccion : '';
     $id('lote_seccion_vacio').classList.toggle('d-none', lista.length > 0);
 };
@@ -179,7 +183,7 @@ const mostrarIconoCalculado = (id) => {
 
 const ocultarIconoCalculado = (id) => $id(id).classList.add('d-none');
 
-$id('lote_dsiembra').addEventListener('blur', () => {
+$id('lote_dsiembra').addEventListener('change', () => {
     const d = parseFloat($id('lote_dsiembra').value);
     if (!d) return;
 
@@ -197,8 +201,10 @@ $id('lote_hnetas').addEventListener('input', () => ocultarIconoCalculado('lote_h
 
 // ── Canales de agua ───────────────────────────────────────────────────────────
 
+const escapar = (texto) => String(texto ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
 const opcionesTipoCanal = (seleccionado) => TIPOS_CANAL
-    .map((t) => `<option value="${t.codigo}" ${t.codigo === seleccionado ? 'selected' : ''}>${t.codigo} — ${t.descripcion}</option>`)
+    .map((t) => `<option value="${escapar(t.codigo)}" ${t.codigo === seleccionado ? 'selected' : ''}>${escapar(t.codigo)} — ${escapar(t.descripcion)}</option>`)
     .join('');
 
 const filaCanalVacia = () => '<tr id="lote_canal_vacio"><td colspan="3" class="text-muted small text-center py-2">Sin canales registrados.</td></tr>';
@@ -265,6 +271,20 @@ const mostrarAlertaDescuadre = (lote) => {
 
 const modalLote = () => bootstrap.Modal.getOrCreateInstance($id('modalLote'));
 
+const validarFormulario = (form) => {
+    if (form.checkValidity()) return true;
+    form.classList.add('was-validated');
+    const campo = form.querySelector('input:invalid, select:invalid, textarea:invalid');
+    if (campo && $(campo).hasClass('select2-hidden-accessible')) $(campo).select2('open');
+    else if (campo) campo.focus();
+    return false;
+};
+
+$id('modalLote').addEventListener('shown.bs.modal', () => {
+    if ($id('lote_modo').value === 'editar') $id('lote_numero').focus();
+    else $id($id('lote_finca').value === '' ? 'lote_finca' : 'lote_codigo').focus();
+});
+
 $('#lote_ccosto').select2({
     width: '100%',
     dropdownParent: $('#modalLote'),
@@ -277,7 +297,7 @@ $('#lote_ccosto').select2({
 });
 
 const bloquearLlave = (bloquear) => {
-    $id('lote_empresa').disabled = bloquear;
+    $id('lote_empresa').disabled = true;
     $id('lote_finca').disabled = bloquear;
     $id('lote_codigo').disabled = bloquear;
     $id('lote_aviso_llave').classList.toggle('d-none', !bloquear);
@@ -285,6 +305,7 @@ const bloquearLlave = (bloquear) => {
 
 const prepararFormulario = () => {
     $id('formulario_lote').reset();
+    $id('formulario_lote').classList.remove('was-validated');
     aplicarManejaSeccion();
     ocultarIconoCalculado('lote_densidad_calculo');
     ocultarIconoCalculado('lote_hnetas_calculo');
@@ -340,7 +361,13 @@ window.editarLote = async (empresa, codigo, finca) => {
         $id('lote_letra').value = lote.letra || '';
         $id('lote_descripcion').value = lote.descripcion || '';
         $id('lote_variedad').value = lote.variedad || '';
-        $('#lote_ccosto').val(lote.ccosto || '').trigger('change');
+        const ccosto = String(lote.ccosto ?? '').trim();
+        let opcionCcosto = Array.from($id('lote_ccosto').options).find((o) => o.value.trim() === ccosto);
+        if (ccosto && !opcionCcosto) {
+            opcionCcosto = new Option(ccosto, ccosto);
+            $id('lote_ccosto').add(opcionCcosto);
+        }
+        $('#lote_ccosto').val(ccosto && opcionCcosto ? opcionCcosto.value : '').trigger('change');
         repoblarSecciones(lote.finca, lote.seccion || '');
         $id('lote_maneja_seccion').checked = Number(lote.manejaSeccion) === 1;
         aplicarManejaSeccion();
@@ -371,6 +398,7 @@ $id('btn_administrar_lineas').addEventListener('click', () => {
 
 $id('formulario_lote').addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (!validarFormulario(e.target)) return;
 
     const btn = $id('btn_guardar_lote');
     const edicion = $id('lote_modo').value === 'editar';
@@ -485,7 +513,7 @@ const renderizarTablaLineas = () => {
 const filaLinea = (l) => `<tr data-linea="${l.linea}">
     <td class="text-end font-monospace">${l.linea}</td>
     <td class="text-end font-monospace">${formatoNumero(l.noPalma)}</td>
-    <td class="text-center">${l.palmaErradicada ? '<span class="gp-chip-rol activo">SÍ</span>' : '<span class="gp-chip-rol">NO</span>'}</td>
+    <td class="text-end font-monospace">${l.palmaErradicada === null || l.palmaErradicada === undefined || l.palmaErradicada === '' ? '<span class="text-muted">—</span>' : formatoNumero(l.palmaErradicada)}</td>
     <td class="text-center">
         <div class="btn-group btn-group-sm">
             <button type="button" class="btn btn-outline-secondary" title="Editar" data-accion="editar" data-linea="${l.linea}"><i class="bi bi-pencil"></i></button>
@@ -526,6 +554,8 @@ const prepararFormularioLinea = () => {
     $id('lineas_modo').value = 'crear';
     $id('btn_guardar_linea').innerHTML = '<i class="bi bi-plus-lg me-1"></i>Agregar';
     $id('btn_cancelar_linea').classList.add('d-none');
+    $id('lineas_linea').value = lineasActuales.reduce((max, l) => Math.max(max, Number(l.linea) || 0), 0) + 1;
+    $id('lineas_palmas').focus();
 };
 
 window.lineasLote = async (empresa, codigo, finca) => {
@@ -546,8 +576,8 @@ window.lineasLote = async (empresa, codigo, finca) => {
         }
 
         $id('lineas_lote_subtitulo').textContent = `${result.lote.codigo} — ${result.lote.descripcion}`;
-        prepararFormularioLinea();
         await listarLineas();
+        prepararFormularioLinea();
         modalLineas().show();
     } catch (error) {
         Toast.fire({ icon: 'error', title: 'Error de conexión.' });
@@ -555,7 +585,8 @@ window.lineasLote = async (empresa, codigo, finca) => {
 };
 
 $id('btn_cancelar_linea').addEventListener('click', prepararFormularioLinea);
-$id('btn_lineas_vacio_agregar').addEventListener('click', () => $id('lineas_linea').focus());
+$id('btn_lineas_vacio_agregar').addEventListener('click', prepararFormularioLinea);
+$id('modalLoteLineas').addEventListener('shown.bs.modal', () => $id('lineas_palmas').focus());
 
 $id('cuerpo_tabla_lineas').addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-accion]');
@@ -568,7 +599,7 @@ $id('cuerpo_tabla_lineas').addEventListener('click', (e) => {
         $id('lineas_modo').value = 'editar';
         $id('lineas_linea').value = datos.linea;
         $id('lineas_palmas').value = datos.noPalma;
-        $id('lineas_erradicada').checked = !!datos.palmaErradicada;
+        $id('lineas_erradicada').value = datos.palmaErradicada ?? '';
         $id('btn_guardar_linea').innerHTML = '<i class="bi bi-floppy me-1"></i>Guardar';
         $id('btn_cancelar_linea').classList.remove('d-none');
         $id('lineas_palmas').focus();
@@ -591,22 +622,28 @@ const eliminarLineaLote = async (linea) => {
 
     if (!confirmacion.isConfirmed) return;
 
-    const body = new FormData();
-    body.append('empresa', contextoLineas.empresa);
-    body.append('codigo', contextoLineas.codigo);
-    body.append('finca', contextoLineas.finca);
-    body.append('linea', linea);
+    try {
+        const body = new FormData();
+        body.append('empresa', contextoLineas.empresa);
+        body.append('codigo', contextoLineas.codigo);
+        body.append('finca', contextoLineas.finca);
+        body.append('linea', linea);
 
-    const response = await fetch(URL_LOTES + 'lineas/eliminar', { method: 'POST', body });
-    const result = await response.json();
+        const response = await fetch(URL_LOTES + 'lineas/eliminar', { method: 'POST', body });
+        const result = await response.json();
 
-    if (!response.ok || !result.success) {
-        avisar(response, result.message);
-        return;
+        if (!response.ok || !result.success) {
+            avisar(response, result.message);
+            return;
+        }
+
+        aplicarRespuestaLineas(result.lineas || []);
+        Toast.fire({ icon: 'success', title: result.message });
+        if ($id('lineas_modo').value === 'crear') prepararFormularioLinea();
+        listar();
+    } catch (error) {
+        Toast.fire({ icon: 'error', title: 'Error de conexión.' });
     }
-
-    aplicarRespuestaLineas(result.lineas || []);
-    Toast.fire({ icon: 'success', title: result.message });
 };
 
 $id('formulario_linea').addEventListener('submit', async (e) => {
@@ -622,7 +659,7 @@ $id('formulario_linea').addEventListener('submit', async (e) => {
     body.append('finca', contextoLineas.finca);
     body.append('linea', $id('lineas_linea').value);
     body.append('noPalma', $id('lineas_palmas').value);
-    body.append('palmaErradicada', $id('lineas_erradicada').checked ? 1 : 0);
+    body.append('palmaErradicada', $id('lineas_erradicada').value.trim());
 
     try {
         const response = await fetch(URL_LOTES + (edicion ? 'lineas/actualizar' : 'lineas/crear'), { method: 'POST', body });
@@ -634,6 +671,7 @@ $id('formulario_linea').addEventListener('submit', async (e) => {
             aplicarRespuestaLineas(result.lineas || []);
             Toast.fire({ icon: 'success', title: result.message });
             prepararFormularioLinea();
+            listar();
         }
     } catch (error) {
         Toast.fire({ icon: 'error', title: 'Error de conexión.' });

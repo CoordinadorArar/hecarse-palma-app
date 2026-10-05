@@ -54,7 +54,9 @@ const escapar = (texto) => String(texto ?? '').replace(/[&<>"']/g, (c) => ({ '&'
 const CAMPOS = ['precioDestajo', 'precioContratistas', 'precioOtros', 'porcentaje'];
 
 const aNumero = (texto) => {
-    const limpio = String(texto ?? '').replace(/\./g, '').replace(',', '.').replace(/[^\d.-]/g, '');
+    const crudo = String(texto ?? '');
+    const decimalPunto = /^\s*-?\d*\.\d*\s*$/.test(crudo) && !/^\s*-?[1-9]\d{0,2}\.\d{3}\s*$/.test(crudo);
+    const limpio = (decimalPunto ? crudo : crudo.replace(/\./g, '').replace(',', '.')).replace(/[^\d.-]/g, '');
     const numero = parseFloat(limpio);
     return isNaN(numero) ? 0 : numero;
 };
@@ -624,14 +626,18 @@ const resaltarFila = (clave) => {
 
 // ── Eventos de filtros ────────────────────────────────────────────────────────
 
-const confirmarCambioEmpresa = async () => {
+const confirmarCambioEmpresa = async (
+    titulo = '¿Cambiar de empresa?',
+    texto = 'Hay datos sin guardar en el formulario. Si cambia de empresa se perderán.',
+    boton = 'Cambiar de empresa'
+) => {
     if (!estado.sucio) return true;
     const respuesta = await Alerta.fire({
         icon: 'warning',
-        title: '¿Cambiar de empresa?',
-        text: 'Hay datos sin guardar en el formulario. Si cambia de empresa se perderán.',
+        title: titulo,
+        text: texto,
         showCancelButton: true,
-        confirmButtonText: 'Cambiar de empresa',
+        confirmButtonText: boton,
         confirmButtonColor: '#dc3545',
         cancelButtonText: 'Seguir aquí'
     });
@@ -887,17 +893,31 @@ $id('formulario_precio').addEventListener('submit', async (e) => {
     }
 
     Toast.fire({ icon: 'success', title: edicion ? 'Precio actualizado.' : mensajeExito(clave) });
+    if (!edicion) {
+        $('#form_labor').val('').trigger('change.select2');
+        ponerValores({ precioDestajo: 0, precioContratistas: 0, precioOtros: 0, porcentaje: 0, baseSueldo: 0 }, false);
+        $id('chip_copiado').classList.add('d-none');
+        cargarReferencia();
+        actualizarAmbito();
+    }
     estado.sucio = false;
-    if (!edicion) limpiarFormulario();
     await listar();
     resaltarFila(clave);
+    if (!edicion) $('#form_labor').select2('open');
 });
+
+const confirmarReemplazo = () => confirmarCambioEmpresa(
+    '¿Reemplazar el formulario?',
+    'Hay datos sin guardar en el formulario. Si continúa se perderán.',
+    'Sí, continuar'
+);
 
 // ── Acciones del listado ──────────────────────────────────────────────────────
 
 const obtener = async (clave) => await pedir('obtener', { empresa: empresa(), ...clave });
 
 const editar = async (clave) => {
+    if (!(await confirmarReemplazo())) return;
     const result = await obtener(clave);
     if (!result) return;
     limpiarErrores();
@@ -909,6 +929,7 @@ const editar = async (clave) => {
 };
 
 const duplicar = async (clave) => {
+    if (!(await confirmarReemplazo())) return;
     const result = await obtener(clave);
     if (!result) return;
     limpiarErrores();

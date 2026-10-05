@@ -17,6 +17,8 @@
         <p class="text-muted mb-0">Administración de la información maestra del cultivo: fincas, lotes, labores, precios y parámetros contables y de nómina.</p>
     </div>
 
+    <?php $rutas_en_construccion = ['gestion-palma/precios/reliquidar']; ?>
+
     <div class="alert alert-info d-flex align-items-center gap-2">
         <i class="bi bi-info-circle"></i>
         <span>Esta loseta se está habilitando por etapas. Los módulos marcados como <em>En construcción</em> aún no tienen pantalla funcional.</span>
@@ -35,6 +37,9 @@
                     $ruta = preg_replace('#/\d+$#', '', trim((string) $hijos[0]['Ruta'], '/'));
                 }
 
+                $rutas = array_filter(array_map(fn ($r) => preg_replace('#/\d+$#', '', trim((string) $r, '/')), array_merge([$item['Ruta']], array_column($hijos, 'Ruta'))));
+                $enConstruccion = $rutas === [] || array_diff($rutas, $rutas_en_construccion) === [];
+
                 $etiqueta = $ruta !== '' ? 'a' : 'div';
                 ?>
                 <div class="col-12 col-md-6 col-xl-4">
@@ -48,7 +53,9 @@
                                 <?php if (!empty($hijos)): ?>
                                     <small class="text-muted d-block mb-2"><?= esc(implode(' · ', array_column($hijos, 'Nombre'))) ?></small>
                                 <?php endif; ?>
-                                <span class="badge rounded-pill bg-warning-subtle text-warning-emphasis">En construcción</span>
+                                <?php if ($enConstruccion): ?>
+                                    <span class="badge rounded-pill bg-warning-subtle text-warning-emphasis">En construcción</span>
+                                <?php endif; ?>
                             </div>
                         </div>
                     </<?= $etiqueta ?>>

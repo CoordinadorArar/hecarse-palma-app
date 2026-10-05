@@ -125,6 +125,10 @@ class PlanFertilizacionModel extends FertilizacionTransaccionModel
         try {
             $numero = $this->consecutivo($empresa);
 
+            for ($intento = 1; $numero !== null && $intento < 20 && $this->numeroUsado($empresa, $numero); $intento++) {
+                $numero = $this->consecutivo($empresa);
+            }
+
             if ($numero === null) {
                 $this->db->transRollback();
 

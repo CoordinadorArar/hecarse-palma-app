@@ -59,7 +59,7 @@ foreach ($lotes as $l) {
                     <div class="col-md-2">
                         <label class="form-label mb-1 small fw-semibold text-muted" for="filtro_anio">Año</label>
                         <select class="form-select" id="filtro_anio">
-                            <option value="">Todos</option>
+                            <option value="" hidden disabled>Todos</option>
                             <?php foreach ($anios as $anio): ?>
                                 <option value="<?= esc($anio['anio'], 'attr') ?>" <?= (int) $anio['anio'] === (int) $anio_sel ? 'selected' : '' ?>>
                                     <?= esc($anio['anio']) ?>
@@ -71,7 +71,7 @@ foreach ($lotes as $l) {
                     <div class="col-md-2">
                         <label class="form-label mb-1 small fw-semibold text-muted" for="filtro_mes">Mes</label>
                         <select class="form-select" id="filtro_mes">
-                            <option value="">Todos</option>
+                            <option value="" hidden disabled>Todos</option>
                             <?php foreach ($meses as $numero => $nombre): ?>
                                 <option value="<?= $numero ?>" <?= $numero === (int) $mes_sel ? 'selected' : '' ?>><?= $nombre ?></option>
                             <?php endforeach; ?>

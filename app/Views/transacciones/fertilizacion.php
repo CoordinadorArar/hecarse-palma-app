@@ -233,7 +233,14 @@ $etiqueta    = static fn ($valor) => ucfirst(mb_strtolower(trim(preg_replace('/\
 
                         <div class="gp-panel-opcion mb-3">
                             <div class="row g-2 align-items-end">
-                                <div class="col-12 col-md-8 col-lg-5">
+                                <div class="col-12 col-md-6 col-lg-5">
+                                    <label class="form-label mb-1 small fw-semibold text-muted" for="pfa_lote">Lote <span class="text-danger">*</span></label>
+                                    <div class="tx-select-ancho">
+                                        <select class="form-select" id="pfa_lote" disabled><option value="">Seleccione una finca primero</option></select>
+                                    </div>
+                                    <div class="invalid-feedback d-block d-none" id="pfa_error_lote">Seleccione el lote.</div>
+                                </div>
+                                <div class="col-12 col-md-6 col-lg-5">
                                     <label class="form-label mb-1 small fw-semibold text-muted" for="pfa_item">Item <span class="text-danger">*</span></label>
                                     <div class="tx-select-ancho">
                                         <select class="form-select" id="pfa_item"><option value=""></option></select>
@@ -244,13 +251,6 @@ $etiqueta    = static fn ($valor) => ucfirst(mb_strtolower(trim(preg_replace('/\
                                     <label class="form-label mb-1 small fw-semibold text-muted" for="pfa_um">U.M. <span class="text-danger">*</span></label>
                                     <select class="form-select" id="pfa_um"></select>
                                     <div class="invalid-feedback">Seleccione la unidad.</div>
-                                </div>
-                                <div class="col-6 col-md-12 col-lg-5">
-                                    <label class="form-label mb-1 small fw-semibold text-muted" for="pfa_lote">Lote <span class="text-danger">*</span></label>
-                                    <div class="tx-select-ancho">
-                                        <select class="form-select" id="pfa_lote" disabled><option value="">Seleccione una finca primero</option></select>
-                                    </div>
-                                    <div class="invalid-feedback d-block d-none" id="pfa_error_lote">Seleccione el lote.</div>
                                 </div>
                                 <div class="col-6 col-md-3 col-lg-2">
                                     <label class="form-label mb-1 small fw-semibold text-muted" for="pfa_dosis">Dosis <span class="text-danger">*</span></label>
@@ -303,7 +303,7 @@ $etiqueta    = static fn ($valor) => ucfirst(mb_strtolower(trim(preg_replace('/\
                                 <i class="bi bi-grid-3x3-gap" aria-hidden="true"></i>
                             </div>
                             <h6 class="mb-1">Todavía no hay lotes</h6>
-                            <p class="text-muted mb-0">Seleccione insumo, lote y dosis y pulse Cargar.</p>
+                            <p class="text-muted mb-0">Seleccione lote, insumo y dosis y pulse Cargar.</p>
                         </div>
                     </div>
 
@@ -481,7 +481,7 @@ $etiqueta    = static fn ($valor) => ucfirst(mb_strtolower(trim(preg_replace('/\
                 <button type="button" class="btn btn-outline-secondary" id="btn_cancelar" title="Cancelar la transacción">
                     <i class="bi bi-x-circle me-1" aria-hidden="true"></i>Cancelar
                 </button>
-                <button type="button" class="btn btn-primary" id="btn_guardar" title="Guardar la transacción" disabled>
+                <button type="button" class="btn btn-primary" id="btn_guardar" title="Guardar la transacción (Ctrl+S)" disabled>
                     <i class="bi bi-floppy me-1" aria-hidden="true"></i>Guardar
                 </button>
             </div>

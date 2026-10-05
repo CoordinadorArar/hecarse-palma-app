@@ -130,7 +130,11 @@ const listar = async () => {
 // ── Filtros ───────────────────────────────────────────────────────────────────
 
 $id('btn_buscar').addEventListener('click', listar);
-$id('filtro_empresa').addEventListener('change', listar);
+$id('filtro_empresa').addEventListener('change', (e) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('empresa', e.target.value);
+    window.location.assign(url);
+});
 $id('filtro_estado').addEventListener('change', listar);
 $id('filtro_vinculo').addEventListener('change', listar);
 $id('btn_limpiar_busqueda').addEventListener('click', () => {
@@ -160,7 +164,7 @@ $('#empleado_tercero').select2({
     templateResult: (opcion) => {
         if (!opcion.id) return opcion.text;
         const nit = $(opcion.element).data('nit') || '';
-        return $(`<span>${opcion.text}<span class="gp-subtexto font-monospace">${nit}</span></span>`);
+        return $('<span>').text(opcion.text).append($('<span class="gp-subtexto font-monospace">').text(nit));
     }
 });
 
@@ -272,7 +276,7 @@ const bloquearLlave = (bloquear) => {
         $id('empleado_crea_tercero').checked = false;
         aplicarOpcionTercero();
     }
-    $id('empleado_empresa').disabled = bloquear;
+    $id('empleado_empresa').disabled = true;
     $('#empleado_tercero').prop('disabled', bloquear).trigger('change.select2');
     $id('empleado_panel_opcion').classList.toggle('d-none', bloquear);
     $id('empleado_aviso_llave').classList.toggle('d-none', !bloquear);
@@ -327,7 +331,8 @@ const abrirNuevo = () => {
     $id('empleado_identificacion').value = '';
     $id('empleado_descripcion').value = '';
     $id('empleado_salario').value = 0;
-    $id('empleado_fecha_ingreso').value = new Date().toISOString().slice(0, 10);
+    const hoy = new Date();
+    $id('empleado_fecha_ingreso').value = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
     $id('empleado_activo').checked = true;
     delete $id('empleado_nt_descripcion').dataset.tocado;
     repoblarCatalogos($id('empleado_empresa').value);

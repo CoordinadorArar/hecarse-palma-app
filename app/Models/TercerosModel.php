@@ -356,19 +356,22 @@ class TercerosModel extends Model
     /**
      * Indica si el tercero está referenciado desde los módulos de nómina.
      */
-    public function tieneDependencias(int $empresa, int $id, ?string $codigo): bool
+    public function tieneDependencias(int $empresa, int $id, ?string $nit): bool
     {
-        $codigo = trim((string) $codigo);
+        $nit = trim((string) $nit);
 
-        if ($codigo !== '') {
-            $fila = $this->db->query(
-                'SELECT TOP 1 1 AS existe FROM nFuncionario WHERE proveedor = ?',
-                [$codigo]
-            )->getRowArray();
+        $fila = $this->db->query(
+            'SELECT TOP 1 1 AS existe WHERE
+                EXISTS (SELECT 1 FROM nFuncionario WHERE empresa = ? AND tercero = ?)
+             OR EXISTS (SELECT 1 FROM nFuncionario WHERE empresa = ? AND LTRIM(RTRIM(proveedor)) IN (?, ?))
+             OR EXISTS (SELECT 1 FROM aFinca WHERE empresa = ? AND proveedor = ?)
+             OR EXISTS (SELECT 1 FROM aTransaccionTercero WHERE empresa = ? AND LTRIM(RTRIM(tercero)) = ?)
+             OR EXISTS (SELECT 1 FROM nContratos WHERE empresa = ? AND tercero = ?)',
+            [$empresa, $id, $empresa, $nit !== '' ? $nit : (string) $id, (string) $id, $empresa, $id, $empresa, $nit !== '' ? $nit : null, $empresa, $id]
+        )->getRowArray();
 
-            if ($fila !== null) {
-                return true;
-            }
+        if ($fila !== null) {
+            return true;
         }
 
         foreach (self::DEPENDENCIAS as $tabla => $columna) {

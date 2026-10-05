@@ -350,11 +350,20 @@ class FertilizacionController extends LaboresController
                 return $this->error('La dosis y el peso del bulto del insumo ' . $orden . ' deben ser números mayores que cero con máximo 2 decimales.');
             }
 
+            if (isset($items[$valor['lote'] . '|' . $valor['item']])) {
+                return $this->error('El ítem ' . $valor['item'] . ' está repetido para el lote ' . $valor['lote'] . ' (insumo ' . $orden . ').');
+            }
+
             $palmas[$valor['lote']] ??= $this->plan()->palmasLote($empresa, $finca, $valor['lote']);
             $noPalmas = $previas[$valor['lote'] . '|' . $valor['item']] ?? $palmas[$valor['lote']];
+
+            if ($noPalmas <= 0) {
+                return $this->error('El lote ' . $valor['lote'] . ' no tiene palmas en producción.');
+            }
+
             $cantidad = round($noPalmas * $dosis, 2);
 
-            $items[] = $valor + [
+            $items[$valor['lote'] . '|' . $valor['item']] = $valor + [
                 'dosis'    => $dosis,
                 'pBulto'   => $pBulto,
                 'noPalmas' => $noPalmas,
@@ -372,7 +381,7 @@ class FertilizacionController extends LaboresController
             'finca'       => $finca,
             'observacion' => $observacion,
             'usuario'     => $this->usuarioRegistro(),
-            'items'       => $items,
+            'items'       => array_values($items),
         ];
     }
 
@@ -394,7 +403,13 @@ class FertilizacionController extends LaboresController
             return $this->error('El campo "Finca" es obligatorio.');
         }
 
-        return $this->listado(fn () => $this->laboresModel->planes($empresa, $finca), 'planes');
+        $fecha = trim($this->campo('fecha'));
+
+        if ($fecha !== '' && $this->fechaValida($fecha) === null) {
+            return $this->error('El campo "Fecha" debe tener el formato AAAA-MM-DD.');
+        }
+
+        return $this->listado(fn () => $this->laboresModel->planes($empresa, $finca, $fecha), 'planes');
     }
 
     public function lotes(): ResponseInterface
@@ -439,7 +454,7 @@ class FertilizacionController extends LaboresController
             return 'El campo "Referencia" es obligatorio y admite máximo 50 caracteres.';
         }
 
-        if (! $this->laboresModel->planValido($empresa, $referencia, $finca)) {
+        if (! $this->laboresModel->planValido($empresa, $referencia, $finca, (string) $this->fechaValida($this->campo('fecha')))) {
             return 'La referencia ' . $referencia . ' no es un plan ' . FertilizacionTransaccionModel::PLAN . ' vigente de la finca ' . $finca . '.';
         }
 
@@ -457,6 +472,10 @@ class FertilizacionController extends LaboresController
 
         if (! is_array($recibidos)) {
             return 'No se pudieron leer los insumos de la línea ' . $orden . '.';
+        }
+
+        if ($recibidos === []) {
+            return 'La línea ' . $orden . ' debe tener al menos un insumo.';
         }
 
         if (count($recibidos) > self::MAX_INSUMOS) {

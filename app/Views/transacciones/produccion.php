@@ -223,6 +223,7 @@ $anchoAcciones = [1 => 64, 2 => 98, 3 => 132][1 + (int) $pEditar + (int) $pElimi
                                 <div class="col-md-2">
                                     <label class="form-label mb-1 small fw-semibold text-muted text-end d-block" for="pesoBruto">Peso bruto (kg)</label>
                                     <input type="text" class="form-control font-monospace text-end" id="pesoBruto" inputmode="numeric" maxlength="14" autocomplete="off" disabled onkeypress="soloNumeros(event)">
+                                    <div class="invalid-feedback d-block d-none" id="error_bruto">Indique el peso bruto (mayor que cero).</div>
                                 </div>
 
                                 <div class="col-md-2" id="col_tara">
@@ -234,6 +235,7 @@ $anchoAcciones = [1 => 64, 2 => 98, 3 => 132][1 + (int) $pEditar + (int) $pElimi
                                 <div class="col-md-2">
                                     <label class="form-label mb-1 small fw-semibold text-muted text-end d-block" for="pesoNeto">Peso neto (kg)</label>
                                     <input type="text" class="form-control font-monospace text-end tx-neto" id="pesoNeto" readonly>
+                                    <div class="invalid-feedback d-block d-none" id="error_neto">El peso neto debe ser mayor que cero.</div>
                                     <div class="form-text">Se calcula como bruto menos tara.</div>
                                 </div>
 
@@ -306,7 +308,7 @@ $anchoAcciones = [1 => 64, 2 => 98, 3 => 132][1 + (int) $pEditar + (int) $pElimi
                         <div class="row g-2 align-items-end">
 
                             <div class="col-md-3">
-                                <label class="form-label mb-1 small fw-semibold text-muted" for="cap_finca">Finca</label>
+                                <label class="form-label mb-1 small fw-semibold text-muted" for="cap_finca">Finca <span class="text-danger">*</span></label>
                                 <div class="tx-select-ancho">
                                     <select class="form-select" id="cap_finca">
                                         <option value="">Seleccione una opción&hellip;</option>
@@ -319,7 +321,7 @@ $anchoAcciones = [1 => 64, 2 => 98, 3 => 132][1 + (int) $pEditar + (int) $pElimi
                             </div>
 
                             <div class="col-md-3">
-                                <label class="form-label mb-1 small fw-semibold text-muted" for="cap_lote">Lote</label>
+                                <label class="form-label mb-1 small fw-semibold text-muted" for="cap_lote">Lote <span class="text-danger">*</span></label>
                                 <div class="tx-select-ancho">
                                     <select class="form-select" id="cap_lote" disabled>
                                         <option value="">Seleccione una finca primero</option>
@@ -329,7 +331,7 @@ $anchoAcciones = [1 => 64, 2 => 98, 3 => 132][1 + (int) $pEditar + (int) $pElimi
                             </div>
 
                             <div class="col-md-2">
-                                <label class="form-label mb-1 small fw-semibold text-muted" for="cap_racimos">Racimos</label>
+                                <label class="form-label mb-1 small fw-semibold text-muted" for="cap_racimos">Racimos <span class="text-danger">*</span></label>
                                 <input type="text" class="form-control font-monospace text-end" id="cap_racimos" inputmode="numeric" maxlength="8" autocomplete="off" onkeypress="soloNumeros(event)">
                                 <div class="invalid-feedback d-block d-none" id="error_racimos">Indique los racimos de la línea (mayor que cero).</div>
                             </div>
@@ -414,7 +416,7 @@ $anchoAcciones = [1 => 64, 2 => 98, 3 => 132][1 + (int) $pEditar + (int) $pElimi
                 <button type="button" class="btn btn-outline-secondary" id="btn_cancelar" title="Cancelar la transacción">
                     <i class="bi bi-x-circle me-1" aria-hidden="true"></i>Cancelar
                 </button>
-                <button type="button" class="btn btn-primary" id="btn_guardar" title="Guardar la transacción">
+                <button type="button" class="btn btn-primary" id="btn_guardar" title="Guardar la transacción (Ctrl+S)">
                     <i class="bi bi-floppy me-1" aria-hidden="true"></i>Guardar
                 </button>
             </div>

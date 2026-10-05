@@ -69,7 +69,7 @@ class LaboresController extends GestionPalmaController
         }
 
         $empresas   = $this->gruposLaborModel->getEmpresas();
-        $empresaSel = $empresas ? (int) $empresas[0]['id'] : 0;
+        $empresaSel = $this->empresaSeleccionada($empresas);
 
         $filas = $empresaSel > 0 ? $this->gruposLaborModel->listar($empresaSel) : [];
 
@@ -99,7 +99,7 @@ class LaboresController extends GestionPalmaController
         }
 
         $empresas   = $this->laboresModel->getEmpresas();
-        $empresaSel = $empresas ? (int) $empresas[0]['id'] : 0;
+        $empresaSel = $this->empresaSeleccionada($empresas);
 
         $filas = $empresaSel > 0 ? $this->laboresModel->listar($empresaSel) : [];
 
@@ -135,7 +135,7 @@ class LaboresController extends GestionPalmaController
         }
 
         $empresas   = $this->itemsModel->getEmpresas();
-        $empresaSel = $empresas ? (int) $empresas[0]['id'] : 0;
+        $empresaSel = $this->empresaSeleccionada($empresas);
 
         $filas = $empresaSel > 0 ? $this->itemsModel->listar($empresaSel) : [];
 
@@ -810,14 +810,14 @@ class LaboresController extends GestionPalmaController
             return 'La descripción es obligatoria.';
         }
 
-        if (strlen($descripcion) > 50) {
+        if (mb_strlen($descripcion) > 50) {
             return 'La descripción no puede superar los 50 caracteres.';
         }
 
         $ccosto = $this->campo('ccosto');
 
         if ($ccosto !== '') {
-            if (strlen($ccosto) > 50) {
+            if (mb_strlen($ccosto) > 50) {
                 return 'El centro de costo no puede superar los 50 caracteres.';
             }
 
@@ -834,7 +834,7 @@ class LaboresController extends GestionPalmaController
                 return 'El centro de costo Siigo es obligatorio cuando se maneja centro de costo Siigo.';
             }
 
-            if (strlen($ccostoSiigo) > 50) {
+            if (mb_strlen($ccostoSiigo) > 50) {
                 return 'El centro de costo Siigo no puede superar los 50 caracteres.';
             }
 
@@ -997,7 +997,7 @@ class LaboresController extends GestionPalmaController
             return 'La descripción es obligatoria.';
         }
 
-        if (strlen($descripcion) > 200) {
+        if (mb_strlen($descripcion) > 200) {
             return 'La descripción no puede superar los 200 caracteres.';
         }
 
@@ -1007,7 +1007,7 @@ class LaboresController extends GestionPalmaController
             return 'La descripción corta es obligatoria.';
         }
 
-        if (strlen($desCorta) > 50) {
+        if (mb_strlen($desCorta) > 50) {
             return 'La descripción corta no puede superar los 50 caracteres.';
         }
 
@@ -1034,7 +1034,7 @@ class LaboresController extends GestionPalmaController
         $equivalencia = $this->campo('equivalencia');
 
         if ($equivalencia !== '') {
-            if (strlen($equivalencia) > 50) {
+            if (mb_strlen($equivalencia) > 50) {
                 return 'La equivalencia no puede superar los 50 caracteres.';
             }
 
@@ -1063,7 +1063,7 @@ class LaboresController extends GestionPalmaController
 
         $claseLabor = $esCreacion
             ? $this->opcionValida('claseLabor', self::CLASES_LABOR, 'La clase de labor')
-            : $this->enteroRequerido('claseLabor', 'La clase de labor');
+            : ($this->campo('claseLabor') === '' ? null : $this->enteroRequerido('claseLabor', 'La clase de labor'));
 
         if (is_string($claseLabor)) {
             return $claseLabor;
@@ -1107,7 +1107,7 @@ class LaboresController extends GestionPalmaController
                 return 'El grupo de impuesto es obligatorio cuando la labor maneja impuesto.';
             }
 
-            if (strlen($grupoIR) > 5) {
+            if (mb_strlen($grupoIR) > 5) {
                 return 'El grupo de impuesto no puede superar los 5 caracteres.';
             }
         }
@@ -1439,7 +1439,7 @@ class LaboresController extends GestionPalmaController
             return 'La descripción es obligatoria.';
         }
 
-        if (strlen($descripcion) > 950) {
+        if (mb_strlen($descripcion) > 950) {
             return 'La descripción no puede superar los 950 caracteres.';
         }
 
@@ -1449,13 +1449,13 @@ class LaboresController extends GestionPalmaController
             return 'La descripción abreviada es obligatoria.';
         }
 
-        if (strlen($descripcionAbreviada) > 50) {
+        if (mb_strlen($descripcionAbreviada) > 50) {
             return 'La descripción abreviada no puede superar los 50 caracteres.';
         }
 
         $referencia = $this->campo('referencia');
 
-        if (strlen($referencia) > 250) {
+        if (mb_strlen($referencia) > 250) {
             return 'La referencia no puede superar los 250 caracteres.';
         }
 
@@ -1471,7 +1471,7 @@ class LaboresController extends GestionPalmaController
 
         $notas = $this->campo('notas');
 
-        if (strlen($notas) > 1550) {
+        if (mb_strlen($notas) > 1550) {
             return 'Las notas no pueden superar los 1550 caracteres.';
         }
 

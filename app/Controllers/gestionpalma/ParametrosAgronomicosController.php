@@ -37,7 +37,7 @@ class ParametrosAgronomicosController extends GestionPalmaController
         }
 
         $empresas   = $this->variedadesModel->getEmpresas();
-        $empresaSel = $empresas ? (int) $empresas[0]['id'] : 0;
+        $empresaSel = $this->empresaSeleccionada($empresas);
 
         $filas = $empresaSel > 0 ? $this->variedadesModel->listar($empresaSel) : [];
 
@@ -66,7 +66,7 @@ class ParametrosAgronomicosController extends GestionPalmaController
         }
 
         $empresas   = $this->unidadesMedidaModel->getEmpresas();
-        $empresaSel = $empresas ? (int) $empresas[0]['id'] : 0;
+        $empresaSel = $this->empresaSeleccionada($empresas);
 
         $filas = $empresaSel > 0 ? $this->unidadesMedidaModel->listar($empresaSel) : [];
 

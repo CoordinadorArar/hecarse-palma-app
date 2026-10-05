@@ -45,6 +45,7 @@ class LaboresModel extends Model
         'aTransaccionItem',
         'tmpLiquidacionPepa',
         'aNovedadLotePrecio',
+        'aNovedadPrecio',
     ];
 
     /**

@@ -116,7 +116,11 @@ const listar = async () => {
 
 // ── Filtros ───────────────────────────────────────────────────────────────────
 
-$id('filtro_empresa').addEventListener('change', listar);
+$id('filtro_empresa').addEventListener('change', (e) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('empresa', e.target.value);
+    window.location.assign(url);
+});
 $id('filtro_estado').addEventListener('change', listar);
 
 // ── Modal ─────────────────────────────────────────────────────────────────────
@@ -124,7 +128,7 @@ $id('filtro_estado').addEventListener('change', listar);
 const modalItem = () => bootstrap.Modal.getOrCreateInstance($id('modalItem'));
 
 const bloquearLlave = (bloquear) => {
-    $id('item_empresa').disabled = bloquear;
+    $id('item_empresa').disabled = true;
     $id('item_codigo').disabled = bloquear;
     $id('item_aviso_llave').classList.toggle('d-none', !bloquear);
 };

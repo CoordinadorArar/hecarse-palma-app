@@ -1,6 +1,6 @@
 # Indicadores Año
 
-**Módulo:** Indicadores · **Clave:** `indicadores-anio` · **Estado:** Planificado
+**Módulo:** Indicadores · **Clave:** `indicadores-anio` · **Estado:** Implementado
 
 ## Propósito
 Compara, lote por lote, la producción del mes elegido y lo acumulado en el año contra el mismo periodo del año anterior: racimos, kilos, peso promedio del racimo, toneladas por hectárea y proyección anual. Está pensado para la gerencia agronómica y los jefes de finca.
@@ -53,8 +53,12 @@ Totales de pie: suma de racimos, kilos y ha. Los valores de ton/ha y peso promed
 - Eje Y: lote (top N por kilos del año actual, de mayor a menor). Eje X: ton/ha. Dos series: año anterior y año actual.
 - Por qué: se comparan dos años entre muchas categorías (lotes), y como son más de 8 las barras van en horizontal.
 
-## Supuestos a validar
-- Los kilos que se cuentan son los de `aTransaccionTercero.cantidad`, no el peso neto de báscula (`aTransaccionBascula`). Hay que confirmar si los kilos oficiales deben salir de báscula.
-- Para el peso promedio el legado usa `AVG(pesoRacimo)` por mes y no kilos/racimos. Hay que definir cuál se muestra.
-- El legado filtra por `a.año` y `a.mes` (el periodo contable de la transacción), no por la fecha de la labor. Así se mantiene.
-- El join de kilos del legado usa `registroNovedad = e.registro`. Hay que confirmar que coincide con la convención actual.
+## Supuestos resueltos
+- Kilos = `SUM(aTransaccionTercero.cantidad)` de las labores de cosecha (`aNovedad.claseLabor = 2`) con unidad `KG`, unidas por `registroNovedad = aTransaccionNovedad.registro`; no se usa báscula. Racimos = `aTransaccionNovedad.racimos` una vez por línea. Las líneas con `signo = 2` restan.
+- Peso promedio = kilos / racimos (no `AVG(aLotePesosPeriodo.pesoRacimo)`). Los lotes con kilos sin racimos no entran en el peso y se avisa.
+- El mes y el año se toman de la fecha de cosecha (`aTransaccionTercero.fechaNovedad`, o la de la línea si falta) y no de `aTransaccion.año`/`mes`. Así el informe cuadra con `produccion-lote-fecha` y `produccion-lote-anual` (2025 acumulado a diciembre: 7.975.460 kg en los tres).
+- Periodo Mes = solo el mes elegido; Acumulado = enero hasta el mes elegido. El año anterior se compara en el mismo periodo.
+- Lotes: se incluyen los que tienen cosecha en el periodo en cualquiera de los dos años (no se filtra `aLotes.activo`).
+- Proyección t/ha (solo Acumulado) = (t/ha acumulado / meses) × 12. Si el año es el actual y el mes elegido es posterior al último mes con cosecha, se divide por el último mes con cosecha (igual que Producción lote anual) y se avisa. En Mes la columna no se envía.
+- Ton/ha, peso promedio, variación y proyección de subtotales y totales son ponderados (cocientes de sumas). Igual que en Producción lote anual, el t/ha y la proyección de cada año dividen solo entre las Ha netas de los lotes con producción en ese periodo y año (2026 a agosto: 12,24 t/ha y proyección 18,36 en ambos informes). Un lote con Ha netas y sin cosecha en un año muestra 0 t/ha en ese año. Lotes sin Ha netas no entran en t/ha ni en la proyección y se avisa.
+- Se excluyen las anuladas y, si existe, `aTransaccionEliminada`.

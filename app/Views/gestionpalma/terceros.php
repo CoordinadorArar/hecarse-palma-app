@@ -143,8 +143,8 @@
     </section>
 
     <!-- Modal Tercero -->
-    <div class="modal fade" id="modalTercero" tabindex="-1" aria-labelledby="titulo_modal_tercero" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered modal-xl">
+    <div class="modal fade" id="modalTercero" data-bs-backdrop="static" tabindex="-1" aria-labelledby="titulo_modal_tercero" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-xl">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="titulo_modal_tercero">
@@ -152,7 +152,7 @@
                     </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <form id="formulario_tercero">
+                <form id="formulario_tercero" novalidate>
                     <input type="hidden" id="tercero_modo" value="crear">
                     <input type="hidden" id="tercero_empresa_pk">
                     <input type="hidden" id="tercero_id_pk">
@@ -370,6 +370,7 @@
                                 <div class="form-text text-success d-none" id="tercero_ciudad_ok">
                                     <i class="bi bi-check-circle me-1"></i>Ciudad seleccionada.
                                 </div>
+                                <div class="form-text text-danger d-none" id="tercero_ciudad_error">Seleccione una ciudad de la lista</div>
                                 <div id="tercero_ciudad_resultados" class="list-group position-absolute w-100 shadow-sm" style="z-index:1050;"></div>
                             </div>
 

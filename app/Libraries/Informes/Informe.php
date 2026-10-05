@@ -64,7 +64,7 @@ abstract class Informe
 
         foreach ($this->filtros() as $filtro) {
             $valor = $valores[$filtro['clave']] ?? '';
-            $texto = $valor === '' ? ($filtro['placeholder'] ?? 'Todos') : $valor;
+            $texto = $valor === '' ? ($filtro['tipo'] === 'texto' ? 'Todos' : ($filtro['placeholder'] ?? 'Todos')) : $valor;
 
             foreach ($filtro['opciones'] ?? [] as $opcion) {
                 if ((string) $opcion['valor'] === $valor) {
