@@ -134,7 +134,7 @@
     </section>
 
     <!-- Modal Labor -->
-    <div class="modal fade" id="modalLabor" tabindex="-1" aria-labelledby="titulo_modal_labor" aria-hidden="true">
+    <div class="modal fade" id="modalLabor" data-bs-backdrop="static" tabindex="-1" aria-labelledby="titulo_modal_labor" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-xl">
             <div class="modal-content">
                 <div class="modal-header">
@@ -143,7 +143,7 @@
                     </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <form id="formulario_labor">
+                <form id="formulario_labor" novalidate>
                     <input type="hidden" id="labor_modo" value="crear">
                     <input type="hidden" id="labor_empresa_pk">
                     <input type="hidden" id="labor_codigo_pk">
@@ -207,10 +207,10 @@
                             </div>
 
                             <div class="col-md-4">
-                                <label class="form-label mb-1 small fw-semibold text-muted" for="labor_des_corta">Descripción corta</label>
+                                <label class="form-label mb-1 small fw-semibold text-muted" for="labor_des_corta">Descripción corta <span class="text-danger">*</span></label>
                                 <div class="input-group">
                                     <span class="input-group-text bg-light"><i class="bi bi-card-heading"></i></span>
-                                    <input type="text" class="form-control" id="labor_des_corta" maxlength="50" autocomplete="off">
+                                    <input type="text" class="form-control" id="labor_des_corta" maxlength="50" autocomplete="off" required>
                                 </div>
                                 <div class="form-text">Se autocompleta con la descripción (primeros 50 caracteres). Puede escribirla manualmente.</div>
                             </div>
@@ -246,7 +246,7 @@
                             </div>
 
                             <div class="col-md-3">
-                                <label class="form-label mb-1 small fw-semibold text-muted" for="labor_clase">Clase de labor</label>
+                                <label class="form-label mb-1 small fw-semibold text-muted" for="labor_clase">Clase de labor <span class="text-danger">*</span></label>
                                 <div class="input-group">
                                     <span class="input-group-text bg-light"><i class="bi bi-diagram-3"></i></span>
                                     <select class="form-select" id="labor_clase">
@@ -272,27 +272,27 @@
                             </div>
 
                             <div class="col-md-3">
-                                <label class="form-label mb-1 small fw-semibold text-muted" for="labor_ciclos">Ciclos (días)</label>
+                                <label class="form-label mb-1 small fw-semibold text-muted" for="labor_ciclos">Ciclos (días) <span class="text-danger">*</span></label>
                                 <div class="input-group">
                                     <span class="input-group-text bg-light"><i class="bi bi-arrow-repeat"></i></span>
-                                    <input type="number" class="form-control text-end" id="labor_ciclos" min="0" step="1">
+                                    <input type="number" class="form-control text-end" id="labor_ciclos" min="0" step="1" required>
                                 </div>
                             </div>
 
                             <div class="col-md-3">
-                                <label class="form-label mb-1 small fw-semibold text-muted" for="labor_tarea">Rendimiento</label>
+                                <label class="form-label mb-1 small fw-semibold text-muted" for="labor_tarea">Rendimiento <span class="text-danger">*</span></label>
                                 <div class="input-group">
                                     <span class="input-group-text bg-light"><i class="bi bi-speedometer2"></i></span>
-                                    <input type="number" class="form-control text-end" id="labor_tarea" min="0" step="0.01">
+                                    <input type="number" class="form-control text-end" id="labor_tarea" min="0" step="1" required>
                                 </div>
                                 <div class="form-text">Se muestra como «Tarea» en la grilla.</div>
                             </div>
 
                             <div class="col-md-3">
-                                <label class="form-label mb-1 small fw-semibold text-muted" for="labor_naturaleza">Signo</label>
+                                <label class="form-label mb-1 small fw-semibold text-muted" for="labor_naturaleza">Signo <span class="text-danger">*</span></label>
                                 <div class="input-group">
                                     <span class="input-group-text bg-light"><i class="bi bi-plus-slash-minus"></i></span>
-                                    <select class="form-select" id="labor_naturaleza">
+                                    <select class="form-select" id="labor_naturaleza" required>
                                         <option value="">Seleccione&hellip;</option>
                                         <?php foreach ($naturalezas as $valor => $etiqueta): ?>
                                             <option value="<?= esc($valor, 'attr') ?>"><?= esc($etiqueta) ?></option>
@@ -302,10 +302,10 @@
                             </div>
 
                             <div class="col-md-3">
-                                <label class="form-label mb-1 small fw-semibold text-muted" for="labor_tipo_aplicacion">Tipo de aplicación</label>
+                                <label class="form-label mb-1 small fw-semibold text-muted" for="labor_tipo_aplicacion">Tipo de aplicación <span class="text-danger">*</span></label>
                                 <div class="input-group">
                                     <span class="input-group-text bg-light"><i class="bi bi-bullseye"></i></span>
-                                    <select class="form-select" id="labor_tipo_aplicacion">
+                                    <select class="form-select" id="labor_tipo_aplicacion" required>
                                         <option value="">Seleccione&hellip;</option>
                                         <?php foreach ($tipos_aplicacion as $valor => $etiqueta): ?>
                                             <option value="<?= esc($valor, 'attr') ?>"><?= esc($etiqueta) ?></option>
@@ -405,53 +405,60 @@
                             </div>
 
                             <div class="col-12">
-                                <h6 class="gp-seccion"><i class="bi bi-archive"></i>Campos heredados sin uso actual</h6>
+                                <h6 class="gp-seccion gp-seccion-toggle collapsed" id="labor_heredados_toggle" role="button" data-bs-toggle="collapse" data-bs-target="#labor_heredados" aria-expanded="false" aria-controls="labor_heredados">
+                                    <i class="bi bi-archive"></i>Campos heredados sin uso actual<i class="bi bi-chevron-down ms-auto gp-chevron"></i>
+                                </h6>
                             </div>
 
-                            <div class="col-12">
-                                <div class="gp-nota-alerta">
-                                    <i class="bi bi-exclamation-triangle me-1"></i>Estos campos existen en el sistema anterior; ninguna de las labores activas los usa hoy. Se incluyen por compatibilidad.
-                                </div>
-                            </div>
+                            <div class="col-12 collapse" id="labor_heredados">
+                                <div class="row g-3">
 
-                            <div class="col-12">
-                                <div class="form-check form-switch">
-                                    <input class="form-check-input" type="checkbox" id="labor_maneja_canal">
-                                    <label class="form-check-label" for="labor_maneja_canal">Maneja Canal</label>
-                                </div>
-                            </div>
-
-                            <div class="col-md-4 d-none" id="labor_col_tipo_canal">
-                                <label class="form-label mb-1 small fw-semibold text-muted" for="labor_tipo_canal">Tipo de canal</label>
-                                <select class="form-select" id="labor_tipo_canal">
-                                    <option value="">Seleccione&hellip;</option>
-                                    <?php foreach ($tipos_canal as $canal): ?>
-                                        <option value="<?= esc($canal['codigo'], 'attr') ?>"><?= esc($canal['codigo']) ?> &mdash; <?= esc($canal['descripcion']) ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-
-                            <div class="col-12">
-                                <div class="form-check form-switch">
-                                    <input class="form-check-input" type="checkbox" id="labor_impuesto">
-                                    <label class="form-check-label" for="labor_impuesto">Impuesto</label>
-                                </div>
-                            </div>
-
-                            <div class="col-md-4 d-none" id="labor_col_grupo_ir">
-                                <label class="form-label mb-1 small fw-semibold text-muted" for="labor_grupo_ir">Grupo Impuesto</label>
-                                <input type="text" class="form-control" id="labor_grupo_ir" maxlength="5">
-                            </div>
-
-                            <div class="col-12">
-                                <div class="d-flex flex-wrap gap-4">
-                                    <div class="form-check form-switch">
-                                        <input class="form-check-input" type="checkbox" id="labor_maneja_saldo">
-                                        <label class="form-check-label" for="labor_maneja_saldo">Maneja Saldo</label>
+                                    <div class="col-12">
+                                        <div class="gp-nota-alerta">
+                                            <i class="bi bi-exclamation-triangle me-1"></i>Estos campos existen en el sistema anterior; ninguna de las labores activas los usa hoy. Se incluyen por compatibilidad.
+                                        </div>
                                     </div>
-                                    <div class="form-check form-switch">
-                                        <input class="form-check-input" type="checkbox" id="labor_maneja_bascula">
-                                        <label class="form-check-label" for="labor_maneja_bascula">Agregar Báscula</label>
+
+                                    <div class="col-12">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="labor_maneja_canal">
+                                            <label class="form-check-label" for="labor_maneja_canal">Maneja Canal</label>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-md-4 d-none" id="labor_col_tipo_canal">
+                                        <label class="form-label mb-1 small fw-semibold text-muted" for="labor_tipo_canal">Tipo de canal</label>
+                                        <select class="form-select" id="labor_tipo_canal">
+                                            <option value="">Seleccione&hellip;</option>
+                                            <?php foreach ($tipos_canal as $canal): ?>
+                                                <option value="<?= esc($canal['codigo'], 'attr') ?>"><?= esc($canal['codigo']) ?> &mdash; <?= esc($canal['descripcion']) ?></option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
+
+                                    <div class="col-12">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="labor_impuesto">
+                                            <label class="form-check-label" for="labor_impuesto">Impuesto</label>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-md-4 d-none" id="labor_col_grupo_ir">
+                                        <label class="form-label mb-1 small fw-semibold text-muted" for="labor_grupo_ir">Grupo Impuesto</label>
+                                        <input type="text" class="form-control" id="labor_grupo_ir" maxlength="5">
+                                    </div>
+
+                                    <div class="col-12">
+                                        <div class="d-flex flex-wrap gap-4">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="labor_maneja_saldo">
+                                                <label class="form-check-label" for="labor_maneja_saldo">Maneja Saldo</label>
+                                            </div>
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="labor_maneja_bascula">
+                                                <label class="form-check-label" for="labor_maneja_bascula">Agregar Báscula</label>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

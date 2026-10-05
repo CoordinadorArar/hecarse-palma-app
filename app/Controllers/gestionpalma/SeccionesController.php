@@ -34,7 +34,7 @@ class SeccionesController extends GestionPalmaController
         }
 
         $empresas   = $this->seccionesModel->getEmpresas();
-        $empresaSel = $empresas ? (int) $empresas[0]['id'] : 0;
+        $empresaSel = $this->empresaSeleccionada($empresas);
 
         $filas    = $empresaSel > 0 ? $this->seccionesModel->listar($empresaSel) : [];
         $totales  = $empresaSel > 0 ? $this->seccionesModel->totalesHectareas($empresaSel, '') : ['ha_asignadas' => null, 'ha_finca' => null];
@@ -330,7 +330,7 @@ class SeccionesController extends GestionPalmaController
             return 'La descripción es obligatoria.';
         }
 
-        if (strlen($descripcion) > 550) {
+        if (mb_strlen($descripcion) > 550) {
             return 'La descripción no puede superar los 550 caracteres.';
         }
 
@@ -338,7 +338,7 @@ class SeccionesController extends GestionPalmaController
         $hBrutas    = null;
 
         if ($hBrutasTxt !== '') {
-            if (preg_match('/^\d{1,3}([.,]\d{3})+$/', $hBrutasTxt)) {
+            if (substr_count($hBrutasTxt, '.') > 1 && ! str_contains($hBrutasTxt, ',')) {
                 $hBrutasTxt = str_replace(['.', ','], '', $hBrutasTxt);
             } else {
                 $decimal    = strrpos($hBrutasTxt, ',') > strrpos($hBrutasTxt, '.') ? ',' : '.';

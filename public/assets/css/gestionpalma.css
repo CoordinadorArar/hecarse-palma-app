@@ -166,6 +166,24 @@ a.gp-card:hover h6 {
   font-size: 1rem;
 }
 
+.gp-seccion-toggle {
+  cursor: pointer;
+  user-select: none;
+}
+
+.gp-seccion-toggle:hover {
+  color: #246b3e;
+}
+
+.gp-seccion-toggle .gp-chevron {
+  font-size: .85rem;
+  transition: transform .2s ease;
+}
+
+.gp-seccion-toggle:not(.collapsed) .gp-chevron {
+  transform: rotate(180deg);
+}
+
 .gp-subtexto {
   display: block;
   font-size: .75rem;
@@ -504,6 +522,19 @@ a.gp-card:hover h6 {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: .04em;
+}
+
+.gp-grupo-titulo {
+  display: inline-flex;
+  align-items: center;
+  padding-left: .5rem;
+  border-left: 3px solid #41a867;
+  font-size: .75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #2f7a4b;
+  line-height: 1.2;
 }
 
 .gp-tabla-precios > tbody > tr.gp-fila-grupo .gp-grupo-cambios {

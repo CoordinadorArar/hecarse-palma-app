@@ -62,10 +62,17 @@ class PesosLoteModel extends Model
 
     public function getAnios(int $empresa): array
     {
-        return $this->db->query(
+        $filas = $this->db->query(
             'SELECT DISTINCT [año] AS anio FROM aLotePesosPeriodo WHERE empresa = ? ORDER BY anio DESC',
             [$empresa]
         )->getResultArray();
+
+        if (! in_array((int) date('Y'), array_map('intval', array_column($filas, 'anio')), true)) {
+            $filas[] = ['anio' => (int) date('Y')];
+            usort($filas, static fn ($a, $b) => (int) $b['anio'] <=> (int) $a['anio']);
+        }
+
+        return $filas;
     }
 
     // ── Validadores ──────────────────────────────────────────────────────────
@@ -176,53 +183,78 @@ class PesosLoteModel extends Model
         )->getRowArray() !== null;
     }
 
-    public function crear(int $empresa, int $anio, int $mes, string $finca, string $lote, array $data, ?int $usu_id): void
+    public function crear(int $empresa, int $anio, int $mes, string $finca, string $lote, array $data, ?int $usu_id): bool
     {
         $finca = trim($finca);
         $lote  = trim($lote);
 
-        $this->db->query(
+        return $this->escribir(
             'INSERT INTO aLotePesosPeriodo (empresa, [año], mes, finca, lote, seccion, pesoRacimo, automatico, fechaInicial, fechaFinal)
              VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)',
-            [$empresa, $anio, $mes, $finca, $lote, $data['pesoRacimo'], $data['automatico'], $data['fechaInicial'], $data['fechaFinal']]
+            [$empresa, $anio, $mes, $finca, $lote, $data['pesoRacimo'], $data['automatico'], $data['fechaInicial'], $data['fechaFinal']],
+            'INSERT',
+            array_merge(['empresa' => $empresa, 'anio' => $anio, 'mes' => $mes, 'finca' => $finca, 'lote' => $lote], $data),
+            $usu_id
         );
-
-        $this->insertarAuditoria('INSERT', array_merge(
-            ['empresa' => $empresa, 'anio' => $anio, 'mes' => $mes, 'finca' => $finca, 'lote' => $lote],
-            $data
-        ), $usu_id);
     }
 
-    public function actualizar(int $empresa, int $anio, int $mes, string $finca, string $lote, array $data, ?int $usu_id): void
+    public function actualizar(int $empresa, int $anio, int $mes, string $finca, string $lote, array $data, ?int $usu_id): bool
     {
         $finca = trim($finca);
         $lote  = trim($lote);
 
-        $this->db->query(
+        return $this->escribir(
             'UPDATE aLotePesosPeriodo SET pesoRacimo = ?, automatico = ?, fechaInicial = ?, fechaFinal = ?
              WHERE empresa = ? AND [año] = ? AND mes = ? AND finca = ? AND lote = ?',
-            [$data['pesoRacimo'], $data['automatico'], $data['fechaInicial'], $data['fechaFinal'], $empresa, $anio, $mes, $finca, $lote]
+            [$data['pesoRacimo'], $data['automatico'], $data['fechaInicial'], $data['fechaFinal'], $empresa, $anio, $mes, $finca, $lote],
+            'UPDATE',
+            array_merge(['empresa' => $empresa, 'anio' => $anio, 'mes' => $mes, 'finca' => $finca, 'lote' => $lote], $data),
+            $usu_id
         );
-
-        $this->insertarAuditoria('UPDATE', array_merge(
-            ['empresa' => $empresa, 'anio' => $anio, 'mes' => $mes, 'finca' => $finca, 'lote' => $lote],
-            $data
-        ), $usu_id);
     }
 
-    public function eliminar(int $empresa, int $anio, int $mes, string $finca, string $lote, ?int $usu_id): void
+    public function eliminar(int $empresa, int $anio, int $mes, string $finca, string $lote, ?int $usu_id): bool
     {
         $finca = trim($finca);
         $lote  = trim($lote);
 
-        $this->db->query(
+        return $this->escribir(
             'DELETE FROM aLotePesosPeriodo WHERE empresa = ? AND [año] = ? AND mes = ? AND finca = ? AND lote = ?',
-            [$empresa, $anio, $mes, $finca, $lote]
+            [$empresa, $anio, $mes, $finca, $lote],
+            'DELETE',
+            ['empresa' => $empresa, 'anio' => $anio, 'mes' => $mes, 'finca' => $finca, 'lote' => $lote],
+            $usu_id
         );
+    }
 
-        $this->insertarAuditoria('DELETE', [
-            'empresa' => $empresa, 'anio' => $anio, 'mes' => $mes, 'finca' => $finca, 'lote' => $lote,
-        ], $usu_id);
+    private function escribir(string $sql, array $binds, string $accion, array $cambios, ?int $usu_id): bool
+    {
+        $this->db->transBegin();
+
+        try {
+            if ($this->db->query($sql, $binds) === false) {
+                $this->db->transRollback();
+
+                return false;
+            }
+
+            $this->insertarAuditoria($accion, $cambios, $usu_id);
+
+            if ($this->db->transStatus() === false) {
+                $this->db->transRollback();
+
+                return false;
+            }
+
+            $this->db->transCommit();
+        } catch (\Throwable $e) {
+            $this->db->transRollback();
+            log_message('error', 'Peso RFF, ' . $accion . ': ' . $e->getMessage());
+
+            return false;
+        }
+
+        return true;
     }
 
     /**

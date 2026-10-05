@@ -750,12 +750,16 @@ class ProduccionModel extends Model
         $mes     = (int) $datos['mes'];
         $lineas  = array_values($datos['lineas']);
         $reparto = $this->reparto($datos);
-        $avisos  = $this->avisosSinPeso($reparto['sinPeso'], $lineas, $fecha);
+        $avisos  = $this->avisosSinPeso($reparto['sinPeso'], $lineas, $anio . '-' . str_pad((string) $mes, 2, '0', STR_PAD_LEFT));
 
         $this->db->transBegin();
 
         try {
             $numero = $this->consecutivo($empresa);
+
+            for ($intento = 1; $numero !== null && $intento < 20 && $this->numeroUsado($empresa, $numero); $intento++) {
+                $numero = $this->consecutivo($empresa);
+            }
 
             if ($numero === null) {
                 $this->db->transRollback();
@@ -836,7 +840,7 @@ class ProduccionModel extends Model
         $numero  = $antes['encabezado']['numero'];
         $lineas  = array_values($datos['lineas']);
         $reparto = $this->reparto($datos);
-        $avisos  = $this->avisosSinPeso($reparto['sinPeso'], $lineas, $fecha);
+        $avisos  = $this->avisosSinPeso($reparto['sinPeso'], $lineas, $anio . '-' . str_pad((string) $mes, 2, '0', STR_PAD_LEFT));
         $llave   = [$empresa, static::TIPO, $numero];
 
         $this->db->transBegin();
@@ -953,13 +957,13 @@ class ProduccionModel extends Model
         }
     }
 
-    private function avisosSinPeso(array $sinPeso, array $lineas, string $fecha): array
+    private function avisosSinPeso(array $sinPeso, array $lineas, string $periodo): array
     {
         $avisos = [];
 
         foreach ($sinPeso as $i) {
             $avisos[] = 'El lote ' . $lineas[$i]['lote'] . ' de la finca ' . $lineas[$i]['finca']
-                . ' no tiene peso promedio registrado en el periodo ' . substr($fecha, 0, 7)
+                . ' no tiene peso promedio registrado en el periodo ' . $periodo
                 . ', por lo que quedó en 0 kilos.';
         }
 

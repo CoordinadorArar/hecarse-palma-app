@@ -107,6 +107,9 @@ class ReportesController extends BaseController
             return $this->error('La exportación a Excel no está disponible en el servidor.', 500);
         }
 
+        ini_set('memory_limit', '512M');
+        set_time_limit(120);
+
         $resultado = $contexto['resultado'];
         $columnas  = $resultado['columnas'];
         $libro     = new Spreadsheet();
@@ -168,7 +171,7 @@ class ReportesController extends BaseController
                 $hoja->getStyle($letra . ($encabezado + 1) . ':' . $letra . $fila)->getNumberFormat()->setFormatCode($formatos[$columna['tipo']]);
             }
 
-            $hoja->getColumnDimension($letra)->setAutoSize(true);
+            count($resultado['filas']) > 5000 ? $hoja->getColumnDimension($letra)->setWidth(18) : $hoja->getColumnDimension($letra)->setAutoSize(true);
         }
 
         $hoja->freezePane('A' . ($encabezado + 1));

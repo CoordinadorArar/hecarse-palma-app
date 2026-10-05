@@ -144,7 +144,12 @@ const conCarga = async (btn, tarea) => {
 // ── Filtros ───────────────────────────────────────────────────────────────────
 
 $id('btn_buscar').addEventListener('click', listar);
-['filtro_empresa', 'filtro_tipo', 'filtro_rol', 'filtro_estado'].forEach((id) => {
+$id('filtro_empresa').addEventListener('change', (e) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('empresa', e.target.value);
+    window.location.assign(url);
+});
+['filtro_tipo', 'filtro_rol', 'filtro_estado'].forEach((id) => {
     $id(id).addEventListener('change', listar);
 });
 $id('btn_limpiar_busqueda').addEventListener('click', () => {
@@ -161,6 +166,10 @@ $id('filtro_busqueda').addEventListener('keydown', (e) => {
 // ── Modal ─────────────────────────────────────────────────────────────────────
 
 const modalTercero = () => bootstrap.Modal.getOrCreateInstance($id('modalTercero'));
+
+$id('modalTercero').addEventListener('shown.bs.modal', () => {
+    $id($id('tercero_modo').value === 'editar' ? 'tercero_tipo' : 'tercero_tipo_documento').focus();
+});
 
 const calcularDV = (nit) => {
     const pesos = [71, 67, 59, 53, 47, 43, 41, 37, 29, 23, 19, 17, 13, 7, 3];
@@ -225,7 +234,7 @@ $id('tercero_nit').addEventListener('input', () => {
     .forEach((id) => $id(id).addEventListener('input', refrescarDerivados));
 
 const bloquearLlave = (bloquear) => {
-    $id('tercero_empresa').disabled = bloquear;
+    $id('tercero_empresa').disabled = true;
     $id('tercero_id').disabled = bloquear;
     $id('tercero_aviso_llave').classList.toggle('d-none', !bloquear);
 };
@@ -235,10 +244,12 @@ const limpiarCiudad = () => {
     $id('tercero_ciudad_buscar').value = '';
     $id('tercero_ciudad_resultados').innerHTML = '';
     $id('tercero_ciudad_ok').classList.add('d-none');
+    $id('tercero_ciudad_error').classList.add('d-none');
 };
 
 const prepararFormulario = () => {
     $id('formulario_tercero').reset();
+    $id('formulario_tercero').classList.remove('was-validated');
     limpiarCiudad();
     $id('tercero_fecha_registro').classList.add('d-none');
     $id('tercero_fecha_registro').textContent = '';
@@ -390,6 +401,20 @@ const datosFormulario = () => {
 
 $id('formulario_tercero').addEventListener('submit', async (e) => {
     e.preventDefault();
+
+    const form = e.target;
+    if (!form.checkValidity()) {
+        form.classList.add('was-validated');
+        form.querySelector(':invalid')?.focus();
+        return;
+    }
+
+    if ($id('tercero_ciudad_buscar').value.trim() !== '' && $id('tercero_ciudad').value === '') {
+        $id('tercero_ciudad_error').classList.remove('d-none');
+        $id('tercero_ciudad_buscar').focus();
+        return;
+    }
+
     const btn = $id('btn_guardar_tercero');
     const edicion = $id('tercero_modo').value === 'editar';
     btn.disabled = true;
@@ -451,6 +476,7 @@ let temporizadorCiudad;
 inputCiudad.addEventListener('input', () => {
     $id('tercero_ciudad').value = '';
     $id('tercero_ciudad_ok').classList.add('d-none');
+    $id('tercero_ciudad_error').classList.add('d-none');
     clearTimeout(temporizadorCiudad);
 
     const termino = inputCiudad.value.trim();
@@ -464,6 +490,7 @@ inputCiudad.addEventListener('input', () => {
             const body = new FormData();
             body.append('termino', termino);
             body.append('departamento', $id('tercero_departamento').value);
+            body.append('empresa', $id('tercero_empresa').value);
 
             const response = await fetch(URL_TERCEROS + 'buscar-ciudad', { method: 'POST', body });
             const result = await response.json().catch(() => null);
@@ -475,7 +502,11 @@ inputCiudad.addEventListener('input', () => {
                 const item = document.createElement('button');
                 item.type = 'button';
                 item.className = 'list-group-item list-group-item-action';
-                item.innerHTML = `${ciudad.nombre}<small class="text-muted d-block">${ciudad.nombreDepartamento || ''}</small>`;
+                item.textContent = ciudad.nombre;
+                const departamento = document.createElement('small');
+                departamento.className = 'text-muted d-block';
+                departamento.textContent = ciudad.nombreDepartamento || '';
+                item.appendChild(departamento);
                 item.addEventListener('click', () => {
                     $id('tercero_ciudad').value = ciudad.codigo;
                     inputCiudad.value = ciudad.nombreDepartamento
@@ -483,6 +514,7 @@ inputCiudad.addEventListener('input', () => {
                         : ciudad.nombre;
                     if (ciudad.departamento) $id('tercero_departamento').value = ciudad.departamento;
                     $id('tercero_ciudad_ok').classList.remove('d-none');
+                    $id('tercero_ciudad_error').classList.add('d-none');
                     resultadosCiudad.innerHTML = '';
                 });
                 resultadosCiudad.appendChild(item);

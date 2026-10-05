@@ -23,7 +23,10 @@ class FincasModel extends Model
     private const USOS = '(SELECT COUNT(*) FROM aLotes l WHERE l.empresa = f.empresa AND l.finca = f.codigo)'
         . ' + (SELECT COUNT(*) FROM aSecciones s WHERE s.empresa = f.empresa AND s.finca = f.codigo)'
         . ' + (SELECT COUNT(*) FROM aSanidad n WHERE n.empresa = f.empresa AND n.finca = f.codigo)'
-        . ' + (SELECT COUNT(*) FROM aTransaccion t WHERE t.empresa = f.empresa AND t.finca = f.codigo)';
+        . ' + (SELECT COUNT(*) FROM aTransaccion t WHERE t.empresa = f.empresa AND t.finca = f.codigo)'
+        . ' + (SELECT COUNT(*) FROM aLotePesosPeriodo p WHERE p.empresa = f.empresa AND p.finca = f.codigo)'
+        . ' + (SELECT COUNT(*) FROM aTransaccionNovedad tn WHERE tn.empresa = f.empresa AND tn.finca = f.codigo)'
+        . ' + (SELECT COUNT(*) FROM aTransaccionTercero tt WHERE tt.empresa = f.empresa AND tt.finca = f.codigo)';
 
     /**
      * Empresas activas disponibles para el selector.

@@ -37,7 +37,13 @@ class PeriodosModel extends Model
     {
         $filas = $this->db->query('SELECT DISTINCT [año] AS anio FROM cPeriodo ORDER BY anio DESC')->getResultArray();
 
-        return array_map(static fn ($f) => (int) $f['anio'], $filas);
+        $anios = array_values(array_unique(array_merge(
+            array_map(static fn ($f) => (int) $f['anio'], $filas),
+            [(int) date('Y'), (int) date('Y') + 1]
+        )));
+        rsort($anios);
+
+        return $anios;
     }
 
     public function empresaExiste(int $empresa): bool

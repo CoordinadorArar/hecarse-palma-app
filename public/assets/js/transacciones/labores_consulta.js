@@ -52,11 +52,11 @@ const conFila = (fila) => {
     const claseBloqueo = bloqueo ? ' tx-accion-bloqueada' : '';
     const fecha = texto(fila.fecha).substring(0, 10);
 
-    return `<tr${anulado ? ' class="tx-fila-anulada"' : ''} data-numero="${numero}">
+    return `<tr${anulado ? ' class="tx-fila-anulada"' : ''} data-numero="${numero}" data-tipo="${tipo}">
         <td class="text-center text-nowrap">
             <div class="btn-group btn-group-sm" role="group" aria-label="Acciones de ${numero}">
-                ${PERMISOS.editar ? `<button type="button" class="btn btn-outline-primary${claseBloqueo}" data-editar="${numero}" title="Editar transacción ${tipo} ${numero}" aria-label="Editar transacción ${tipo} ${numero}"><i class="bi bi-pencil" aria-hidden="true"></i></button>` : ''}
-                ${PERMISOS.eliminar ? `<button type="button" class="btn btn-outline-danger${claseBloqueo}" data-eliminar="${numero}" title="Eliminar transacción ${tipo} ${numero}" aria-label="Eliminar transacción ${tipo} ${numero}"><i class="bi bi-trash" aria-hidden="true"></i></button>` : ''}
+                ${PERMISOS.editar ? `<button type="button" class="btn btn-outline-primary${claseBloqueo}" data-editar="${numero}" data-tipo="${tipo}" title="Editar transacción ${tipo} ${numero}" aria-label="Editar transacción ${tipo} ${numero}"><i class="bi bi-pencil" aria-hidden="true"></i></button>` : ''}
+                ${PERMISOS.eliminar ? `<button type="button" class="btn btn-outline-danger${claseBloqueo}" data-eliminar="${numero}" data-tipo="${tipo}" title="Eliminar transacción ${tipo} ${numero}" aria-label="Eliminar transacción ${tipo} ${numero}"><i class="bi bi-trash" aria-hidden="true"></i></button>` : ''}
             </div>${bloqueo && (PERMISOS.editar || PERMISOS.eliminar) ? `<i class="bi bi-lock text-muted ms-1" role="img" title="${bloqueo}" aria-label="${bloqueo}"></i>` : ''}
         </td>
         <td><span class="gp-chip-fila tx-chip-neutro">${tipo}</span></td>
@@ -153,18 +153,18 @@ const volverConsulta = async (numero, refrescar) => {
     if (fila && refrescar) fila.classList.add('gp-flash-guardado');
 };
 
-const conFilaDe = (numero) => conEstado.filas.find((item) => texto(item.numero) === numero) || { numero };
+const conFilaDe = (numero, tipo) => conEstado.filas.find((item) => texto(item.numero) === numero && (!tipo || texto(item.tipo) === tipo)) || { numero };
 
-const conEditar = (numero) => {
-    const fila = conFilaDe(numero);
+const conEditar = (numero, tipo) => {
+    const fila = conFilaDe(numero, tipo);
 
     if (alertaBloqueo(fila, 'editar')) return;
 
-    cargarEdicion(numero);
+    cargarEdicion(numero, tipo);
 };
 
-const conEliminar = async (numero) => {
-    const fila = conFilaDe(numero);
+const conEliminar = async (numero, tipo) => {
+    const fila = conFilaDe(numero, tipo);
 
     if (alertaBloqueo(fila, 'eliminar')) return;
 
@@ -189,7 +189,7 @@ const conEliminar = async (numero) => {
         focusCancel: true,
         showLoaderOnConfirm: true,
         allowOutsideClick: () => !Swal.isLoading(),
-        preConfirm: (motivo) => pedir('eliminar', { empresa: empresaId(), numero, motivo: texto(motivo) })
+        preConfirm: (motivo) => pedir('eliminar', { empresa: empresaId(), numero, motivo: texto(motivo), ...(CFG.referencia && tipo ? { tipo } : {}) })
             .catch((error) => Swal.showValidationMessage(escaparHtml(error.message)))
     });
 
@@ -226,6 +226,7 @@ const conCambiarEmpresa = async () => {
     const url = new URL(window.location.href);
 
     url.searchParams.set('empresa', selector.value);
+    estado.saliendo = true;
     window.location.href = url.toString();
 };
 
@@ -265,8 +266,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!boton) return;
 
-        if (boton.dataset.editar && PERMISOS.editar) conEditar(boton.dataset.editar);
-        if (boton.dataset.eliminar && PERMISOS.eliminar) conEliminar(boton.dataset.eliminar);
+        if (boton.dataset.editar && PERMISOS.editar) conEditar(boton.dataset.editar, boton.dataset.tipo);
+        if (boton.dataset.eliminar && PERMISOS.eliminar) conEliminar(boton.dataset.eliminar, boton.dataset.tipo);
     });
 
     if (!PERMISOS.registrar) consultar();

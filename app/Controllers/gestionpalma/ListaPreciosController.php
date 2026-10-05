@@ -43,7 +43,7 @@ class ListaPreciosController extends GestionPalmaController
         }
 
         $empresas   = $this->preciosLaborModel->getEmpresas();
-        $empresaSel = $empresas ? (int) $empresas[0]['id'] : 0;
+        $empresaSel = $this->empresaSeleccionada($empresas);
 
         $filas = $empresaSel > 0 ? $this->preciosLaborModel->listarAnios($empresaSel) : [];
 
@@ -74,7 +74,7 @@ class ListaPreciosController extends GestionPalmaController
         }
 
         $empresas   = $this->preciosLoteModel->getEmpresas();
-        $empresaSel = $empresas ? (int) $empresas[0]['id'] : 0;
+        $empresaSel = $this->empresaSeleccionada($empresas);
 
         $filas = $empresaSel > 0 ? $this->preciosLoteModel->listar($empresaSel) : [];
 

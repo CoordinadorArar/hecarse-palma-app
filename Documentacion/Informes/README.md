@@ -38,40 +38,40 @@ Plan de los 40 informes del sistema anterior (menú "Informes") que se replican 
 ### 2. Revisión Labores
 | Informe | Procedimiento legado | Gráfica |
 |---|---|---|
-| [Labores tercero por fecha](02-revision-labores-tercero-fecha.md) | spSeleccionaLaboresTerceroFecha | Barras horizontales |
-| [Labores tercero detallada por fecha](02-revision-labores-tercero-detallada-fecha.md) | spSeleccionaLaboresTerceroFecha | Barras + línea |
-| [Labores detallada por fecha por novedad](02-revision-labores-detallada-fecha-novedad.md) | spSeleccionaLaboresLoteFecha | Barras + línea |
+| [Labores tercero por fecha](02-revision-labores-tercero-fecha.md) ✅ | spSeleccionaLaboresTerceroFecha | Barras horizontales |
+| [Labores tercero detallada por fecha](02-revision-labores-tercero-detallada-fecha.md) ✅ | spSeleccionaLaboresTerceroFecha | Barras verticales |
+| [Labores detallada por fecha por novedad](02-revision-labores-detallada-fecha-novedad.md) ✅ | spSeleccionaLaboresLoteFecha | Barras verticales |
 
 ### 3. Transacciones
 | Informe | Procedimiento legado | Gráfica |
 |---|---|---|
-| [Labores por fecha](03-transacciones-labores-fecha.md) | spSeleccionaInformeGeneralLaboresAgronomicos | Barras + línea |
-| [Registro tiquetes por fecha](03-transacciones-registro-tiquetes-fecha.md) | spSeleccionaTiquetesRegistrados | Barras apiladas |
-| [Labores por trabajador en fechas](03-transacciones-labores-trabajador-fechas.md) | spSeleccionaLaboresTerceroFecha | Barras horizontales |
-| [Labores por lote en fecha](03-transacciones-labores-lote-fecha.md) | spSeleccionaLaboresLoteFecha | Barras horizontales apiladas |
-| [Labores por centro de costo en fecha](03-transacciones-labores-ccosto-fecha.md) | spSeleccionaLaboresCcostoFecha | Barras horizontales |
-| [Labores por centro de costo en fecha con lote](03-transacciones-labores-ccosto-fecha-lote.md) | spSeleccionaLaboresLoteFechaMes | Barras horizontales apiladas |
-| [Labores detalle](03-transacciones-labores-detalle.md) | vTransaccionAgronomico (consulta directa) | Sin gráfica |
-| [Producción lote fecha](03-transacciones-produccion-lote-fecha.md) | Lógica de spSeleccionaIndicadorAgronomico | Barras + línea |
-| [Producción lote Anual](03-transacciones-produccion-lote-anual.md) | spSeleccionaIndicadorAgronomico | Mapa de calor + línea |
-| [Venta de fruta por extractora](03-transacciones-venta-fruta-extractora.md) | spSeleccionaTiquetesRegistrados (agregado) | Barras apiladas |
-| [Liquidación contratistas por periodo](03-transacciones-liquidacion-contratistas-periodo.md) | spSeleccionaLiquidacionContratistaPeriodoTercero | Barras horizontales |
-| [Liquidación contratistas por periodo y lotes](03-transacciones-liquidacion-contratistas-periodo-lotes.md) | spSeleccionaLiquidacionContratistaTerceroNovedad | Barras horizontales apiladas |
-| [Resumen contratistas por periodo](03-transacciones-resumen-contratistas-periodo.md) | spSeleccionaResumenLaboresTerceroFecha | Barras apiladas |
-| [Hoja de vida de Labores](03-transacciones-hoja-vida-labores.md) | spSeleccionaHojadeVidaFincaFecha | Barras apiladas |
-| [Tiquetes pendientes por registrar](03-transacciones-tiquetes-pendientes.md) | spSeleccionaTiquetesNoRegistrados | Barras |
+| [Labores por fecha](03-transacciones-labores-fecha.md) ✅ | spSeleccionaInformeGeneralLaboresAgronomicos | Barras verticales |
+| [Registro tiquetes por fecha](03-transacciones-registro-tiquetes-fecha.md) ✅ | spSeleccionaTiquetesRegistrados | Barras apiladas |
+| [Labores por trabajador en fechas](03-transacciones-labores-trabajador-fechas.md) ✅ | spSeleccionaLaboresTerceroFecha | Barras horizontales |
+| [Labores por lote en fecha](03-transacciones-labores-lote-fecha.md) ✅ | spSeleccionaLaboresLoteFecha | Barras horizontales apiladas |
+| [Labores por centro de costo en fecha](03-transacciones-labores-ccosto-fecha.md) ✅ | spSeleccionaLaboresCcostoFecha | Barras horizontales |
+| [Labores por centro de costo en fecha con lote](03-transacciones-labores-ccosto-fecha-lote.md) ✅ | spSeleccionaLaboresLoteFechaMes | Barras horizontales |
+| [Labores detalle](03-transacciones-labores-detalle.md) ✅ | Tablas base de vTransaccionAgronomico (consulta directa) | Sin gráfica |
+| [Producción lote fecha](03-transacciones-produccion-lote-fecha.md) ✅ | Lógica de spSeleccionaIndicadorAgronomico | Barras + línea |
+| [Producción lote Anual](03-transacciones-produccion-lote-anual.md) ✅ | spSeleccionaIndicadorAgronomico | Mapa de calor + línea |
+| [Venta de fruta por extractora](03-transacciones-venta-fruta-extractora.md) ✅ | spSeleccionaTiquetesRegistrados (agregado) | Barras apiladas |
+| [Liquidación contratistas por periodo](03-transacciones-liquidacion-contratistas-periodo.md) ✅ | spSeleccionaLiquidacionContratistaPeriodoTercero | Barras horizontales |
+| [Liquidación contratistas por periodo y lotes](03-transacciones-liquidacion-contratistas-periodo-lotes.md) ✅ | spSeleccionaLiquidacionContratistaTerceroNovedad | Barras horizontales apiladas |
+| [Resumen contratistas por periodo](03-transacciones-resumen-contratistas-periodo.md) ✅ | spSeleccionaResumenLaboresTerceroFecha | Combinada (columnas + línea) |
+| [Hoja de vida de Labores](03-transacciones-hoja-vida-labores.md) ✅ | spSeleccionaHojadeVidaFincaFecha | Barras apiladas |
+| [Tiquetes pendientes por registrar](03-transacciones-tiquetes-pendientes.md) ⛔ No implementado: sin fuente de datos vigente | spSeleccionaTiquetesNoRegistrados | — |
 | [Hoja de Vida Lote Novedad y fecha](03-transacciones-hoja-vida-lote-novedad-fecha.md) | spSeleccionaHojaVidaLoteLabores | Mapa de calor |
 | [Diferencia días cosecha y recepción](03-transacciones-diferencia-dias-cosecha-recepcion.md) | spSeleccionaDiferenciasCosecha | Barras |
 
 ### 4. Indicadores
 | Informe | Procedimiento legado | Gráfica |
 |---|---|---|
-| [Indicadores Año](04-indicadores-anio.md) | spSeleccionaIndicadorAgronomico | Barras agrupadas horizontales |
-| [Indicadores Año por año de siembra](04-indicadores-anio-siembra.md) | spSeleccionaIndicadorAgronomico (reagrupado) | Barras + línea |
-| [Ciclos de corte de lotes por racimos](04-indicadores-ciclos-corte-racimos.md) | spSeleccionaCicloCorteAñoMes | Mapa de calor |
-| [Ciclos de labores](04-indicadores-ciclos-labores.md) | spSeleccionaHojaVidaLoteLabores | Mapa de calor |
-| [Rendimiento trabajador por mes](04-indicadores-rendimiento-trabajador-mes.md) | spSeleccionaRendimientosTrabajadorMesAño | Barras horizontales |
-| [Rendimiento trabajador cosecha](04-indicadores-rendimiento-trabajador-cosecha.md) | spSeleccionaRendimientoLabores | Barras horizontales + referencia |
+| [Indicadores Año](04-indicadores-anio.md) ✅ | spSeleccionaIndicadorAgronomico | Barras agrupadas horizontales |
+| [Indicadores Año por año de siembra](04-indicadores-anio-siembra.md) ✅ | spSeleccionaIndicadorAgronomico (reagrupado) | Barras + línea |
+| [Ciclos de corte de lotes por racimos](04-indicadores-ciclos-corte-racimos.md) ✅ | spSeleccionaCicloCorteAñoMes | Mapa de calor |
+| [Ciclos de labores](04-indicadores-ciclos-labores.md) ✅ | spSeleccionaHojaVidaLoteLabores | Mapa de calor |
+| [Rendimiento trabajador por mes](04-indicadores-rendimiento-trabajador-mes.md) ✅ | spSeleccionaRendimientosTrabajadorMesAño | Barras horizontales |
+| [Rendimiento trabajador cosecha](04-indicadores-rendimiento-trabajador-cosecha.md) ✅ | spSeleccionaRendimientoLabores | Barras horizontales + referencia |
 
 ### 5. Sanidad
 | Informe | Fuente | Gráfica |

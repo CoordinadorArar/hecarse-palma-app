@@ -428,6 +428,7 @@ const cambiarEmpresa = async () => {
     const url = new URL(window.location.href);
 
     url.searchParams.set('empresa', selector.value);
+    estado.saliendo = true;
     window.location.href = url.toString();
 };
 

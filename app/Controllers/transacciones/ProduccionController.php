@@ -135,11 +135,15 @@ class ProduccionController extends BaseController
             return $this->error('Los campos "Finca" y "Lote" son obligatorios.');
         }
 
+        $anio       = trim($this->campo('anio'));
+        $mes        = trim($this->campo('mes'));
+        $conPeriodo = preg_match('/^\d{4}$/', $anio) === 1 && preg_match('/^\d{1,2}$/', $mes) === 1;
+
         try {
             $peso = $this->produccionModel->pesoPromedio(
                 $empresa,
-                (int) substr($fecha, 0, 4),
-                (int) substr($fecha, 5, 2),
+                $conPeriodo ? (int) $anio : (int) substr($fecha, 0, 4),
+                $conPeriodo ? (int) $mes : (int) substr($fecha, 5, 2),
                 $finca,
                 $lote
             );
@@ -371,7 +375,7 @@ class ProduccionController extends BaseController
             'total'                  => $reparto['total'],
             'trabajadores'           => $datos['totalTrabajadores'],
             'lineasSinTrabajadores'  => $datos['lineasSinTrabajadores'],
-            'avisos'                 => $this->avisosSinPeso($reparto['sinPeso'], $datos['lineas'], $datos['fecha']),
+            'avisos'                 => $this->avisosSinPeso($reparto['sinPeso'], $datos['lineas'], $this->etiquetaPeriodo($datos['anio'], $datos['mes'])),
             'lineas'                 => $lineas,
         ]);
     }
@@ -784,6 +788,10 @@ class ProduccionController extends BaseController
             return $pesoBruto;
         }
 
+        if ($pesoBruto <= 0) {
+            return 'El campo "Peso bruto" debe ser mayor que cero.';
+        }
+
         $pesoTara = $this->enteroValido('pesoTara', 'Peso tara');
 
         if (is_string($pesoTara)) {
@@ -792,6 +800,10 @@ class ProduccionController extends BaseController
 
         if ($pesoTara > $pesoBruto) {
             return 'El peso tara no puede ser mayor que el peso bruto.';
+        }
+
+        if ($pesoBruto - $pesoTara <= 0) {
+            return 'El peso neto (peso bruto menos peso tara) debe ser mayor que cero.';
         }
 
         $sacos = $this->enteroValido('sacos', 'Sacos');
@@ -836,7 +848,7 @@ class ProduccionController extends BaseController
             }
         }
 
-        $lineas = $this->lineasValidas($empresa, $fecha);
+        $lineas = $this->lineasValidas($empresa, $fecha, $anio, $mes, $periodo);
 
         if (is_string($lineas)) {
             return $lineas;
@@ -895,7 +907,7 @@ class ProduccionController extends BaseController
      *
      * @return array<int, array<string, mixed>>|string
      */
-    private function lineasValidas(int $empresa, string $fecha): array|string
+    private function lineasValidas(int $empresa, string $fecha, int $anio, int $mes, array $periodo): array|string
     {
         $crudo = $this->campo('lineas');
 
@@ -913,8 +925,6 @@ class ProduccionController extends BaseController
             return 'La transacción admite máximo ' . self::MAX_LINEAS . ' líneas de distribución.';
         }
 
-        $anio   = (int) substr($fecha, 0, 4);
-        $mes    = (int) substr($fecha, 5, 2);
         $lineas = [];
 
         foreach ($recibidas as $i => $fila) {
@@ -955,7 +965,7 @@ class ProduccionController extends BaseController
                 return 'Los sacos de la línea ' . $orden . ' deben ser un número entero mayor o igual a cero.';
             }
 
-            $trabajadores = $this->trabajadoresValidos($empresa, $fecha, $fila['trabajadores'] ?? [], $orden);
+            $trabajadores = $this->trabajadoresValidos($empresa, $fecha, $fila['trabajadores'] ?? [], $orden, $anio, $mes, $periodo);
 
             if (is_string($trabajadores)) {
                 return $trabajadores;
@@ -977,7 +987,7 @@ class ProduccionController extends BaseController
     /**
      * @return array<int, array<string, mixed>>|string
      */
-    private function trabajadoresValidos(int $empresa, string $fecha, $recibidos, int $orden): array|string
+    private function trabajadoresValidos(int $empresa, string $fecha, $recibidos, int $orden, int $anio, int $mes, array $periodo): array|string
     {
         if (! is_array($recibidos)) {
             return 'No se pudieron leer los trabajadores de la línea ' . $orden . '.';
@@ -1017,19 +1027,22 @@ class ProduccionController extends BaseController
             $cantidad = $this->decimalDe($fila['cantidad'] ?? null);
 
             if ($cantidad === null || $cantidad < 0) {
-                return 'La cantidad del trabajador ' . $tercero . ' de la línea ' . $orden . ' debe ser un número mayor o igual a cero.';
+                return 'La cantidad del trabajador ' . $tercero . ' de la línea ' . $orden . ' debe ser un número mayor o igual a cero'
+                    . ($this->excedeDecimales($fila['cantidad'] ?? null) ? ' con máximo 4 decimales.' : '.');
             }
 
             $jornales = $this->decimalDe($fila['jornales'] ?? null);
 
             if ($jornales === null || $jornales < 0) {
-                return 'Los jornales del trabajador ' . $tercero . ' de la línea ' . $orden . ' deben ser un número mayor o igual a cero.';
+                return 'Los jornales del trabajador ' . $tercero . ' de la línea ' . $orden . ' deben ser un número mayor o igual a cero'
+                    . ($this->excedeDecimales($fila['jornales'] ?? null) ? ' con máximo 4 decimales.' : '.');
             }
 
             $precio = $this->decimalDe($fila['precioLabor'] ?? null);
 
             if ($precio === null || $precio < 0) {
-                return 'El precio del trabajador ' . $tercero . ' de la línea ' . $orden . ' debe ser un número mayor o igual a cero.';
+                return 'El precio del trabajador ' . $tercero . ' de la línea ' . $orden . ' debe ser un número mayor o igual a cero'
+                    . ($this->excedeDecimales($fila['precioLabor'] ?? null) ? ' con máximo 4 decimales.' : '.');
             }
 
             $racimos = $this->enteroDe($fila['racimos'] ?? 0);
@@ -1043,6 +1056,14 @@ class ProduccionController extends BaseController
 
             if ($fechaNovedad === null) {
                 return 'La fecha de la labor del trabajador ' . $tercero . ' de la línea ' . $orden . ' no es válida.';
+            }
+
+            $fueraPeriodo = $periodo['fechaInicial'] !== null && $periodo['fechaFinal'] !== null
+                ? $fechaNovedad < $periodo['fechaInicial'] || $fechaNovedad > $periodo['fechaFinal']
+                : substr($fechaNovedad, 0, 7) !== $this->etiquetaPeriodo($anio, $mes);
+
+            if ($fueraPeriodo) {
+                return 'Línea ' . $orden . ', trabajador ' . $tercero . ': la fecha de la labor no pertenece al periodo.';
             }
 
             $trabajadores[] = [
@@ -1066,13 +1087,13 @@ class ProduccionController extends BaseController
      *
      * @return array<int, string>
      */
-    private function avisosSinPeso(array $sinPeso, array $lineas, string $fecha): array
+    private function avisosSinPeso(array $sinPeso, array $lineas, string $periodo): array
     {
         $avisos = [];
 
         foreach ($sinPeso as $i) {
             $avisos[] = 'El lote ' . $lineas[$i]['lote'] . ' de la finca ' . $lineas[$i]['finca']
-                . ' no tiene peso promedio registrado en el periodo ' . substr($fecha, 0, 7) . ', por lo que quedó en 0 kilos.';
+                . ' no tiene peso promedio registrado en el periodo ' . $periodo . ', por lo que quedó en 0 kilos.';
         }
 
         return $avisos;
@@ -1139,6 +1160,11 @@ class ProduccionController extends BaseController
         }
 
         return (float) str_replace(',', '.', $valor);
+    }
+
+    private function excedeDecimales($valor): bool
+    {
+        return ! is_array($valor) && preg_match('/^-?\d{1,15}[.,]\d{5,}$/', trim((string) ($valor ?? ''))) === 1;
     }
 
     private function usuarioRegistro(): string

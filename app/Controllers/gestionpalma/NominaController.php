@@ -75,7 +75,7 @@ class NominaController extends GestionPalmaController
             rsort($anios);
         }
 
-        $empresaSel = $empresas ? (int) $empresas[0]['id'] : 0;
+        $empresaSel = $this->empresaSeleccionada($empresas);
         $anioSel    = in_array($actual, $anios, true) ? $actual : (int) ($anios[0] ?? $actual);
 
         $filas = $empresaSel > 0 ? $this->periodosModel->listar($empresaSel, $anioSel) : [];
@@ -108,7 +108,7 @@ class NominaController extends GestionPalmaController
         }
 
         $empresas   = $this->funcionariosModel->getEmpresas();
-        $empresaSel = $empresas ? (int) $empresas[0]['id'] : 0;
+        $empresaSel = $this->empresaSeleccionada($empresas);
 
         $filas = $empresaSel > 0 ? $this->funcionariosModel->listar($empresaSel, '', '1') : [];
 
@@ -260,8 +260,14 @@ class NominaController extends GestionPalmaController
 
         [$anio, $mes, $noPeriodo] = $clave;
 
-        if (! $this->periodosModel->existe($empresa, $anio, $mes, $noPeriodo)) {
+        $existente = $this->periodosModel->obtener($empresa, $anio, $mes, $noPeriodo);
+
+        if ($existente === null) {
             return $this->error('El periodo no existe.');
+        }
+
+        if ((int) $existente['cerrado'] === 1) {
+            return $this->error('Abra el periodo antes de modificarlo.');
         }
 
         $datos = $this->datosPeriodo($empresa);
@@ -291,8 +297,14 @@ class NominaController extends GestionPalmaController
         $mes       = (int) $this->request->getPost('mes');
         $noPeriodo = (int) $this->request->getPost('noPeriodo');
 
-        if (! $this->periodosModel->existe($empresa, $anio, $mes, $noPeriodo)) {
+        $existente = $this->periodosModel->obtener($empresa, $anio, $mes, $noPeriodo);
+
+        if ($existente === null) {
             return $this->error('El periodo no existe.');
+        }
+
+        if ((int) $existente['cerrado'] === 1) {
+            return $this->error('Abra el periodo antes de modificarlo.');
         }
 
         if ($this->periodosModel->tieneMovimientos($empresa, $anio, $mes, $noPeriodo)) {
@@ -654,9 +666,13 @@ class NominaController extends GestionPalmaController
             return 'La fecha de corte no puede ser anterior a la fecha inicial.';
         }
 
+        if ($final !== null && $pago !== null && strtotime($pago) < strtotime($final)) {
+            return 'La fecha de pago no puede ser anterior a la fecha final.';
+        }
+
         $nombre = $this->campo('nombrePeriodo');
 
-        if (strlen($nombre) > 250) {
+        if (mb_strlen($nombre) > 250) {
             return 'El nombre del periodo no puede superar los 250 caracteres.';
         }
 
@@ -687,7 +703,7 @@ class NominaController extends GestionPalmaController
             return 'La identificación es obligatoria.';
         }
 
-        if (strlen($codigo) > 50) {
+        if (mb_strlen($codigo) > 50) {
             return 'La identificación no puede superar los 50 caracteres.';
         }
 
@@ -697,19 +713,19 @@ class NominaController extends GestionPalmaController
             return 'La descripción es obligatoria.';
         }
 
-        if (strlen($descripcion) > 950) {
+        if (mb_strlen($descripcion) > 950) {
             return 'La descripción no puede superar los 950 caracteres.';
         }
 
         $proveedor = $this->campo('proveedor');
 
-        if (strlen($proveedor) > 50) {
+        if (mb_strlen($proveedor) > 50) {
             return 'El proveedor no puede superar los 50 caracteres.';
         }
 
         $salario = str_replace([' ', '$'], '', $this->campo('salario'));
 
-        if (preg_match('/^\d{1,3}([.,]\d{3})+$/', $salario)) {
+        if (substr_count($salario, '.') > 1 && ! str_contains($salario, ',')) {
             $salario = str_replace(['.', ','], '', $salario);
         } else {
             $decimal = strrpos($salario, ',') > strrpos($salario, '.') ? ',' : '.';
@@ -755,14 +771,20 @@ class NominaController extends GestionPalmaController
             return 'Debe seleccionar un tipo de identificación válido.';
         }
 
-        $codigo = preg_replace('/\D/', '', $this->campo('t_codigo'));
+        $codigo = in_array($tipoDocumento, ['13', '31'], true)
+            ? preg_replace('/\D/', '', $this->campo('t_codigo'))
+            : preg_replace('/[^A-Z0-9]/', '', mb_strtoupper($this->campo('t_codigo')));
 
         if ($codigo === '') {
             return 'Debe indicar la identificación del nuevo tercero.';
         }
 
-        if (strlen($codigo) < 5 || strlen($codigo) > 25) {
-            return 'La identificación del tercero debe tener entre 5 y 25 dígitos.';
+        if (mb_strlen($codigo) < 5 || mb_strlen($codigo) > 25) {
+            return 'La identificación del tercero debe tener entre 5 y 25 caracteres.';
+        }
+
+        if ($tipoDocumento === '31' && mb_strlen($codigo) > 15) {
+            return 'El NIT no puede superar 15 dígitos para calcular el DV.';
         }
 
         $apellido1 = $this->campo('t_apellido1');

@@ -1,6 +1,6 @@
 # Liquidación contratistas por periodo y lotes
 
-**Módulo:** Transacciones · **Clave:** `liquidacion-contratistas-periodo-lotes` · **Estado:** Planificado
+**Módulo:** Transacciones · **Clave:** `liquidacion-contratistas-periodo-lotes` · **Estado:** Implementado
 
 ## Propósito
 Consolidado por contratista, trabajador y labor, abierto por lote cuando la labor lo exige, para soportar la cuenta de cobro del contratista y el costo por lote. Para nómina, cuentas por pagar y costos.
@@ -50,6 +50,10 @@ Totales de pie: Valor, Jornales; subtotales por contratista.
 - Eje Y: contratista; eje X: valor; series: finca (o top 6 lotes + "Otros" si se filtra una finca).
 - Por qué: muestra cuánto cobra cada contratista y en qué frentes se ejecutó.
 
-## Supuestos a validar
-- `muestraInformeContratista` existe en `aNovedad` pero no aparece en la definición documentada de `vTransaccionAgronomico`; habrá que unir `aNovedad` directamente.
-- Precio promedio simple (legado) vs. ponderado por cantidad.
+## Supuestos resueltos
+- Misma base que "Liquidación contratistas por periodo": contratista = trabajador con `nFuncionario.contratista = 1`; proveedor resuelto contra `cTercero` por `nit` o `id`, y si no resuelve se agrupa en "Proveedor no asociado" (al final, con aviso). Fecha de la transacción (`aTransaccion.fecha`), solo no anulados, se excluye `aTransaccionEliminada` si existe y el signo 2 resta en cantidad y valor. Rango máximo de 1 año y límite de 20.000 filas.
+- Se une `aNovedad` directamente. `muestraInformeContratista` nunca vale 1 en los datos (0 o nulo) y todas las labores de contratistas tienen `manejaLote = 1`; por eso la fila se abre por lote cuando `muestraInformeContratista = 1` o `manejaLote = 1`; si no, el lote queda vacío. Una fila de labor que se abre por lote sin lote se marca y se avisa.
+- Precio prom. = promedio ponderado (valor / cantidad), no el promedio simple del legado; vacío si la cantidad neta es 0. Se exponen precio mínimo y máximo para detectar varios precios.
+- Sección = `aTransaccionTercero.seccion` y, si está vacía, `aLotes.seccion` (hoy ambas vienen vacías en los datos).
+- Filtro Lote dependiente de la finca (valor `finca|lote`); se valida que el lote pertenezca a la finca elegida.
+- Los totales de valor y jornales cuadran con "Liquidación contratistas por periodo" para el mismo rango.

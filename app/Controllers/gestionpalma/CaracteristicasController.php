@@ -34,7 +34,7 @@ class CaracteristicasController extends GestionPalmaController
         }
 
         $empresas   = $this->caracteristicasModel->getEmpresas();
-        $empresaSel = $empresas ? (int) $empresas[0]['id'] : 0;
+        $empresaSel = $this->empresaSeleccionada($empresas);
 
         $filas     = $empresaSel > 0 ? $this->caracteristicasModel->listar($empresaSel) : [];
         $variantes = $empresaSel > 0 ? $this->caracteristicasModel->variantes($empresaSel) : [];
@@ -348,7 +348,7 @@ class CaracteristicasController extends GestionPalmaController
             return 'La descripción es obligatoria.';
         }
 
-        if (strlen($descripcion) > 500) {
+        if (mb_strlen($descripcion) > 500) {
             return 'La descripción no puede superar los 500 caracteres.';
         }
 

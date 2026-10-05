@@ -1,6 +1,6 @@
 # Tiquetes pendientes por registrar
 
-**Módulo:** Transacciones · **Clave:** `tiquetes-pendientes` · **Estado:** Planificado
+**Módulo:** Transacciones · **Clave:** `tiquetes-pendientes` · **Estado:** No implementado — sin fuente de datos vigente
 
 ## Propósito
 Lista los tiquetes pesados en báscula (entrada de fruta propia) que todavía no tienen una transacción de cosecha registrada. Permite a producción asegurar que toda la fruta despachada quede distribuida por lote y trabajador.
@@ -45,7 +45,15 @@ Totales de pie: Peso neto, Racimos.
 - Eje X: fecha (día); eje Y: kilos pendientes.
 - Por qué: muestra en qué días se acumula el rezago de registro.
 
-## Supuestos a validar
-- `bRegistroBascula` no tiene columna empresa en el filtro del legado; confirmar cómo separar por empresa (vía `aFinca.empresa`).
-- Que `tipo = 'EPE'` identifica la entrada de fruta propia.
-- El legado no excluye transacciones eliminadas (`aTransaccionEliminada`); si una se elimina, su tiquete debe volver a pendiente.
+## Decisión
+William decidió no implementar el informe: no hay una fuente vigente de tiquetes pesados contra la cual comparar las transacciones de cosecha. El informe queda en el catálogo como "próximamente" (sin clase).
+
+## Hallazgos (validados con SELECT)
+- `bRegistroBascula` solo tiene datos del 03/01/2017 al 18/08/2018: 14.075 tiquetes `EPE` de las empresas 1 y 2. La aplicación actual no escribe en esa tabla.
+- Ninguno de esos tiquetes coincide con los de `aTransaccionBascula`. Las TLC empiezan en marzo de 2019 y sus tiquetes son de las extractoras: se digitan al crear la TLC (vía `spInsertaTiqueteAgro`).
+- `bRegistroBascula.finca` (5, 79, 67…) no enlaza con `aFinca.codigoEquivalencia` (309901…), así que tampoco se puede asignar finca ni empresa.
+- El legado `spSeleccionaTiquetesNoRegistrados` además no filtra empresa ni excluye transacciones eliminadas (`aTransaccionEliminada`).
+
+## Para retomarlo
+- Se requiere una fuente actual de pesajes (báscula propia o archivo de la extractora) con, al menos, tiquete, finca y fecha.
+- Con esa fuente, pendiente = tiquete sin registro en `aTransaccionBascula` de una `aTransaccion` no anulada ni eliminada de la empresa; el diseño de filtros, tabla, KPIs y gráfica de este documento sigue siendo válido.

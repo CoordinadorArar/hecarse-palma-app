@@ -33,6 +33,7 @@ class LotesModel extends Model
         'tmpLiquidacionPepa',
         'atransaccionItemSaldo',
         'aSanidad',
+        'aNovedadPrecio',
     ];
 
     /**
@@ -269,6 +270,16 @@ class LotesModel extends Model
             'SELECT TOP 1 codigo FROM aLotes WHERE empresa = ? AND codigo = ? AND finca = ?',
             [$empresa, trim($codigo), trim($finca)]
         )->getRowArray() !== null;
+    }
+
+    public function fincaDelCodigo(int $empresa, string $codigo): ?string
+    {
+        $fila = $this->db->query(
+            'SELECT TOP 1 RTRIM(finca) AS finca FROM aLotes WHERE empresa = ? AND codigo = ?',
+            [$empresa, trim($codigo)]
+        )->getRowArray();
+
+        return $fila === null ? null : (string) $fila['finca'];
     }
 
     /**

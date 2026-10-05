@@ -1,6 +1,6 @@
 # Rendimiento trabajador cosecha
 
-**Módulo:** Indicadores · **Clave:** `rendimiento-trabajador-cosecha` · **Estado:** Planificado
+**Módulo:** Indicadores · **Clave:** `rendimiento-trabajador-cosecha` · **Estado:** Implementado
 
 ## Propósito
 Mide los kilos cosechados por cada trabajador, por día y en total, y los compara con la tarea o rendimiento esperado de la labor de cosecha. Es para supervisores de cosecha y nómina.
@@ -50,7 +50,11 @@ Totales de pie: racimos, kilos, jornales y kilos/día promedio ponderado.
 - Eje Y: trabajador (top 20 por kilos/día, de mayor a menor). Eje X: kilos/día. Una línea vertical marca la tarea.
 - Por qué: compara muchos trabajadores con nombres largos contra una meta fija.
 
-## Supuestos a validar
-- Si `aNovedad.tarea` es el rendimiento diario esperado (kg/día) para la cosecha, o si hay que tomar las tareas por año de siembra (`añoDesde`/`añoHasta`, ver `spSeleccionaNovedadLoteRangoSiembra`).
-- Las labores de cosecha pueden tener varias novedades según la edad del lote. En ese caso la tarea se promedia ponderada por kilos.
-- La unidad de `cantidad` en cosecha es kilos (TLC con báscula). Hay que confirmarlo.
+## Supuestos resueltos
+- Implementado en `app/Libraries/Informes/Indicadores/RendimientoTrabajadorCosecha.php` con la misma base que Producción lote fecha: labores `claseLabor = 2` y `uMedida = 'KG'`, anuladas fuera y, si existe, `aTransaccionEliminada`; solo líneas con lote existente. Filtra por empresa.
+- Fecha = fecha de cosecha de la línea `ISNULL(MIN(fechaNovedad), fecha de la línea)`; rango máximo de 1 año. Finca = finca del lote.
+- Kilos = `aTransaccionTercero.cantidad` del trabajador; jornales = `aTransaccionTercero.jornales`; si suman 0 en el rango (hoy siempre) la columna Jornales no se envía. Las líneas con `signo = 2` restan.
+- **Racimos:** `aTransaccionTercero.racimos` repite el racimo de la línea en cada trabajador y no sirve. Se reparte `aTransaccionNovedad.racimos` de la línea en proporción a los kilos del trabajador (`racimos × kilos trabajador / kilos de la línea`; si la línea no tiene kilos, en partes iguales). La suma cuadra con Producción lote fecha (jun-2025: 456.580 kg y 45.448 racimos). Los racimos se envían con decimales (la tabla los muestra enteros) para que filas, subtotales, total y KPI cuadren.
+- Tarea = `aNovedad.tarea` ponderada por kilos solo en labores con tarea > 0 (hoy solo la 439, 380 kg). % cumplimiento = (kilos en labores con tarea / días con tarea) ÷ tarea; sin tarea queda vacío y se avisa.
+- Kg/día = kilos / días con cosecha (fechas distintas). Se incluyen todos los trabajadores (propios y de contratistas).
+- Gráfica: top 20 por kg/día entre trabajadores con 3 días o más; la referencia es la tarea si todos los trabajadores tienen la misma, si no el promedio kg por trabajador-día.

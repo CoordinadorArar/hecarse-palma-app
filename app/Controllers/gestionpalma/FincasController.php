@@ -37,7 +37,7 @@ class FincasController extends GestionPalmaController
         }
 
         $empresas   = $this->fincasModel->getEmpresas();
-        $empresaSel = $empresas ? (int) $empresas[0]['id'] : 0;
+        $empresaSel = $this->empresaSeleccionada($empresas);
 
         $filas = $empresaSel > 0 ? $this->fincasModel->listar($empresaSel) : [];
 
@@ -358,7 +358,7 @@ class FincasController extends GestionPalmaController
 
         $hectareas = str_replace([' ', '$'], '', $this->campo('hectareas'));
 
-        if (preg_match('/^\d{1,3}([.,]\d{3})+$/', $hectareas)) {
+        if (substr_count($hectareas, '.') > 1 && ! str_contains($hectareas, ',')) {
             $hectareas = str_replace(['.', ','], '', $hectareas);
         } else {
             $decimal   = strrpos($hectareas, ',') > strrpos($hectareas, '.') ? ',' : '.';

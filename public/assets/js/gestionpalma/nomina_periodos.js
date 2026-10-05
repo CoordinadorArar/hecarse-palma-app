@@ -157,12 +157,15 @@ const repoblarTipos = (empresaId, seleccion) => {
     const select = $id('periodo_tipo');
     const tipos = TIPOS_NOMINA[empresaId] || [];
     const deseado = seleccion ?? select.value;
-    select.innerHTML = tipos.map((tipo) => {
+    select.innerHTML = '';
+    tipos.forEach((tipo) => {
         const codigo = String(tipo.codigo).trim();
         const descripcion = String(tipo.descripcion).trim().toLowerCase().replace(/(^|\s)\p{L}/gu, (letra) => letra.toUpperCase());
-        return `<option value="${codigo}">${codigo} — ${descripcion}</option>`;
-    }).join('');
-    select.value = tipos.some((tipo) => String(tipo.codigo).trim() === deseado)
+        select.add(new Option(`${codigo} — ${descripcion}`, codigo));
+    });
+    const inactivo = deseado && $id('periodo_modo').value === 'editar' && !tipos.some((tipo) => String(tipo.codigo).trim() === deseado);
+    if (inactivo) select.add(new Option(`${deseado} (inactivo)`, deseado));
+    select.value = inactivo || tipos.some((tipo) => String(tipo.codigo).trim() === deseado)
         ? deseado
         : (tipos.length ? String(tipos[0].codigo).trim() : '');
 };

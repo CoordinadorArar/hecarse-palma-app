@@ -134,7 +134,7 @@ foreach ($secciones as $s) {
     </section>
 
     <!-- Modal Lote -->
-    <div class="modal fade" id="modalLote" tabindex="-1" aria-labelledby="titulo_modal_lote" aria-hidden="true">
+    <div class="modal fade" id="modalLote" data-bs-backdrop="static" tabindex="-1" aria-labelledby="titulo_modal_lote" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-xl">
             <div class="modal-content">
                 <div class="modal-header">
@@ -143,7 +143,7 @@ foreach ($secciones as $s) {
                     </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <form id="formulario_lote">
+                <form id="formulario_lote" novalidate>
                     <input type="hidden" id="lote_modo" value="crear">
                     <input type="hidden" id="lote_empresa_pk">
                     <input type="hidden" id="lote_finca_pk">
@@ -441,10 +441,8 @@ foreach ($secciones as $s) {
                             <input type="number" class="form-control text-end" id="lineas_palmas" min="0" required>
                         </div>
                         <div class="col-md-3">
-                            <div class="form-check form-switch mt-4">
-                                <input class="form-check-input" type="checkbox" id="lineas_erradicada">
-                                <label class="form-check-label" for="lineas_erradicada">Palma erradicada</label>
-                            </div>
+                            <label class="form-label mb-1 small fw-semibold text-muted" for="lineas_erradicada">Palmas erradicadas</label>
+                            <input type="number" class="form-control text-end" id="lineas_erradicada" min="0" step="1">
                         </div>
                         <div class="col-md-3 d-flex gap-2">
                             <button type="submit" class="btn btn-primary flex-fill" id="btn_guardar_linea">
@@ -472,7 +470,7 @@ foreach ($secciones as $s) {
                                 <tr>
                                     <th class="text-end" style="width:100px">Línea</th>
                                     <th class="text-end" style="width:120px">Palmas</th>
-                                    <th class="text-center" style="width:130px">Erradicada</th>
+                                    <th class="text-end" style="width:130px">Erradicadas</th>
                                     <th class="text-center" style="width:110px">Acciones</th>
                                 </tr>
                             </thead>

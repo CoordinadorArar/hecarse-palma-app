@@ -126,7 +126,11 @@ const listar = async () => {
 
 // ── Filtros ───────────────────────────────────────────────────────────────────
 
-$id('filtro_empresa').addEventListener('change', listar);
+$id('filtro_empresa').addEventListener('change', (e) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('empresa', e.target.value);
+    window.location.assign(url);
+});
 $id('filtro_estado').addEventListener('change', listar);
 
 // ── Modal ─────────────────────────────────────────────────────────────────────
@@ -145,7 +149,7 @@ $('#grupo_ccosto, #grupo_ccosto_siigo').select2({
 });
 
 const bloquearLlave = (bloquear) => {
-    $id('grupo_empresa').disabled = bloquear;
+    $id('grupo_empresa').disabled = true;
     $id('grupo_codigo').disabled = bloquear;
     $id('grupo_aviso_llave').classList.toggle('d-none', !bloquear);
 };
@@ -206,6 +210,16 @@ $id('grupo_empresa').addEventListener('change', () => {
     }
 });
 
+const seleccionarCcosto = (id, valor) => {
+    const codigo = String(valor ?? '').trim();
+    let opcion = Array.from($id(id).options).find((o) => o.value.trim() === codigo);
+    if (codigo && !opcion) {
+        opcion = new Option(codigo, codigo);
+        $id(id).add(opcion);
+    }
+    $('#' + id).val(codigo && opcion ? opcion.value : '').trigger('change');
+};
+
 window.editarGrupo = async (empresa, codigo) => {
     try {
         const body = new FormData();
@@ -229,10 +243,10 @@ window.editarGrupo = async (empresa, codigo) => {
         $id('grupo_empresa_pk').value = grupo.empresa;
         $id('grupo_codigo_pk').value = grupo.codigo;
         $id('grupo_descripcion').value = grupo.descripcion || '';
-        $('#grupo_ccosto').val(grupo.ccosto || '').trigger('change');
+        seleccionarCcosto('grupo_ccosto', grupo.ccosto);
         $id('grupo_activo').checked = Number(grupo.activo) === 1;
         $id('grupo_maneja_ccosto_siigo').checked = Number(grupo.manejaCcostoSiigo) === 1;
-        $('#grupo_ccosto_siigo').val(grupo.ccostoSiigo || '').trigger('change');
+        seleccionarCcosto('grupo_ccosto_siigo', grupo.ccostoSiigo);
         aplicarManejaCcostoSiigo();
         bloquearLlave(true);
         modalGrupo().show();

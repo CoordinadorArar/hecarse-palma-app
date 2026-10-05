@@ -32,7 +32,8 @@ class FertilizacionTransaccionModel extends LaboresTransaccionModel
     public function tipoDe(int $empresa, string $numero): ?string
     {
         $fila = $this->db->query(
-            'SELECT TOP 1 LTRIM(RTRIM(tipo)) AS tipo FROM aTransaccion WHERE empresa = ? AND tipo IN (?, ?) AND LTRIM(RTRIM(numero)) = ?',
+            'SELECT TOP 1 LTRIM(RTRIM(t.tipo)) AS tipo FROM aTransaccion t WHERE t.empresa = ? AND t.tipo IN (?, ?) AND LTRIM(RTRIM(t.numero)) = ?'
+                . $this->sinEliminadas('t') . ' ORDER BY ISNULL(t.anulado, 0) ASC, t.tipo DESC',
             [$empresa, self::PLAN, 'RLF', trim($numero)]
         )->getRowArray();
 
@@ -57,25 +58,27 @@ class FertilizacionTransaccionModel extends LaboresTransaccionModel
         )->getRowArray() !== null;
     }
 
-    public function planes(int $empresa, string $finca): array
+    public function planes(int $empresa, string $finca, string $fecha = ''): array
     {
+        $vigencia = $fecha === '' ? '' : ' AND CAST(? AS date) BETWEEN CAST(t.fecha AS date) AND CAST(t.fechaFinal AS date)';
+
         return $this->db->query(
             "SELECT LTRIM(RTRIM(t.numero)) AS numero, CONVERT(varchar(10), t.fecha, 23) AS fecha,
                     CONVERT(varchar(10), t.fechaFinal, 23) AS fechaFinal, ISNULL(t.observacion, '') AS observacion
                FROM aTransaccion t
-              WHERE t.empresa = ? AND t.tipo = ? AND LTRIM(RTRIM(t.finca)) = ? AND ISNULL(t.anulado, 0) = 0" . $this->sinEliminadas('t') . '
+              WHERE t.empresa = ? AND t.tipo = ? AND LTRIM(RTRIM(t.finca)) = ? AND ISNULL(t.anulado, 0) = 0" . $vigencia . $this->sinEliminadas('t') . '
               ORDER BY t.numero DESC',
-            [$empresa, self::PLAN, trim($finca)]
+            $fecha === '' ? [$empresa, self::PLAN, trim($finca)] : [$empresa, self::PLAN, trim($finca), $fecha]
         )->getResultArray();
     }
 
-    public function planValido(int $empresa, string $numero, string $finca): bool
+    public function planValido(int $empresa, string $numero, string $finca, string $fecha): bool
     {
         return $this->db->query(
             'SELECT TOP 1 t.numero FROM aTransaccion t
               WHERE t.empresa = ? AND t.tipo = ? AND LTRIM(RTRIM(t.numero)) = ? AND LTRIM(RTRIM(t.finca)) = ?
-                AND ISNULL(t.anulado, 0) = 0' . $this->sinEliminadas('t'),
-            [$empresa, self::PLAN, trim($numero), trim($finca)]
+                AND ISNULL(t.anulado, 0) = 0 AND CAST(? AS date) BETWEEN CAST(t.fecha AS date) AND CAST(t.fechaFinal AS date)' . $this->sinEliminadas('t'),
+            [$empresa, self::PLAN, trim($numero), trim($finca), $fecha]
         )->getRowArray() !== null;
     }
 

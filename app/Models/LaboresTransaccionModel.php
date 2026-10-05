@@ -92,6 +92,17 @@ class LaboresTransaccionModel extends ProduccionModel
         )->getRowArray() !== null;
     }
 
+    public function seccionDeLote(int $empresa, string $finca, string $lote): ?string
+    {
+        $fila = $this->db->query(
+            "SELECT TOP 1 LTRIM(RTRIM(ISNULL(seccion, ''))) AS seccion FROM aLotes
+              WHERE empresa = ? AND LTRIM(RTRIM(finca)) = ? AND LTRIM(RTRIM(codigo)) = ?",
+            [$empresa, trim($finca), trim($lote)]
+        )->getRowArray();
+
+        return $fila === null ? null : $fila['seccion'];
+    }
+
     public function lotes(int $empresa, string $finca, string $seccion = ''): array
     {
         $sql = "SELECT LTRIM(RTRIM(codigo)) AS codigo, descripcion, LTRIM(RTRIM(ISNULL(seccion, ''))) AS seccion, activo
@@ -136,7 +147,7 @@ class LaboresTransaccionModel extends ProduccionModel
         } catch (\Throwable $e) {
             log_message('error', 'Error resolviendo el precio de la labor: ' . $e->getMessage());
 
-            return 0.0;
+            throw $e;
         }
 
         return $fila === null ? 0.0 : round((float) $fila['precio'], 2);
@@ -272,6 +283,10 @@ class LaboresTransaccionModel extends ProduccionModel
 
         try {
             $numero = $this->consecutivo($empresa);
+
+            for ($intento = 1; $numero !== null && $intento < 20 && $this->numeroUsado($empresa, $numero); $intento++) {
+                $numero = $this->consecutivo($empresa);
+            }
 
             if ($numero === null) {
                 $this->db->transRollback();

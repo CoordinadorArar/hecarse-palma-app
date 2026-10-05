@@ -141,7 +141,22 @@ const enviar = async (accion, datos) => {
 
 // ── Filtros ───────────────────────────────────────────────────────────────────
 
-['filtro_empresa', 'filtro_anio', 'filtro_mes', 'filtro_finca', 'filtro_problemas'].forEach((id) => {
+$id('filtro_empresa').addEventListener('change', (e) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('empresa', e.target.value);
+    window.location.assign(url);
+});
+$id('filtro_problemas').addEventListener('change', () => {
+    const problemas = filtroProblemas() !== '';
+    ['filtro_anio', 'filtro_mes'].forEach((id) => {
+        const select = $id(id);
+        const todos = select.querySelector('option[value=""]');
+        todos.hidden = !problemas;
+        todos.disabled = !problemas;
+        if (!problemas && select.value === '') select.selectedIndex = Array.from(select.options).findIndex((o) => o.value !== '');
+    });
+});
+['filtro_anio', 'filtro_mes', 'filtro_finca', 'filtro_problemas'].forEach((id) => {
     $id(id).addEventListener('change', listar);
 });
 
@@ -150,8 +165,8 @@ const enviar = async (accion, datos) => {
 const repoblarLotes = (finca, seleccion = '') => {
     const lista = LOTES_POR_FINCA[finca] || [];
     const select = $id('peso_lote');
-    select.innerHTML = '<option value="">Seleccione&hellip;</option>' +
-        lista.map((l) => `<option value="${l.codigo}">${l.codigo} &mdash; ${l.descripcion}</option>`).join('');
+    select.innerHTML = '<option value="">Seleccione&hellip;</option>';
+    lista.forEach((l) => select.add(new Option(`${l.codigo} — ${l.descripcion}`, l.codigo)));
     select.value = lista.some((l) => l.codigo === seleccion) ? seleccion : '';
 };
 
