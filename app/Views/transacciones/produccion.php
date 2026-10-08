@@ -305,9 +305,9 @@ $anchoAcciones = [1 => 64, 2 => 98, 3 => 132][1 + (int) $pEditar + (int) $pElimi
                 <div class="tx-inactivo" id="detalle_cuerpo" inert>
 
                     <div class="gp-panel-opcion mb-3">
-                        <div class="row g-2 align-items-end">
+                        <div class="row g-2 align-items-start">
 
-                            <div class="col-md-3">
+                            <div class="col-12 col-md-6 col-xl-3">
                                 <label class="form-label mb-1 small fw-semibold text-muted" for="cap_finca">Finca <span class="text-danger">*</span></label>
                                 <div class="tx-select-ancho">
                                     <select class="form-select" id="cap_finca">
@@ -320,7 +320,7 @@ $anchoAcciones = [1 => 64, 2 => 98, 3 => 132][1 + (int) $pEditar + (int) $pElimi
                                 <div class="invalid-feedback d-block d-none" id="error_finca">Seleccione la finca.</div>
                             </div>
 
-                            <div class="col-md-3">
+                            <div class="col-12 col-md-6 col-xl-2">
                                 <label class="form-label mb-1 small fw-semibold text-muted" for="cap_lote">Lote <span class="text-danger">*</span></label>
                                 <div class="tx-select-ancho">
                                     <select class="form-select" id="cap_lote" disabled>
@@ -330,18 +330,29 @@ $anchoAcciones = [1 => 64, 2 => 98, 3 => 132][1 + (int) $pEditar + (int) $pElimi
                                 <div class="invalid-feedback d-block d-none" id="error_lote">Seleccione el lote.</div>
                             </div>
 
-                            <div class="col-md-2">
+                            <div class="col-6 col-md-4 col-xl-2">
+                                <label class="form-label mb-1 small fw-semibold text-muted" for="cap_fecha_linea">Fecha <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-calendar-event" aria-hidden="true"></i></span>
+                                    <input type="date" class="form-control" id="cap_fecha_linea">
+                                </div>
+                                <div class="invalid-feedback d-block d-none" id="error_fecha_linea">La fecha debe estar dentro del periodo.</div>
+                                <div class="form-text">Por defecto, la fecha del tiquete.</div>
+                            </div>
+
+                            <div class="col-6 col-md-3 col-xl-2">
                                 <label class="form-label mb-1 small fw-semibold text-muted" for="cap_racimos">Racimos <span class="text-danger">*</span></label>
                                 <input type="text" class="form-control font-monospace text-end" id="cap_racimos" inputmode="numeric" maxlength="8" autocomplete="off" onkeypress="soloNumeros(event)">
                                 <div class="invalid-feedback d-block d-none" id="error_racimos">Indique los racimos de la línea (mayor que cero).</div>
                             </div>
 
-                            <div class="col-md-2">
+                            <div class="col-6 col-md-2 col-xl-1">
                                 <label class="form-label mb-1 small fw-semibold text-muted" for="cap_sacos">Sacos</label>
                                 <input type="text" class="form-control font-monospace text-end" id="cap_sacos" inputmode="numeric" maxlength="8" autocomplete="off" value="0" onkeypress="soloNumeros(event)">
                             </div>
 
-                            <div class="col-md-2">
+                            <div class="col-6 col-md-3 col-xl-2">
+                                <span class="form-label mb-1 small d-block" aria-hidden="true">&nbsp;</span>
                                 <button type="button" class="btn btn-success w-100" id="btn_agregar_linea" title="Agregar la línea al detalle">
                                     <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Agregar
                                 </button>
@@ -364,7 +375,7 @@ $anchoAcciones = [1 => 64, 2 => 98, 3 => 132][1 + (int) $pEditar + (int) $pElimi
                         <span>Ninguno de los lotes agregados tiene peso promedio registrado. El sistema repartirá el peso neto solo en proporción a los racimos de cada línea.</span>
                     </div>
 
-                    <div class="accordion" id="lista_lineas"></div>
+                    <div class="tx-lineas" id="lista_lineas"></div>
 
                     <div class="gp-estado-vacio text-center py-5 d-none" id="estado_sin_lineas">
                         <div class="gp-medallon d-inline-flex align-items-center justify-content-center rounded-circle mb-3">
@@ -574,7 +585,7 @@ $anchoAcciones = [1 => 64, 2 => 98, 3 => 132][1 + (int) $pEditar + (int) $pElimi
                                     <select class="form-select" id="trab_tercero"></select>
                                 </div>
                                 <div class="invalid-feedback d-block d-none" id="error_trab_tercero"></div>
-                                <div class="form-text">Escriba al menos 3 caracteres del nombre o la identificación.</div>
+                                <div class="form-text">Escriba el código (ej. CR150), la identificación o el nombre. Mínimo 3 caracteres.</div>
                             </div>
 
                             <div class="col-md-6">

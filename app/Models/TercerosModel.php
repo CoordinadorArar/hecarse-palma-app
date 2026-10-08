@@ -125,9 +125,9 @@ class TercerosModel extends Model
         $busqueda = trim($busqueda);
         if ($busqueda !== '') {
             $sql .= ' AND (nit LIKE ? OR codigo LIKE ? OR descripcion LIKE ? OR razonSocial LIKE ?'
-                . ' OR apellido1 LIKE ? OR apellido2 LIKE ? OR nombre1 LIKE ? OR nombre2 LIKE ?)';
+                . ' OR apellido1 LIKE ? OR apellido2 LIKE ? OR nombre1 LIKE ? OR nombre2 LIKE ? OR codigoEquivalencia LIKE ?)';
 
-            for ($i = 0; $i < 8; $i++) {
+            for ($i = 0; $i < 9; $i++) {
                 $binds[] = '%' . $busqueda . '%';
             }
         }

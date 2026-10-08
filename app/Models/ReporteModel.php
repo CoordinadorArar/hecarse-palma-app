@@ -12,7 +12,7 @@ class ReporteModel extends Model
     public function getTemporales($anio, $mes)
     {
         return $this->db
-            ->table('Infos.dbo.vInformacionAgronomicoSiesaTotal')
+            ->table('dbo.vInformacionAgronomicoSiesaTotal')
             ->select('RazonTemporal')
             ->distinct()
             ->where('año', $anio)
@@ -26,7 +26,7 @@ class ReporteModel extends Model
     public function getEmpleadosSinTemporal($anio, $mes)
     {
         return $this->db
-            ->table('Infos.dbo.vInformacionAgronomicoSiesaTotal')
+            ->table('dbo.vInformacionAgronomicoSiesaTotal')
             ->select('cedula')
             ->select('nombreTercero')
             ->distinct()
@@ -40,7 +40,7 @@ class ReporteModel extends Model
 
     public function getReporteGeneral($anio, $mes, $temporal)
     {
-        return $this->db->table('Infos.dbo.vInformacionAgronomicoSiesaTotal')
+        return $this->db->table('dbo.vInformacionAgronomicoSiesaTotal')
             ->select('
             centroOperacion,
             ccosto,

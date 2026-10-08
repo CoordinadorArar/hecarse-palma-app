@@ -118,12 +118,15 @@ class ProduccionModel extends Model
 
         return $this->db->query(
             "SELECT TOP " . max(1, min($tope, 50)) . " id, LTRIM(RTRIM(nit)) AS nit,
-                    ISNULL(NULLIF(LTRIM(RTRIM(razonSocial)), ''), descripcion) AS razonSocial, activo
+                    ISNULL(NULLIF(LTRIM(RTRIM(razonSocial)), ''), descripcion) AS razonSocial, activo,
+                    ISNULL(LTRIM(RTRIM(codigoEquivalencia)), '') AS codigo
                FROM cTercero
               WHERE empresa = ?
-                AND (LTRIM(RTRIM(nit)) LIKE ? OR razonSocial LIKE ? OR descripcion LIKE ?)
-              ORDER BY razonSocial ASC",
-            [$empresa, $termino . '%', '%' . $termino . '%', '%' . $termino . '%']
+                AND (LTRIM(RTRIM(codigoEquivalencia)) LIKE ? OR LTRIM(RTRIM(nit)) LIKE ? OR razonSocial LIKE ? OR descripcion LIKE ?)
+              ORDER BY CASE WHEN LTRIM(RTRIM(codigoEquivalencia)) = ? THEN 0
+                            WHEN LTRIM(RTRIM(codigoEquivalencia)) LIKE ? THEN 1
+                            WHEN LTRIM(RTRIM(nit)) LIKE ? THEN 2 ELSE 3 END, razonSocial ASC",
+            [$empresa, $termino . '%', $termino . '%', '%' . $termino . '%', '%' . $termino . '%', $termino, $termino . '%', $termino . '%']
         )->getResultArray();
     }
 
@@ -330,7 +333,8 @@ class ProduccionModel extends Model
         }
 
         $lineas = $this->db->query(
-            "SELECT n.registro, LTRIM(RTRIM(n.finca)) AS finca, ISNULL(f.descripcion, '') AS fincaNombre,
+            "SELECT n.registro, CONVERT(varchar(10), n.fecha, 23) AS fecha,
+                    LTRIM(RTRIM(n.finca)) AS finca, ISNULL(f.descripcion, '') AS fincaNombre,
                     LTRIM(RTRIM(n.lote)) AS lote, ISNULL(l.descripcion, '') AS loteNombre,
                     ISNULL(n.racimos, 0) AS racimos, ISNULL(n.sacos, 0) AS sacos,
                     ISNULL(n.pesoRacimo, 0) AS pesoRacimo, ISNULL(n.cantidad, 0) AS cantidad
@@ -347,6 +351,7 @@ class ProduccionModel extends Model
 
         $trabajadores = $this->db->query(
             "SELECT r.registroNovedad, LTRIM(RTRIM(r.tercero)) AS tercero, ISNULL(c.nombre, '') AS terceroNombre,
+                    ISNULL(c.codigo, '') AS terceroCodigo,
                     RTRIM(ISNULL(r.novedad, '')) AS novedad,
                     ISNULL((SELECT MIN(a.descripcion) FROM aNovedad a
                              WHERE a.empresa = r.empresa AND RTRIM(a.codigo) = RTRIM(r.novedad)), '') AS novedadNombre,
@@ -356,7 +361,8 @@ class ProduccionModel extends Model
                     CASE WHEN ISNULL(r.contratista, 0) = 0 THEN 0 ELSE 1 END AS contratista,
                     ISNULL(r.racimos, 0) AS racimos
                FROM aTransaccionTercero r
-               OUTER APPLY (SELECT TOP 1 ISNULL(NULLIF(LTRIM(RTRIM(razonSocial)), ''), descripcion) AS nombre
+               OUTER APPLY (SELECT TOP 1 ISNULL(NULLIF(LTRIM(RTRIM(razonSocial)), ''), descripcion) AS nombre,
+                                   LTRIM(RTRIM(codigoEquivalencia)) AS codigo
                               FROM cTercero
                              WHERE empresa = r.empresa AND LTRIM(RTRIM(nit)) = LTRIM(RTRIM(r.tercero))) c
               WHERE r.empresa = ? AND r.tipo = ? AND LTRIM(RTRIM(r.numero)) = ?
@@ -1029,7 +1035,7 @@ class ProduccionModel extends Model
                     $orden,
                     $linea['finca'],
                     $linea['lote'],
-                    $fecha . 'T00:00:00',
+                    ($linea['fecha'] ?? $fecha) . 'T00:00:00',
                     $cantidad,
                     (int) $linea['racimos'],
                     (float) $linea['pesoRacimo'],
@@ -1083,6 +1089,7 @@ class ProduccionModel extends Model
 
             $resultado[] = [
                 'registro'   => $orden,
+                'fecha'      => $linea['fecha'] ?? $fecha,
                 'finca'      => $linea['finca'],
                 'lote'       => $linea['lote'],
                 'racimos'    => (int) $linea['racimos'],

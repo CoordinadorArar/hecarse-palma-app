@@ -251,7 +251,7 @@ const tarjetaLinea = (linea) => {
     const cuerpo = trabajadores.length === 0
         ? '<tr><td colspan="7" class="text-center text-muted py-3 small">Sin trabajadores registrados</td></tr>'
         : trabajadores.map((fila) => `<tr>
-            <td><span class="font-monospace">${escaparHtml(texto(fila.tercero))}</span><span class="gp-subtexto">${escaparHtml(texto(fila.terceroNombre))}</span></td>
+            ${celdaTercero(texto(fila.terceroCodigo), texto(fila.terceroNombre), texto(fila.tercero))}
             <td><span class="font-monospace">${escaparHtml(texto(fila.novedad))}</span><span class="gp-subtexto">${escaparHtml(texto(fila.novedadNombre))}</span></td>
             <td class="text-nowrap">${texto(fila.fechaNovedad) ? fFecha(fila.fechaNovedad) : VACIO}</td>
             <td class="tx-num">${fmt(fila.cantidad, 2)}</td>
@@ -267,6 +267,7 @@ const tarjetaLinea = (linea) => {
             <i class="bi bi-chevron-right gp-ruta-sep" aria-hidden="true"></i>
             <span class="gp-chip-ambito lote">${escaparHtml(texto(linea.lote))}</span>
             <span>${escaparHtml(texto(linea.loteNombre))}</span>
+            ${chipFecha(texto(linea.fecha).substring(0, 10), false)}
             <span class="ms-auto d-flex align-items-center gap-3">
                 <span class="tx-cab-racimos">${fmt(linea.racimos)} <span class="tx-cab-kg">rac.</span></span>
                 <span class="tx-cab-kg">${fmt(linea.sacos)} sacos</span>

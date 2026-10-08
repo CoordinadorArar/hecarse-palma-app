@@ -236,10 +236,12 @@ class LaboresTransaccionModel extends ProduccionModel
 
         $trabajadores = $this->db->query(
             "SELECT r.registroNovedad, LTRIM(RTRIM(r.tercero)) AS tercero, ISNULL(c.nombre, '') AS terceroNombre,
+                    ISNULL(c.codigo, '') AS terceroCodigo,
                     ISNULL(r.cantidad, 0) AS cantidad, ISNULL(r.jornales, 0) AS jornales,
                     ISNULL(r.precioLabor, 0) AS precioLabor, ISNULL(r.valorTotal, 0) AS valorTotal
                FROM aTransaccionTercero r
-               OUTER APPLY (SELECT TOP 1 ISNULL(NULLIF(LTRIM(RTRIM(razonSocial)), ''), descripcion) AS nombre
+               OUTER APPLY (SELECT TOP 1 ISNULL(NULLIF(LTRIM(RTRIM(razonSocial)), ''), descripcion) AS nombre,
+                                   LTRIM(RTRIM(codigoEquivalencia)) AS codigo
                               FROM cTercero
                              WHERE empresa = r.empresa AND LTRIM(RTRIM(nit)) = LTRIM(RTRIM(r.tercero))) c
               WHERE r.empresa = ? AND r.tipo = ? AND LTRIM(RTRIM(r.numero)) = ?

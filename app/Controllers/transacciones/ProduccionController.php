@@ -354,6 +354,7 @@ class ProduccionController extends BaseController
         foreach ($datos['lineas'] as $i => $linea) {
             $lineas[] = [
                 'registro'   => $i + 1,
+                'fecha'      => $linea['fecha'],
                 'finca'      => $linea['finca'],
                 'lote'       => $linea['lote'],
                 'racimos'    => (int) $linea['racimos'],
@@ -926,6 +927,7 @@ class ProduccionController extends BaseController
         }
 
         $lineas = [];
+        $vistas = [];
 
         foreach ($recibidas as $i => $fila) {
             $orden = $i + 1;
@@ -965,13 +967,37 @@ class ProduccionController extends BaseController
                 return 'Los sacos de la línea ' . $orden . ' deben ser un número entero mayor o igual a cero.';
             }
 
-            $trabajadores = $this->trabajadoresValidos($empresa, $fecha, $fila['trabajadores'] ?? [], $orden, $anio, $mes, $periodo);
+            $fechaLinea = trim((string) ($fila['fecha'] ?? ''));
+            $fechaLinea = $fechaLinea === '' ? $fecha : $this->fechaValida($fechaLinea);
+
+            if ($fechaLinea === null) {
+                return 'La fecha de la línea ' . $orden . ' no es válida.';
+            }
+
+            $fueraPeriodo = $periodo['fechaInicial'] !== null && $periodo['fechaFinal'] !== null
+                ? $fechaLinea < $periodo['fechaInicial'] || $fechaLinea > $periodo['fechaFinal']
+                : substr($fechaLinea, 0, 7) !== $this->etiquetaPeriodo($anio, $mes);
+
+            if ($fueraPeriodo) {
+                return 'La fecha de la línea ' . $orden . ' no pertenece al periodo.';
+            }
+
+            $clave = strtoupper($finca) . '|' . strtoupper($lote) . '|' . $fechaLinea;
+
+            if (isset($vistas[$clave])) {
+                return 'El lote ' . $lote . ' de la finca ' . $finca . ' ya está en otra línea con la fecha ' . $fechaLinea . ' (línea ' . $vistas[$clave] . ').';
+            }
+
+            $vistas[$clave] = $orden;
+
+            $trabajadores = $this->trabajadoresValidos($empresa, $fechaLinea, $fila['trabajadores'] ?? [], $orden, $anio, $mes, $periodo);
 
             if (is_string($trabajadores)) {
                 return $trabajadores;
             }
 
             $lineas[] = [
+                'fecha'        => $fechaLinea,
                 'finca'        => $finca,
                 'lote'         => $lote,
                 'racimos'      => $racimos,
