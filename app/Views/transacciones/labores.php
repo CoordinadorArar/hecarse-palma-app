@@ -229,17 +229,18 @@ $etiqueta    = static fn ($valor) => ucfirst(mb_strtolower(trim(preg_replace('/\
                                 <div class="invalid-feedback d-block d-none" id="error_um">Seleccione la unidad.</div>
                             </div>
 
-                            <div class="col-6 col-md-3 col-lg-2">
+                            <div class="col-6 col-md-3 col-lg-3">
                                 <label class="form-label mb-1 small fw-semibold text-muted" for="cap_fecha">Fecha labor <span class="text-danger">*</span></label>
                                 <div class="input-group">
                                     <span class="input-group-text"><i class="bi bi-calendar-event" aria-hidden="true"></i></span>
                                     <input type="date" class="form-control tx-neto" id="cap_fecha" disabled>
+                                    <button type="button" class="btn btn-outline-success d-none" id="btn_agregar_fecha" title="Agregar fecha a la lista" aria-label="Agregar fecha a la lista"><i class="bi bi-plus-lg" aria-hidden="true"></i></button>
                                 </div>
                                 <div class="invalid-feedback d-block d-none" id="error_fecha_labor">La fecha debe estar dentro del periodo.</div>
                                 <div class="form-text" id="ayuda_fecha_labor">Igual a la fecha de la transacción</div>
                             </div>
 
-                            <div class="col-12 col-md-4 col-lg-4">
+                            <div class="col-12 col-md-4 col-lg-3">
                                 <label class="form-label mb-1 small fw-semibold text-muted" for="cap_finca">Finca <span class="text-danger">*</span></label>
                                 <div class="tx-select-ancho">
                                     <select class="form-select" id="cap_finca">
@@ -251,6 +252,8 @@ $etiqueta    = static fn ($valor) => ucfirst(mb_strtolower(trim(preg_replace('/\
                                 </div>
                                 <div class="invalid-feedback d-block d-none" id="error_finca">Seleccione la finca.</div>
                             </div>
+
+                            <div class="col-12 d-none" id="col_fechas" aria-live="polite"></div>
 
                             <div class="col-6 col-md-4 col-lg-2">
                                 <label class="form-label mb-1 small fw-semibold text-muted" for="cap_seccion">Sección <span class="fw-normal">(opcional)</span></label>
@@ -278,7 +281,7 @@ $etiqueta    = static fn ($valor) => ucfirst(mb_strtolower(trim(preg_replace('/\
                                     <select class="form-select" id="cap_terceros" multiple></select>
                                 </div>
                                 <div class="invalid-feedback d-block d-none" id="error_terceros">Seleccione al menos un tercero.</div>
-                                <div class="form-text">Escriba al menos 3 caracteres del nombre o la identificación.</div>
+                                <div class="form-text">Escriba el código (ej. CR150), la identificación o el nombre. Mínimo 3 caracteres.</div>
                             </div>
 
                             <div class="col-6 col-md-3 col-lg-2">

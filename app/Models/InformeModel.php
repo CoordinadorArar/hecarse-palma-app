@@ -27,7 +27,7 @@ class InformeModel extends Model
     public function getReporteGeneral($anio, $mes)
     {
         ini_set('sqlsrv.ClientBufferMaxKBSize', '51200');
-        $builder = $this->db->table('Infos.dbo.vInformacionAgronomicoSiesaTotal');
+        $builder = $this->db->table('dbo.vInformacionAgronomicoSiesaTotal');
 
         $builder->select("
             centroOperacion,
@@ -65,7 +65,7 @@ class InformeModel extends Model
     public function getTemporales($anio, $mes)
     {
         return $this->db
-            ->table('Infos.dbo.vInformacionAgronomicoSiesaTotal')
+            ->table('dbo.vInformacionAgronomicoSiesaTotal')
             ->select('RazonTemporal, TipoContrato')
             ->distinct()
             ->where('año', $anio)
@@ -78,7 +78,7 @@ class InformeModel extends Model
     public function getEmpleadosSinTemporal($anio, $mes)
     {
         return $this->db
-            ->table('Infos.dbo.vInformacionAgronomicoSiesaTotal')
+            ->table('dbo.vInformacionAgronomicoSiesaTotal')
             ->select('cedula')
             ->select('nombreTercero')
             ->distinct()
@@ -192,9 +192,9 @@ class InformeModel extends Model
         $sql = "
             SELECT f.codigo AS Cedula, f.descripcion AS NombreEmpleado, t.razonSocial AS RazonTemporal,
                 TipoContrato = CASE WHEN sc.activo = 1 AND sc.empresa != 2 THEN 'Directo' ELSE 'Temporal' END
-            FROM Infos..nFuncionario f
-            LEFT JOIN Infos..cTercero t ON t.codigo = f.proveedor
-            LEFT JOIN Infos..SiesaContratos sc ON f.codigo collate SQL_Latin1_General_CP1_CI_AS = sc.codigoTercero
+            FROM dbo.nFuncionario f
+            LEFT JOIN dbo.cTercero t ON t.codigo = f.proveedor
+            LEFT JOIN dbo.SiesaContratos sc ON f.codigo collate SQL_Latin1_General_CP1_CI_AS = sc.codigoTercero
             WHERE f.codigo = '$cedula'
         ";
 
@@ -228,7 +228,7 @@ class InformeModel extends Model
 
     public function valorTotalPagos($anio, $mes)
     {
-        return $this->db->table('Infos.dbo.vInformacionAgronomicoSiesaTotal')
+        return $this->db->table('dbo.vInformacionAgronomicoSiesaTotal')
             ->select("SUM(valorTotalTercero) AS Total")
             ->where('año', $anio)
             ->where('mes', $mes)
@@ -252,7 +252,7 @@ class InformeModel extends Model
                 nombreTercero,
                 nombreGrupoLabor,
                 RazonTemporal
-            FROM Infos.dbo.vInformacionAgronomicoSiesaTotal 
+            FROM dbo.vInformacionAgronomicoSiesaTotal 
             WHERE [año] = ?
                 AND mes = ?
                 AND TipoContrato = 'Temporal'
@@ -298,7 +298,7 @@ class InformeModel extends Model
         $sql = "
             WITH TotalGeneral AS (
                 SELECT RazonTemporal, SUM(valorTotalTercero) AS Total
-                FROM Infos.dbo.vInformacionAgronomicoSiesaTotal 
+                FROM dbo.vInformacionAgronomicoSiesaTotal 
                 WHERE [año] = ?
                     AND mes = ?
                     AND TipoContrato = 'Temporal'
@@ -328,7 +328,7 @@ class InformeModel extends Model
                     THEN ISNULL(tl.TotalTemp, 0) * r.valorTotalTercero / tg.Total 
                     ELSE 0 
                 END AS ValorTemporal
-            FROM Infos.dbo.vInformacionAgronomicoSiesaTotal r
+            FROM dbo.vInformacionAgronomicoSiesaTotal r
             LEFT JOIN TotalGeneral tg ON r.RazonTemporal = tg.RazonTemporal
             LEFT JOIN TotalLiquidacion tl ON r.RazonTemporal = tl.RazonTemporal
             WHERE r.[año] = ?
@@ -348,7 +348,7 @@ class InformeModel extends Model
         $sql = "
             WITH TotalGeneral AS (
                 SELECT SUM(valorTotalTercero) AS Total
-                FROM Infos.dbo.vInformacionAgronomicoSiesaTotal 
+                FROM dbo.vInformacionAgronomicoSiesaTotal 
                 WHERE [año] = ?
                     AND mes = ?
                     AND TipoContrato = 'Temporal'
@@ -371,10 +371,10 @@ class InformeModel extends Model
                     THEN CAST(ROUND(tl.TotalTemp * SUM(r.valorTotalTercero) / tg.Total, 0) AS INT)
                     ELSE 0 
                 END AS ValorTemporal
-            FROM Infos.dbo.vInformacionAgronomicoSiesaTotal r
+            FROM dbo.vInformacionAgronomicoSiesaTotal r
             CROSS JOIN TotalGeneral tg
             CROSS JOIN TotalLiquidacion tl
-            JOIN Infos.dbo.cTercero t ON r.RazonTemporal = t.razonSocial
+            JOIN dbo.cTercero t ON r.RazonTemporal = t.razonSocial
             WHERE r.[año] = ?
                 AND r.mes = ?
                 AND r.RazonTemporal = ?
@@ -401,7 +401,7 @@ class InformeModel extends Model
 
     public function getNitTemporal($temporal)
     {
-        $sql = "SELECT nit FROM Infos.dbo.cTercero WHERE razonSocial = ?";
+        $sql = "SELECT nit FROM dbo.cTercero WHERE razonSocial = ?";
 
         $result = $this->db->query($sql, [$temporal])->getRow();
 

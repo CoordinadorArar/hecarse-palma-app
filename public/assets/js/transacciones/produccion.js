@@ -67,7 +67,7 @@ const estado = {
     lineas: [],
     secuencia: 1,
     secuenciaTrabajador: 1,
-    abierta: null,
+    fechaLineaTocada: false,
     guardando: false,
     fallaPrevio: false,
     sellado: false,
@@ -159,6 +159,10 @@ const revisarPeriodo = () => {
             ? `La fecha del tiquete (${fechaCorta(fecha)}) no está dentro del periodo ${nombrePeriodo(periodo)}${conRango ? ` (${fechaCorta(inicio)} – ${fechaCorta(fin)})` : ''}.`
             : '');
     mostrar($id('nota_periodo'), bloqueado || fuera);
+    $id('cap_fecha_linea').min = conRango ? inicio : '';
+    $id('cap_fecha_linea').max = conRango ? fin : '';
+
+    if (!estado.fechaLineaTocada) $id('cap_fecha_linea').value = fecha;
 };
 
 const cargarPeriodos = async (anio, mes) => {
@@ -210,6 +214,7 @@ const cargarPeriodos = async (anio, mes) => {
 
     selector.disabled = false;
     revisarPeriodo();
+    renderizar();
 };
 
 const racimosTiquete = () => Math.round(aNumero($id('racimos').value));
@@ -291,14 +296,38 @@ const pintarTotales = () => {
     $id('total_sacos').classList.toggle('tx-cero', totales.sacos === 0);
 };
 
+const celdaTercero = (codigo, nombre, nit) => `<td>
+            <div class="text-nowrap">${codigo ? `<span class="font-monospace fw-semibold">${escaparHtml(codigo)}</span> ` : ''}<span class="gp-truncar d-inline-block align-bottom" title="${escaparHtml(nombre)}">${escaparHtml(nombre)}</span></div>
+            <span class="gp-subtexto font-monospace">${escaparHtml(nit)}</span>
+        </td>`;
+
+const chipFecha = (fecha, fuera) => {
+    if (texto(fecha) === '') return '';
+
+    return fuera
+        ? `<span class="gp-chip-fila tx-chip-rojo font-monospace" title="La fecha de la línea está fuera del periodo seleccionado"><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>${escaparHtml(fechaCorta(fecha))}</span>`
+        : `<span class="gp-chip-fila tx-chip-neutro font-monospace"><i class="bi bi-calendar-event me-1" aria-hidden="true"></i>${escaparHtml(fechaCorta(fecha))}</span>`;
+};
+
+const fechaFuera = (fecha) => {
+    const periodo = periodoActual();
+
+    if (!periodo || texto(fecha) === '') return false;
+
+    if (!sinFechas(periodo)) return fecha < texto(periodo.fechaInicial).substring(0, 10) || fecha > texto(periodo.fechaFinal).substring(0, 10);
+
+    return Number(periodo.mes) <= 12 && fecha.substring(0, 7) !== `${$id('anio').value}-${String(Number(periodo.mes)).padStart(2, '0')}`;
+};
+
 const filaTrabajador = (linea, trabajador) => `
     <tr data-trabajador="${trabajador.id}">
-        <td><span class="font-monospace">${escaparHtml(trabajador.tercero)}</span><span class="gp-subtexto">${escaparHtml(trabajador.terceroNombre)}</span></td>
-        <td><span class="font-monospace">${escaparHtml(trabajador.novedad)}</span><span class="gp-subtexto">${escaparHtml(trabajador.novedadNombre)}</span></td>
-        <td class="text-end font-monospace">${fmt(trabajador.cantidad, 2)}</td>
-        <td class="font-monospace">${escaparHtml(trabajador.fecha)}</td>
-        <td class="text-end font-monospace">${fmt(trabajador.precio, 2)}</td>
-        <td class="text-end font-monospace">${fmt(trabajador.jornales, 2)}</td>
+        ${celdaTercero(trabajador.terceroCodigo, trabajador.terceroNombre, trabajador.tercero)}
+        <td><span class="font-monospace">${escaparHtml(trabajador.novedad)}</span><span class="gp-subtexto gp-truncar" title="${escaparHtml(trabajador.novedadNombre)}">${escaparHtml(trabajador.novedadNombre)}</span></td>
+        <td class="font-monospace text-nowrap" title="${escaparHtml(fechaCorta(trabajador.fecha))}">${escaparHtml(fechaCorta(trabajador.fecha).substring(0, 5))}</td>
+        <td class="tx-num">${fmt(trabajador.cantidad, 2)}</td>
+        <td class="tx-num">${fmt(trabajador.precio, 2)}</td>
+        <td class="tx-num${trabajador.jornales === 0 ? ' tx-cero' : ''}">${fmt(trabajador.jornales, 2)}</td>
+        <td class="tx-num fw-semibold">${fmt(trabajador.cantidad * trabajador.precio)}</td>
         <td class="text-center gp-col-sticky">
             <div class="d-flex justify-content-center gap-1">
                 <button type="button" class="btn btn-outline-secondary btn-sm" data-accion="editar-trabajador" data-linea="${linea.id}" data-trabajador="${trabajador.id}" title="Editar trabajador">
@@ -311,146 +340,93 @@ const filaTrabajador = (linea, trabajador) => `
         </td>
     </tr>`;
 
-const panelBloque = (linea, bloque, activo) => {
-    const filas = linea.trabajadores.filter((trabajador) => trabajador.bloque === bloque.clave);
-
-    const vacia = sinLabores();
-
-    const cuerpo = filas.length === 0
-        ? `<div class="gp-estado-vacio text-center py-4">
-                <div class="gp-medallon chico d-inline-flex align-items-center justify-content-center rounded-circle mb-2"><i class="bi ${vacia ? 'bi-slash-circle' : 'bi-people'}" aria-hidden="true"></i></div>
-                <h6 class="mb-2">${escaparHtml(vacia ? SIN_LABORES : bloque.vacio)}</h6>
-                ${vacia ? '' : `<button type="button" class="btn btn-sm btn-success" data-accion="nuevo-trabajador" data-linea="${linea.id}" data-bloque="${bloque.clave}" title="Agregar trabajador">
-                    <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Agregar trabajador
-                </button>`}
-           </div>`
-        : `<div class="table-responsive">
-                <table class="table table-sm table-hover align-middle mb-0 gp-tabla tx-grilla">
-                    <thead class="gp-thead">
-                        <tr>
-                            <th style="min-width:180px">Tercero</th>
-                            <th style="min-width:180px">Actividad</th>
-                            <th class="text-end" style="width:120px">Cantidad (kg)</th>
-                            <th style="width:120px">Fecha</th>
-                            <th class="text-end" style="width:110px">Precio</th>
-                            <th class="text-end" style="width:100px">Jornales</th>
-                            <th class="text-center gp-col-sticky" style="width:110px">Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody>${filas.map((trabajador) => filaTrabajador(linea, trabajador)).join('')}</tbody>
-                </table>
-           </div>`;
-
-    return `<div class="tab-pane fade${activo ? ' show active' : ''}" id="panel_${linea.id}_${bloque.clave}" role="tabpanel">
-                ${filas.length === 0 ? '' : `<div class="d-flex justify-content-end mb-2">
-                    <button type="button" class="btn btn-sm btn-success" data-accion="nuevo-trabajador" data-linea="${linea.id}" data-bloque="${bloque.clave}"${vacia ? ' disabled' : ''} title="${escaparHtml(vacia ? SIN_LABORES : 'Agregar trabajador')}">
-                        <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Agregar trabajador
-                    </button></div>`}
-                ${cuerpo}
-            </div>`;
-};
-
 const tarjeta = (linea, indice) => {
-    const abierta = estado.abierta === linea.id;
-    const conteos = BLOQUES.map((bloque) => ({
-        bloque, total: linea.trabajadores.filter((trabajador) => trabajador.bloque === bloque.clave).length
-    }));
+    const vacia = sinLabores();
+    const posicion = fmt(indice + 1);
+    const delBloque = (clave) => linea.trabajadores.filter((trabajador) => trabajador.bloque === clave);
+    const faltan = faltantes();
 
-    const chips = conteos.filter((conteo) => conteo.total > 0).length === 0
-        ? ''
-        : conteos.map((conteo) => `<span class="tx-chip-cont${conteo.total > 0 ? ' verde' : ''}">${conteo.bloque.letra} ${fmt(conteo.total)}</span>`).join('');
+    const filas = BLOQUES.map((bloque) => {
+        const lista = delBloque(bloque.clave);
 
-    const dinero = (clave) => linea.trabajadores
-        .filter((trabajador) => trabajador.bloque === clave)
-        .reduce((suma, trabajador) => suma + trabajador.cantidad * trabajador.precio, 0);
-
-    const jornales = (clave) => linea.trabajadores
-        .filter((trabajador) => trabajador.bloque === clave)
-        .reduce((suma, trabajador) => suma + trabajador.jornales, 0);
+        return lista.length === 0 ? '' : `<tr class="tx-grupo"><td colspan="8">${escaparHtml(bloque.rotuloPie)} <span class="tx-chip-cont verde">${fmt(lista.length)}</span></td></tr>`
+            + lista.map((trabajador) => filaTrabajador(linea, trabajador)).join('');
+    }).join('');
 
     const pie = BLOQUES.map((bloque) => {
-        const valor = dinero(bloque.clave);
-        const jor = jornales(bloque.clave);
+        const valor = delBloque(bloque.clave).reduce((suma, trabajador) => suma + trabajador.cantidad * trabajador.precio, 0);
+        const jor = delBloque(bloque.clave).reduce((suma, trabajador) => suma + trabajador.jornales, 0);
 
-        return `<span class="${valor === 0 ? 'tx-cero' : ''}">${escaparHtml(bloque.rotuloPie)} ${fmt(valor)}</span>`
-            + ` <span class="${jor === 0 ? 'tx-cero' : ''}">&middot; Jor. ${fmt(jor)}</span>`;
-    }).join(' <span class="tx-cero">|</span> ');
-
-    const faltan = faltantes();
+        return `<span><span class="${valor === 0 ? 'tx-cero' : ''}">${escaparHtml(bloque.rotuloPie)} $${fmt(valor)}</span>`
+            + ` <span class="${jor === 0 ? 'tx-cero' : ''}">&middot; Jor. ${fmt(jor)}</span></span>`;
+    }).join('<span class="tx-cero">|</span>');
 
     return `
     <div class="tx-tarjeta${linea.pesoRacimo > 0 || !hayPesos() ? '' : ' tx-tarjeta--sinpeso'}" data-linea="${linea.id}">
-        <div class="tx-tarjeta-cab" data-bs-toggle="collapse" data-bs-target="#cuerpo_${linea.id}" role="button" aria-expanded="${abierta}" aria-controls="cuerpo_${linea.id}">
-            <span class="gp-chip-fila tx-chip-neutro font-monospace">Registro ${fmt(indice + 1)}</span>
+        <div class="tx-tarjeta-cab tx-tarjeta-cab--fija border-bottom">
+            <span class="gp-chip-fila tx-chip-neutro font-monospace">Registro ${posicion}</span>
             <span class="fw-semibold">${escaparHtml(linea.fincaNombre)}</span>
-            <span class="font-monospace">${escaparHtml(linea.lote)}</span>
-            <span class="tx-sep">&middot;</span>
-            <span class="tx-cab-racimos" data-racimos-cab="${linea.id}">${fmt(linea.racimos)} racimos</span>
-            <span class="d-flex flex-column">
-                <span class="gp-etiqueta-mini">asignados</span>
-                <span class="tx-cab-kg" data-kg-cab="${linea.id}">${fmt(linea.kg)} kg</span>
-            </span>
+            <i class="bi bi-chevron-right gp-ruta-sep" aria-hidden="true"></i>
+            <span class="font-monospace fw-semibold">${escaparHtml(linea.lote)}</span>
+            ${chipFecha(linea.fecha, fechaFuera(linea.fecha))}
             ${linea.pesoRacimo > 0 || !hayPesos() ? '' : '<span class="gp-chip-fila ambar">Sin peso</span>'}
-            ${chips}
-            <span class="ms-auto d-flex align-items-center gap-2">
-                <button type="button" class="btn btn-sm btn-outline-danger" data-accion="eliminar-linea" data-linea="${linea.id}" title="Eliminar la línea">
-                    <i class="bi bi-trash" aria-hidden="true"></i>
-                </button>
-                <i class="bi bi-chevron-down tx-chevron" aria-hidden="true"></i>
-            </span>
+            <button type="button" class="btn btn-sm btn-outline-danger ms-auto" data-accion="eliminar-linea" data-linea="${linea.id}" title="Quitar el registro ${posicion}" aria-label="Quitar el registro ${posicion}">
+                <i class="bi bi-trash" aria-hidden="true"></i>
+            </button>
         </div>
-        <div class="collapse${abierta ? ' show' : ''}" id="cuerpo_${linea.id}" data-bs-parent="#lista_lineas">
-            <div class="p-3">
-
-                <div class="gp-referencia mb-3">
-                    <div class="row g-3 align-items-end">
-                        <div class="col-md-2">
-                            <span class="gp-etiqueta-mini">Peso prom.</span>
-                            <div class="gp-referencia-valor text-start">${linea.pesoRacimo > 0 ? fmt(linea.pesoRacimo, 2) + ' kg' : '—'}</div>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label mb-1 small fw-semibold text-muted" for="linea_racimos_${linea.id}">Racimos</label>
-                            <div class="d-flex align-items-center gap-2">
-                                <input type="text" class="form-control tx-input-num" id="linea_racimos_${linea.id}" data-campo="racimos" data-linea="${linea.id}" inputmode="numeric" maxlength="8" autocomplete="off" value="${fmt(linea.racimos)}">
-                                <button type="button" class="btn btn-sm btn-outline-success text-nowrap${faltan > 0 ? '' : ' d-none'}" data-accion="asignar-faltantes" data-linea="${linea.id}" title="Suma a esta línea los ${fmt(faltan)} racimos que faltan para cuadrar con el tiquete.">
-                                    <i class="bi bi-check2-square me-1" aria-hidden="true"></i>Asignar los racimos que faltan
-                                </button>
-                            </div>
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label mb-1 small fw-semibold text-muted" for="linea_sacos_${linea.id}">Sacos</label>
-                            <input type="text" class="form-control tx-input-num" id="linea_sacos_${linea.id}" data-campo="sacos" data-linea="${linea.id}" inputmode="numeric" maxlength="8" autocomplete="off" value="${fmt(linea.sacos)}">
-                        </div>
-                        <div class="col-md-4 text-end">
-                            <span class="gp-etiqueta-mini"><i class="bi bi-calculator me-1" aria-hidden="true"></i>Kg asignados</span>
-                            <div>
-                                <span class="fs-5 fw-bold tx-kg-asignados" data-kg="${linea.id}" title="${escaparHtml(tooltipKg(linea))}">${textoKg(linea)}</span>
-                                <span data-delta="${linea.id}"></span>
-                            </div>
-                            <div class="gp-subtexto">Los calcula el sistema.</div>
-                        </div>
-                    </div>
+        <div class="px-3 py-2 border-bottom tx-franja">
+            <div class="row g-2 row-cols-2 row-cols-sm-4 align-items-end">
+                <div class="col">
+                    <span class="gp-etiqueta-mini d-block mb-1">Peso prom.</span>
+                    <span class="tx-dato-valor">${linea.pesoRacimo > 0 ? fmt(linea.pesoRacimo, 2) + ' kg' : '—'}</span>
                 </div>
-
-                <ul class="nav nav-tabs nav-tabs-sm tx-tabs mb-2" role="tablist">
-                    ${BLOQUES.map((bloque, posicion) => {
-        const total = linea.trabajadores.filter((trabajador) => trabajador.bloque === bloque.clave).length;
-
-        return `<li class="nav-item" role="presentation">
-                            <button class="nav-link${posicion === 0 ? ' active' : ''}${total === 0 ? ' tx-vacia' : ''}" data-bs-toggle="tab" data-bs-target="#panel_${linea.id}_${bloque.clave}" type="button" role="tab">
-                                ${escaparHtml(bloque.rotulo)} <span class="tx-chip-cont${total > 0 ? ' verde' : ''}">${fmt(total)}</span>
-                            </button>
-                        </li>`;
-    }).join('')}
-                </ul>
-
-                <div class="tab-content">
-                    ${BLOQUES.map((bloque, posicion) => panelBloque(linea, bloque, posicion === 0)).join('')}
+                <div class="col">
+                    <label class="gp-etiqueta-mini d-block mb-1" for="linea_racimos_${linea.id}">Racimos</label>
+                    <input type="text" class="form-control form-control-sm tx-input-num" id="linea_racimos_${linea.id}" data-campo="racimos" data-linea="${linea.id}" inputmode="numeric" maxlength="8" autocomplete="off" value="${fmt(linea.racimos)}">
                 </div>
-
+                <div class="col">
+                    <label class="gp-etiqueta-mini d-block mb-1" for="linea_sacos_${linea.id}">Sacos</label>
+                    <input type="text" class="form-control form-control-sm tx-input-num" id="linea_sacos_${linea.id}" data-campo="sacos" data-linea="${linea.id}" inputmode="numeric" maxlength="8" autocomplete="off" value="${fmt(linea.sacos)}">
+                </div>
+                <div class="col text-end">
+                    <span class="gp-etiqueta-mini d-block mb-1"><i class="bi bi-calculator me-1" aria-hidden="true"></i>Kg asignados</span>
+                    <span class="fw-bold tx-kg-asignados" data-kg="${linea.id}" title="${escaparHtml(tooltipKg(linea))}">${textoKg(linea)}</span>
+                    <span data-delta="${linea.id}"></span>
+                </div>
+                <div class="col-12${faltan > 0 ? '' : ' d-none'}" data-faltantes="${linea.id}">
+                    <button type="button" class="btn btn-sm btn-outline-success" data-accion="asignar-faltantes" data-linea="${linea.id}" title="Suma a esta línea los ${fmt(faltan)} racimos que faltan para cuadrar con el tiquete.">
+                        <i class="bi bi-check2-square me-1" aria-hidden="true"></i>Asignar faltantes (+${fmt(faltan)})
+                    </button>
+                </div>
             </div>
-            <div class="card-footer bg-white py-2 text-end tx-pie-tarjeta">${pie}</div>
         </div>
+        <div class="d-flex flex-wrap align-items-center gap-2 px-3 py-2">
+            <span class="gp-etiqueta-mini">Trabajadores</span>
+            <span class="tx-chip-cont${linea.trabajadores.length > 0 ? ' verde' : ''}">${fmt(linea.trabajadores.length)}</span>
+            <div class="btn-group btn-group-sm ms-auto" role="group" aria-label="Agregar trabajadores al registro ${posicion}">
+                ${BLOQUES.map((bloque) => `<button type="button" class="btn btn-outline-success" data-accion="nuevo-trabajador" data-linea="${linea.id}" data-bloque="${bloque.clave}"${vacia ? ' disabled' : ''} title="${escaparHtml(vacia ? SIN_LABORES : `Agregar trabajador de ${bloque.rotuloPie.toLowerCase()}`)}">
+                    <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>${escaparHtml(bloque.rotuloPie)}
+                </button>`).join('')}
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0 gp-tabla tx-grilla tx-tabla-trab">
+                <thead class="gp-thead">
+                    <tr>
+                        <th style="min-width:150px">Tercero</th>
+                        <th style="min-width:120px">Actividad</th>
+                        <th style="width:70px">Fecha</th>
+                        <th class="text-end" style="width:90px">Cant. (kg)</th>
+                        <th class="text-end" style="width:90px">Precio</th>
+                        <th class="text-end" style="width:60px">Jor.</th>
+                        <th class="text-end" style="width:100px">Valor</th>
+                        <th class="text-center gp-col-sticky" style="width:80px">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>${filas || `<tr><td colspan="8" class="text-center text-muted small py-3"><i class="bi ${vacia ? 'bi-slash-circle' : 'bi-people'} me-1" aria-hidden="true"></i>${escaparHtml(vacia ? SIN_LABORES : 'Sin trabajadores. Use + Cosecha, + Cargue o + Transporte.')}</td></tr>`}</tbody>
+            </table>
+        </div>
+        <div class="tx-pie-tarjeta px-3 py-2 border-top d-flex flex-wrap justify-content-end gap-3">${pie}</div>
     </div>`;
 };
 
@@ -472,12 +448,6 @@ const tooltipKg = (linea) => {
         + ` · ajuste proporcional ${ajuste >= 0 ? '+' : '−'}${fmt(Math.abs(ajuste))} kg`;
 };
 
-const aplicarInert = () => {
-    document.querySelectorAll('#lista_lineas .collapse').forEach((cuerpo) => {
-        cuerpo.toggleAttribute('inert', !cuerpo.classList.contains('show'));
-    });
-};
-
 const renderizar = () => {
     $id('lista_lineas').innerHTML = estado.lineas.map((linea, indice) => tarjeta(linea, indice)).join('');
     mostrar($id('estado_sin_lineas'), estado.tiqueteCargado && estado.lineas.length === 0);
@@ -485,17 +455,13 @@ const renderizar = () => {
     mostrar($id('pie_estimado'), estado.lineas.length > 0);
     mostrar($id('nota_sin_pesos'), estado.lineas.length > 0 && !hayPesos());
     $id('texto_sin_lineas').textContent = `Elija finca, lote y racimos y pulse Agregar para repartir los ${fmt(racimosTiquete())} racimos del tiquete.`;
-    aplicarInert();
     pintarMedidor();
     pintarTotales();
 };
 
 const refrescarDerivados = () => {
     estado.lineas.forEach((linea) => {
-        const cabecera = document.querySelector(`[data-kg-cab="${linea.id}"]`);
         const cifra = document.querySelector(`[data-kg="${linea.id}"]`);
-
-        if (cabecera) cabecera.textContent = `${fmt(linea.kg)} kg`;
 
         if (cifra) {
             cifra.innerHTML = textoKg(linea);
@@ -503,20 +469,12 @@ const refrescarDerivados = () => {
         }
     });
 
-    document.querySelectorAll('.tx-tarjeta').forEach((nodo) => {
-        const linea = estado.lineas.find((item) => String(item.id) === nodo.dataset.linea);
-        const boton = nodo.querySelector('[data-accion="asignar-faltantes"]');
-
-        if (!linea || !boton) return;
+    document.querySelectorAll('#lista_lineas [data-faltantes]').forEach((columna) => {
+        const boton = columna.querySelector('[data-accion="asignar-faltantes"]');
 
         boton.title = `Suma a esta línea los ${fmt(faltantes())} racimos que faltan para cuadrar con el tiquete.`;
-        mostrar(boton, faltantes() > 0);
-    });
-
-    estado.lineas.forEach((linea) => {
-        const cabecera = document.querySelector(`[data-racimos-cab="${linea.id}"]`);
-
-        if (cabecera) cabecera.textContent = `${fmt(linea.racimos)} racimos`;
+        boton.innerHTML = `<i class="bi bi-check2-square me-1" aria-hidden="true"></i>Asignar faltantes (+${fmt(faltantes())})`;
+        mostrar(columna, faltantes() > 0);
     });
 
     pintarMedidor();
@@ -525,9 +483,7 @@ const refrescarDerivados = () => {
 
 const marcarFlash = (cambios) => {
     cambios.forEach(({ id, delta }) => {
-        const cifra = document.querySelector(`[data-kg="${id}"]`);
-        const cabecera = document.querySelector(`[data-kg-cab="${id}"]`);
-        const objetivo = cifra && cifra.offsetParent !== null ? cifra : cabecera;
+        const objetivo = document.querySelector(`[data-kg="${id}"]`);
 
         if (!objetivo) return;
 
@@ -569,6 +525,7 @@ const cuerpoBase = () => ({
     lineas: JSON.stringify(estado.lineas.map((linea) => ({
         finca: linea.finca,
         lote: linea.lote,
+        fecha: linea.fecha,
         racimos: linea.racimos,
         sacos: linea.sacos,
         trabajadores: linea.trabajadores.map((trabajador) => ({
@@ -706,6 +663,9 @@ const limpiarCaptura = () => {
     $('#cap_lote').trigger('change.select2');
     $id('cap_racimos').value = '';
     $id('cap_sacos').value = '0';
+    estado.fechaLineaTocada = false;
+    marcarDuplicado(false);
+    errorCaptura('error_fecha_linea', false);
     $id('ayuda_peso').className = 'gp-subtexto';
     $id('ayuda_peso').textContent = '';
 };
@@ -937,27 +897,24 @@ const destacar = (id) => {
     nodo.classList.remove('tx-tarjeta--destacada');
     void nodo.offsetWidth;
     nodo.classList.add('tx-tarjeta--destacada');
-    nodo.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    setTimeout(() => nodo.classList.remove('tx-tarjeta--destacada'), 1200);
-};
-
-const abrirLinea = (id) => {
-    estado.abierta = id;
-
-    const cuerpo = $id(`cuerpo_${id}`);
-
-    if (cuerpo && !cuerpo.classList.contains('show')) {
-        bootstrap.Collapse.getOrCreateInstance(cuerpo).show();
-    }
+    nodo.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    setTimeout(() => nodo.classList.remove('tx-tarjeta--destacada'), 1600);
 };
 
 const errorCaptura = (id, visible) => mostrar($id(id), visible);
 
+const marcarDuplicado = (activo) => {
+    $id('cap_lote').closest('.tx-select-ancho').classList.toggle('is-invalid', activo);
+    $id('cap_fecha_linea').classList.toggle('is-invalid', activo);
+};
+
 const agregarLinea = async () => {
-    ['error_finca', 'error_lote', 'error_racimos'].forEach((id) => errorCaptura(id, false));
+    ['error_finca', 'error_lote', 'error_fecha_linea', 'error_racimos'].forEach((id) => errorCaptura(id, false));
+    marcarDuplicado(false);
 
     const finca = $id('cap_finca').value;
     const lote = $id('cap_lote').value;
+    const fecha = $id('cap_fecha_linea').value;
     const racimos = Math.round(aNumero($id('cap_racimos').value));
 
     if (finca === '') {
@@ -974,6 +931,15 @@ const agregarLinea = async () => {
         return;
     }
 
+    if (fecha === '' || fechaFuera(fecha)) {
+        $id('error_fecha_linea').textContent = fecha === '' ? 'Indique la fecha.' : 'La fecha debe estar dentro del periodo.';
+        errorCaptura('error_fecha_linea', true);
+        $id('cap_fecha_linea').classList.add('is-invalid');
+        $id('cap_fecha_linea').focus();
+
+        return;
+    }
+
     if (racimos <= 0) {
         errorCaptura('error_racimos', true);
         $id('cap_racimos').focus();
@@ -981,14 +947,15 @@ const agregarLinea = async () => {
         return;
     }
 
-    const repetida = estado.lineas.find((linea) => linea.finca === finca && linea.lote === lote);
+    const repetida = estado.lineas.find((linea) => linea.finca === finca && linea.lote === lote && linea.fecha === fecha);
 
     if (repetida) {
-        const posicion = estado.lineas.indexOf(repetida) + 1;
-
-        abrirLinea(repetida.id);
+        marcarDuplicado(true);
         destacar(repetida.id);
-        Toast.fire({ icon: 'warning', title: `Ese lote ya está en la línea ${fmt(posicion)}. Ajuste los racimos allí.` });
+        Toast.fire({
+            icon: 'warning',
+            title: `Ya existe el Registro ${fmt(estado.lineas.indexOf(repetida) + 1)} para el lote ${escaparHtml(lote)} el ${escaparHtml(fechaCorta(fecha))}. Cambie la fecha o ajuste los racimos de ese registro.`
+        });
 
         return;
     }
@@ -1019,6 +986,7 @@ const agregarLinea = async () => {
         finca,
         fincaNombre: texto(opcion?.text).split('—').slice(1).join('—').trim() || finca,
         lote,
+        fecha,
         racimos,
         sacos: Math.round(aNumero($id('cap_sacos').value)),
         pesoRacimo: peso,
@@ -1026,14 +994,12 @@ const agregarLinea = async () => {
         trabajadores: []
     });
 
-    estado.abierta = estado.lineas[estado.lineas.length - 1].id;
-
     $id('cap_racimos').value = '';
     $id('cap_sacos').value = '0';
 
     renderizar();
 
-    const nodo = document.querySelector(`.tx-tarjeta[data-linea="${estado.abierta}"]`);
+    const nodo = document.querySelector(`.tx-tarjeta[data-linea="${estado.lineas[estado.lineas.length - 1].id}"]`);
 
     if (nodo) nodo.classList.add('gp-revelar');
 
@@ -1077,9 +1043,9 @@ const cargarLabores = async () => {
     return estado.labores;
 };
 
-const tercerosModal = () => Array.from($id('trab_tercero').selectedOptions)
-    .filter((opcion) => opcion.value !== '')
-    .map((opcion) => ({ tercero: opcion.value, nombre: texto(opcion.text) }));
+const tercerosModal = () => $('#trab_tercero').select2('data')
+    .filter((opcion) => texto(opcion.id) !== '')
+    .map((opcion) => ({ tercero: opcion.id, nombre: texto(opcion.text), codigo: texto(opcion.codigo ?? opcion.element?.dataset.codigo) }));
 
 const precioDe = (tercero) => {
     const sugerido = estado.modal.precios[tercero];
@@ -1187,7 +1153,7 @@ const iniciarTercero = (multiple) => {
 
     $('#trab_tercero').select2({
         width: '100%', dropdownParent: $('#modalTrabajador'),
-        placeholder: multiple ? 'Busque y agregue uno o más terceros' : 'Busque por identificación o nombre…',
+        placeholder: multiple ? 'Busque por código, identificación o nombre' : 'Código, identificación o nombre…',
         allowClear: true, minimumInputLength: 3, language: IDIOMA_SELECT2,
         ajax: {
             delay: 250,
@@ -1198,15 +1164,22 @@ const iniciarTercero = (multiple) => {
                 return { abort: () => { } };
             },
             processResults: (datos) => ({
-                results: (datos.filas || []).map((fila) => ({ id: fila.nit, text: fila.razonSocial, nit: fila.nit }))
+                results: (datos.filas || []).map((fila) => ({ id: fila.nit, text: fila.razonSocial, nit: fila.nit, codigo: texto(fila.codigo) }))
             })
         },
         templateResult: (opcion) => opcion.nit
-            ? $(`<span><span class="font-monospace">${escaparHtml(opcion.nit)}</span> <span class="ms-1">${escaparHtml(opcion.text)}</span></span>`)
+            ? $(`<span class="d-flex align-items-baseline gap-2">${opcion.codigo ? `<span class="gp-chip-fila verde font-monospace fw-semibold">${escaparHtml(opcion.codigo)}</span>` : ''}`
+                + `<span class="text-truncate">${escaparHtml(opcion.text)}</span><span class="gp-subtexto font-monospace ms-auto">${escaparHtml(opcion.nit)}</span></span>`)
             : opcion.text,
-        templateSelection: (opcion) => multiple && opcion.id
-            ? $(`<span><span class="font-monospace">${escaparHtml(opcion.id)}</span> ${escaparHtml(texto(opcion.text).split(/\s+/).slice(0, 2).join(' '))}</span>`)
-            : opcion.text
+        templateSelection: (opcion) => {
+            const codigo = texto(opcion.codigo ?? opcion.element?.dataset.codigo);
+
+            if (!opcion.id) return opcion.text;
+
+            return multiple
+                ? $(`<span><span class="font-monospace">${escaparHtml(codigo || opcion.id)}</span> ${escaparHtml(texto(opcion.text).split(/\s+/).slice(0, 2).join(' '))}</span>`)
+                : (codigo ? $(`<span><span class="font-monospace fw-semibold">${escaparHtml(codigo)}</span> — ${escaparHtml(opcion.text)}</span>`) : opcion.text);
+        }
     });
 };
 
@@ -1224,14 +1197,14 @@ const abrirModalTrabajador = async (idLinea, bloqueClave, idTrabajador) => {
 
     $id('titulo_modal_trabajador').innerHTML = `<i class="bi bi-person-plus me-1" aria-hidden="true"></i>`
         + `${trabajador ? 'Editar trabajador' : 'Agregar trabajador'} &middot; ${escaparHtml(bloque.rotulo)}`;
-    $id('chip_modal_linea').textContent = `Registro ${estado.lineas.indexOf(linea) + 1} — ${linea.lote}`;
+    $id('chip_modal_linea').textContent = `Registro ${estado.lineas.indexOf(linea) + 1} — ${linea.lote} · ${fechaCorta(linea.fecha)}`;
 
     const periodo = periodoActual();
 
     $id('trab_fecha').min = periodo && !sinFechas(periodo) ? texto(periodo.fechaInicial).substring(0, 10) : '';
     $id('trab_fecha').max = periodo && !sinFechas(periodo) ? texto(periodo.fechaFinal).substring(0, 10) : '';
     $id('trab_fecha').classList.remove('is-invalid');
-    $id('trab_fecha').value = trabajador ? trabajador.fecha : $id('fecha').value;
+    $id('trab_fecha').value = trabajador ? trabajador.fecha : (linea.fecha || $id('fecha').value);
     const pendiente = linea.kg - linea.trabajadores.reduce((suma, item) => suma + item.cantidad, 0);
 
     $id('trab_cantidad').value = trabajador ? fmt(trabajador.cantidad, 2) : (pendiente > 0 ? fmt(pendiente, 2) : '');
@@ -1242,7 +1215,7 @@ const abrirModalTrabajador = async (idLinea, bloqueClave, idTrabajador) => {
     ['error_trab_tercero', 'error_trab_novedad', 'error_trab_cantidad'].forEach((id) => mostrar($id(id), false));
 
     const opcionesTercero = trabajador
-        ? `<option value="${escaparHtml(trabajador.tercero)}" selected>${escaparHtml(trabajador.terceroNombre)}</option>`
+        ? `<option value="${escaparHtml(trabajador.tercero)}" data-codigo="${escaparHtml(trabajador.terceroCodigo)}" selected>${escaparHtml(trabajador.terceroNombre)}</option>`
         : '';
 
     iniciarTercero(!trabajador);
@@ -1337,19 +1310,18 @@ const guardarTrabajador = async () => {
     if (estado.modal.trabajador) {
         const actual = linea.trabajadores.find((item) => item.id === estado.modal.trabajador);
 
-        Object.assign(actual, datos, { tercero: seleccion[0].tercero, terceroNombre: seleccion[0].nombre, precio: aNumero($id('trab_precio').value) });
+        Object.assign(actual, datos, { tercero: seleccion[0].tercero, terceroNombre: seleccion[0].nombre, terceroCodigo: seleccion[0].codigo, precio: aNumero($id('trab_precio').value) });
         ids.push(actual.id);
     } else {
         seleccion.forEach((item) => {
             const id = estado.secuenciaTrabajador++;
 
             ids.push(id);
-            linea.trabajadores.push({ id, ...datos, tercero: item.tercero, terceroNombre: item.nombre, precio: precioDe(item.tercero) });
+            linea.trabajadores.push({ id, ...datos, tercero: item.tercero, terceroNombre: item.nombre, terceroCodigo: item.codigo, precio: precioDe(item.tercero) });
         });
     }
 
     bootstrap.Modal.getOrCreateInstance($id('modalTrabajador')).hide();
-    estado.abierta = linea.id;
     renderizar();
 
     ids.forEach((id) => document.querySelector(`tr[data-trabajador="${id}"]`)?.classList.add('gp-flash-guardado'));
@@ -1377,7 +1349,6 @@ const eliminarTrabajador = async (idLinea, idTrabajador) => {
     if (!respuesta.isConfirmed) return;
 
     linea.trabajadores = linea.trabajadores.filter((item) => item.id !== idTrabajador);
-    estado.abierta = linea.id;
     renderizar();
 };
 
@@ -1411,7 +1382,6 @@ const limpiarTodo = () => {
     congelar(false);
     estado.sellado = false;
     estado.lineas = [];
-    estado.abierta = null;
     estado.externo = false;
     estado.encontrado = false;
     estado.tiqueteCargado = false;
@@ -1536,6 +1506,7 @@ const cargarEdicion = async (numero) => {
         finca: texto(linea.finca),
         fincaNombre: texto(linea.fincaNombre) || texto(linea.finca),
         lote: texto(linea.lote),
+        fecha: texto(linea.fecha || encabezado.fecha).substring(0, 10),
         racimos: Number(linea.racimos || 0),
         sacos: Number(linea.sacos || 0),
         pesoRacimo: Number(linea.pesoRacimo || 0),
@@ -1544,6 +1515,7 @@ const cargarEdicion = async (numero) => {
             id: estado.secuenciaTrabajador++,
             tercero: texto(trabajador.tercero),
             terceroNombre: texto(trabajador.terceroNombre),
+            terceroCodigo: texto(trabajador.terceroCodigo),
             novedad: texto(trabajador.novedad),
             novedadNombre: texto(trabajador.novedadNombre),
             cantidad: Number(trabajador.cantidad || 0),
@@ -1554,7 +1526,6 @@ const cargarEdicion = async (numero) => {
             bloque: 'cosecha'
         }))
     }));
-    estado.abierta = estado.lineas[0]?.id ?? null;
 
     modoEdicion(numero);
     calcularNeto();
@@ -1728,7 +1699,6 @@ const manejarErrorGuardar = async (error, confirmaciones) => {
         const linea = estado.lineas[posicion];
 
         if (linea) {
-            abrirLinea(linea.id);
             destacar(linea.id);
         }
 
@@ -1763,7 +1733,6 @@ const manejarErrorGuardar = async (error, confirmaciones) => {
         const linea = estado.lineas[Number(datos.lineasSinTrabajadores[0]) - 1];
 
         if (linea) {
-            abrirLinea(linea.id);
             destacar(linea.id);
         }
     }
@@ -1825,9 +1794,10 @@ document.addEventListener('DOMContentLoaded', () => {
     $id('periodo').addEventListener('change', () => {
         $id('periodo').classList.remove('is-invalid');
         revisarPeriodo();
+        renderizar();
         previsualizar();
     });
-    ['input', 'change'].forEach((evento) => $id('fecha').addEventListener(evento, revisarPeriodo));
+    ['input', 'change'].forEach((evento) => $id('fecha').addEventListener(evento, () => { revisarPeriodo(); renderizar(); }));
 
     $id('btn_buscar_tiquete').addEventListener('click', buscarTiquete);
     $id('btn_capturar_mano').addEventListener('click', () => {
@@ -1853,10 +1823,13 @@ document.addEventListener('DOMContentLoaded', () => {
     $id('sacos').addEventListener('input', previsualizar);
 
     $('#cap_finca').on('change', () => cargarLotes($id('cap_finca').value));
-    $('#cap_lote').on('change', () => consultarPeso($id('cap_finca').value, $id('cap_lote').value));
+    $('#cap_lote').on('change', () => {
+        marcarDuplicado(false);
+        consultarPeso($id('cap_finca').value, $id('cap_lote').value);
+    });
 
     $id('btn_agregar_linea').addEventListener('click', agregarLinea);
-    ['cap_racimos', 'cap_sacos'].forEach((id) => $id(id).addEventListener('keydown', (evento) => {
+    ['cap_fecha_linea', 'cap_racimos', 'cap_sacos'].forEach((id) => $id(id).addEventListener('keydown', (evento) => {
         if (evento.key === 'Enter') {
             evento.preventDefault();
             agregarLinea();
@@ -1911,11 +1884,11 @@ document.addEventListener('DOMContentLoaded', () => {
         previsualizar();
     });
 
-    $id('lista_lineas').addEventListener('shown.bs.collapse', (evento) => {
-        estado.abierta = Number(evento.target.id.replace('cuerpo_', ''));
-        aplicarInert();
+    $id('cap_fecha_linea').addEventListener('input', () => {
+        estado.fechaLineaTocada = true;
+        marcarDuplicado(false);
+        errorCaptura('error_fecha_linea', false);
     });
-    $id('lista_lineas').addEventListener('hidden.bs.collapse', aplicarInert);
 
     ['trab_cantidad', 'trab_precio'].forEach((id) => $id(id).addEventListener('input', totalModal));
     $('#trab_tercero, #trab_novedad').on('change', sugerirPrecio);

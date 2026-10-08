@@ -63,7 +63,8 @@ const estado = {
     edicion: null,
     foto: null,
     guardando: false,
-    insumosLote: {}
+    insumosLote: {},
+    fechas: []
 };
 
 let turnoPeriodos = 0;
@@ -142,6 +143,44 @@ const revisarPeriodo = () => {
         : (fuera ? `La fecha ${fechaCorta(fecha)} no está dentro del periodo ${nombrePeriodo(periodo)}${inicio && fin ? ` (${fechaCorta(inicio)} – ${fechaCorta(fin)})` : ''}.` : '');
     mostrar($id('nota_periodo'), cerrado || fuera);
     $id('fecha').classList.toggle('is-invalid', fuera);
+    pintarFechas();
+};
+
+const pintarFechas = (destacar = '') => {
+    if (CFG.referencia) return;
+
+    const fechas = estado.fechas;
+    const total = fechas.length;
+    const todas = $id('todas_fechas').checked;
+
+    mostrar($id('col_fechas'), total > 0);
+    $id('col_fechas').innerHTML = total ? `<div class="d-flex flex-wrap align-items-center gap-2">
+        <span class="gp-etiqueta-mini">Fechas a cargar</span><span class="tx-chip-cont verde">${fmt(total)}</span>
+        ${fechas.map((fecha) => {
+        const dentro = periodoActual() === null || fechaEnPeriodo(fecha);
+
+        return `<span class="gp-chip-fila verde tx-chip-fecha${dentro ? '' : ' fuera'}${fecha === destacar ? ' tx-flash' : ''}"${dentro ? '' : ' title="Fuera del periodo"'}><span class="font-monospace">${fechaCorta(fecha).substring(0, 5)}</span><button type="button" class="tx-chip-quitar" data-quitar-fecha="${fecha}" aria-label="Quitar ${fechaCorta(fecha)}"><i class="bi bi-x" aria-hidden="true"></i></button></span>`;
+    }).join('')}
+        <button type="button" class="btn btn-link btn-sm p-0 ms-auto" data-limpiar-fechas>Limpiar</button>
+        <span class="gp-subtexto w-100">Se crea una línea por fecha con la misma labor, lote, terceros y cantidad.</span>
+    </div>` : '';
+    $id('btn_cargar').innerHTML = `<i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Cargar${total ? ` · ${fmt(total)} ${total === 1 ? 'fecha' : 'fechas'}` : ''}`;
+    $id('ayuda_fecha_labor').textContent = total
+        ? 'Una línea por fecha.'
+        : (todas ? 'Editable por línea, dentro del periodo.' : 'Igual a la fecha de la transacción');
+};
+
+const agregarFecha = () => {
+    const fecha = $id('cap_fecha').value;
+    const repetida = estado.fechas.includes(fecha);
+    const fuera = !fechaEnPeriodo(fecha);
+
+    $id('error_fecha_labor').textContent = repetida && !fuera ? 'La fecha ya está en la lista.' : 'La fecha debe estar dentro del periodo.';
+    errorCampo('error_fecha_labor', fuera || repetida);
+
+    if (!fuera && !repetida) estado.fechas = [...estado.fechas, fecha].sort();
+
+    pintarFechas(fuera ? '' : fecha);
 };
 
 const cargarPeriodos = async (anio, mes) => {
@@ -208,7 +247,11 @@ const sincronizarFechas = () => {
     $id('panel_todas')?.classList.toggle('activo', todas);
     captura.disabled = !todas;
     captura.classList.toggle('tx-neto', !todas);
-    if (!CFG.referencia) $id('ayuda_fecha_labor').textContent = todas ? 'Editable por línea, dentro del periodo.' : 'Igual a la fecha de la transacción';
+
+    if (!todas) estado.fechas = [];
+
+    mostrar($id('btn_agregar_fecha'), todas && !CFG.referencia);
+    pintarFechas();
 
     if (!todas || CFG.referencia || captura.value === '') captura.value = $id('fecha').value;
 
@@ -262,18 +305,23 @@ const celdaPrecio = (trabajador) => {
 const filaTrabajadorLab = (linea, trabajador) => {
     const nombre = escaparHtml(trabajador.terceroNombre || trabajador.tercero);
     const titulo = linea.trabajadores.length === 1 ? 'Quitar trabajador (se quita la línea)' : `Quitar a ${nombre}`;
+    const bloqueo = CFG.referencia && linea.cargando ? ' disabled' : '';
+    const codigo = trabajador.terceroCodigo ? `<span class="font-monospace fw-semibold">${escaparHtml(trabajador.terceroCodigo)}</span> ` : '';
 
-    return `<tr>
-        <td><span class="gp-truncar d-inline-block align-bottom" title="${nombre}">${nombre}</span><span class="gp-subtexto font-monospace">${escaparHtml(trabajador.tercero)}</span></td>
+    return `<tr class="${trabajador.marca || ''}">
+        <td>${codigo}<span class="${CFG.referencia ? 'text-break' : 'gp-truncar d-inline-block align-bottom'}" title="${nombre}">${nombre}</span><span class="gp-subtexto font-monospace">${escaparHtml(trabajador.tercero)}</span></td>
         <td class="text-end tx-num">${cant(trabajador.cantidad)}</td>
 ${CFG.jornales ? `        <td class="text-end tx-num${trabajador.jornales === 0 ? ' tx-cero' : ''}">${cant(trabajador.jornales)}</td>` : ''}
         <td class="text-end tx-num">${celdaPrecio(trabajador)}</td>
         <td class="text-end tx-num fw-semibold">${trabajador.precio === null ? '<span class="text-muted">—</span>' : fmt(valorTrabajador(trabajador))}</td>
-        <td class="text-center gp-col-sticky">
-            <button type="button" class="btn btn-sm btn-outline-danger" data-quitar-trabajador="${escaparHtml(trabajador.tercero)}" data-linea="${linea.id}" title="${titulo}" aria-label="${titulo}">
+        <td class="text-center gp-col-sticky"><div class="d-flex gap-1 justify-content-center">
+            ${CFG.referencia ? `<button type="button" class="btn btn-sm btn-outline-secondary" data-editar-trabajador="${escaparHtml(trabajador.tercero)}" data-linea="${linea.id}" title="Editar a ${nombre}" aria-label="Editar a ${nombre}"${bloqueo}>
+                <i class="bi bi-pencil" aria-hidden="true"></i>
+            </button>` : ''}
+            <button type="button" class="btn btn-sm btn-outline-danger" data-quitar-trabajador="${escaparHtml(trabajador.tercero)}" data-linea="${linea.id}" title="${titulo}" aria-label="${titulo}"${bloqueo}>
                 <i class="bi bi-x-lg" aria-hidden="true"></i>
             </button>
-        </td>
+        </div></td>
     </tr>`;
 };
 
@@ -426,7 +474,7 @@ ${CFG.jornales ? `                <span class="tx-dato text-end"><span class="gp
 ${CFG.jornales ? '                        <th class="text-end" style="width:100px">Jornales</th>' : ''}
                         <th class="text-end" style="width:120px">Precio</th>
                         <th class="text-end" style="width:130px">Valor</th>
-                        <th class="text-center gp-col-sticky" style="width:52px"><span class="visually-hidden">Quitar</span></th>
+                        <th class="text-center gp-col-sticky" style="width:${CFG.referencia ? 88 : 52}px"><span class="visually-hidden">${CFG.referencia ? 'Acciones' : 'Quitar'}</span></th>
                     </tr>
                 </thead>
                 <tbody>${linea.trabajadores.map((trabajador) => filaTrabajadorLab(linea, trabajador)).join('')}</tbody>
@@ -460,6 +508,7 @@ const pintarLineas = () => {
     lineas.forEach((linea) => {
         linea.marca = '';
         linea.insumos.forEach((insumo) => { insumo.marca = ''; });
+        linea.trabajadores.forEach((trabajador) => { trabajador.marca = ''; });
     });
 
     if (CFG.referencia) {
@@ -754,10 +803,20 @@ const cargarLineas = () => {
     const terceros = $('#cap_terceros').select2('data').filter((opcion) => opcion.id);
     const cantidad = aNumero($id('cap_cantidad').value);
     const jornales = aNumero($id('cap_jornales').value);
+    const fechas = estado.fechas.length ? [...estado.fechas] : [fecha];
+
+    if (estado.fechas.length && periodoActual() !== null && estado.fechas.some((item) => !fechaEnPeriodo(item))) {
+        Toast.fire({ icon: 'warning', title: 'Quite las fechas fuera del periodo' });
+
+        return;
+    }
+
+    poner('error_fecha_labor', 'La fecha debe estar dentro del periodo.');
+
     const errores = {
         error_labor: labor.value === '',
         error_um: um === '',
-        error_fecha_labor: !fechaEnPeriodo(fecha),
+        error_fecha_labor: !estado.fechas.length && !fechaEnPeriodo(fecha),
         error_finca: finca === '',
         error_referencia: CFG.referencia && $id('referencia').value === '',
         error_lote: lote === '',
@@ -785,18 +844,18 @@ const cargarLineas = () => {
         return;
     }
 
-    if (estado.lineas.length >= MAX_LINEAS || terceros.length > MAX_LINEAS) {
+    if (estado.lineas.length + fechas.length > MAX_LINEAS || terceros.length > MAX_LINEAS) {
         Toast.fire({ icon: 'warning', title: `Máximo ${MAX_LINEAS} líneas y ${MAX_LINEAS} trabajadores por línea` });
 
         return;
     }
 
-    const linea = {
+    const nuevas = fechas.map((fechaLinea) => ({
         id: estado.secuencia++,
         novedad: labor.value,
         novedadNombre: labor.selectedOptions[0].dataset.nombre || '',
         uMedida: um,
-        fecha,
+        fecha: fechaLinea,
         finca,
         seccion: $id('cap_seccion').value,
         lote,
@@ -805,18 +864,19 @@ const cargarLineas = () => {
         marca: 'tx-flash',
         cargando: true,
         insumos: CFG.referencia ? (estado.insumosLote[lote] || []).filter((insumo) => insumo.dosis > 0).filter((insumo, indice, lista) => lista.findIndex((otro) => otro.item === insumo.item) === indice).map((insumo) => ({ ...insumo })) : [],
-        trabajadores: terceros.map((tercero) => ({ tercero: texto(tercero.id), terceroNombre: texto(tercero.text), cantidad: 0, jornales: 0, precio: null, existe: 0 }))
-    };
+        trabajadores: terceros.map((tercero) => ({ tercero: texto(tercero.id), terceroNombre: texto(tercero.text), terceroCodigo: codigoTercero(tercero), cantidad: 0, jornales: 0, precio: null, existe: 0 }))
+    }));
+    const trabajadores = `${terceros.length} ${terceros.length === 1 ? 'trabajador' : 'trabajadores'}`;
 
-    repartirLinea(linea);
-    estado.lineas.push(linea);
+    nuevas.forEach(repartirLinea);
+    estado.lineas.push(...nuevas);
     $('#cap_terceros').val(null).trigger('change');
     $id('cap_cantidad').value = '';
     $id('cap_jornales').value = '0';
     pintarLineas();
-    Toast.fire({ icon: 'success', title: `Línea cargada · ${terceros.length} ${terceros.length === 1 ? 'trabajador' : 'trabajadores'}` });
+    Toast.fire({ icon: 'success', title: nuevas.length === 1 ? `Línea cargada · ${trabajadores}` : `${nuevas.length} líneas cargadas · ${trabajadores} cada una` });
     $('#cap_terceros').select2('open');
-    precioLinea(linea);
+    nuevas.forEach(precioLinea);
 };
 
 const envioLinea = (linea) => ({
@@ -911,6 +971,11 @@ const quitarTrabajador = (idLinea, tercero) => {
 
     if (linea.trabajadores.length === 0) {
         estado.lineas = estado.lineas.filter((item) => item !== linea);
+    } else if (CFG.referencia && linea.manual) {
+        linea.cantidad = Math.round(linea.trabajadores.reduce((suma, item) => suma + item.cantidad, 0) * 100) / 100;
+        linea.jornales = Math.round(linea.trabajadores.reduce((suma, item) => suma + item.jornales, 0) * 100) / 100;
+        linea.insumos.forEach((insumo) => { insumo.cantidad = undefined; });
+        linea.marca = 'tx-recalculo';
     } else {
         repartirLinea(linea);
         linea.marca = 'tx-recalculo';
@@ -1134,6 +1199,7 @@ const cargarEdicion = async (numero, tipo = '') => {
         trabajadores: (linea.trabajadores || []).map((trabajador) => ({
             tercero: texto(trabajador.tercero),
             terceroNombre: texto(trabajador.terceroNombre),
+            terceroCodigo: texto(trabajador.terceroCodigo),
             cantidad: Number(trabajador.cantidad || 0),
             jornales: Number(trabajador.jornales || 0),
             precio: Number(trabajador.precioLabor || 0),
@@ -1293,8 +1359,8 @@ const iniciarSelect2 = () => {
         width: '100%', placeholder: 'Seleccione una opción…', allowClear: true, language: IDIOMA_SELECT2, templateResult: plantillaOpcion
     });
     $('#referencia').select2({ width: '100%', language: IDIOMA_SELECT2, templateResult: plantillaOpcion });
-    $('#cap_terceros').select2({
-        width: '100%', placeholder: 'Busque y agregue uno o más terceros', minimumInputLength: 3, language: IDIOMA_SELECT2,
+    const terceros = {
+        width: '100%', minimumInputLength: 3, language: IDIOMA_SELECT2, templateResult: plantillaTercero,
         ajax: {
             delay: 250,
             data: (params) => ({ termino: params.term }),
@@ -1304,16 +1370,119 @@ const iniciarSelect2 = () => {
                 return { abort: () => { } };
             },
             processResults: (datos) => ({
-                results: (datos.filas || []).map((fila) => ({ id: texto(fila.nit), text: texto(fila.razonSocial), nit: texto(fila.nit) }))
+                results: (datos.filas || []).map((fila) => ({ id: texto(fila.nit), text: texto(fila.razonSocial), nit: texto(fila.nit), codigo: texto(fila.codigo) }))
             })
-        },
-        templateResult: (opcion) => opcion.nit
-            ? $(`<span><span class="font-monospace">${escaparHtml(opcion.nit)}</span> <span class="ms-1">${escaparHtml(opcion.text)}</span></span>`)
-            : opcion.text,
+        }
+    };
+
+    $('#cap_terceros').select2({
+        ...terceros,
+        placeholder: 'Busque por código, identificación o nombre',
         templateSelection: (opcion) => opcion.id
-            ? $(`<span><span class="font-monospace">${escaparHtml(opcion.id)}</span> ${escaparHtml(texto(opcion.text).split(/\s+/).slice(0, 2).join(' '))}</span>`)
+            ? $(`<span><span class="font-monospace">${escaparHtml(codigoTercero(opcion) || opcion.id)}</span> ${escaparHtml(texto(opcion.text).split(/\s+/).slice(0, 2).join(' '))}</span>`)
             : opcion.text
     });
+
+    if ($id('edit_tercero')) {
+        $('#edit_tercero').select2({
+            ...terceros,
+            placeholder: 'Código, identificación o nombre…',
+            dropdownParent: $('#modalEditarTrabajador'),
+            templateSelection: (opcion) => opcion.id
+                ? $(`<span><span class="font-monospace fw-semibold">${escaparHtml(codigoTercero(opcion) || opcion.id)}</span> — ${escaparHtml(opcion.text)}</span>`)
+                : opcion.text
+        });
+    }
+};
+
+const codigoTercero = (opcion) => texto(opcion.codigo ?? opcion.element?.dataset.codigo);
+
+const plantillaTercero = (opcion) => (opcion.nit
+    ? $(`<span class="d-flex align-items-baseline gap-2">${codigoTercero(opcion) ? `<span class="gp-chip-fila verde font-monospace fw-semibold">${escaparHtml(codigoTercero(opcion))}</span>` : ''}<span class="text-truncate">${escaparHtml(opcion.text)}</span><span class="gp-subtexto font-monospace ms-auto">${escaparHtml(opcion.nit)}</span></span>`)
+    : opcion.text);
+
+const edicionTrabajador = { linea: null, tercero: '' };
+
+const trabajadorEditado = () => edicionTrabajador.linea?.trabajadores.find((trabajador) => trabajador.tercero === edicionTrabajador.tercero) || null;
+
+const resumenEdicion = () => {
+    const linea = edicionTrabajador.linea;
+    const trabajador = trabajadorEditado();
+    const cantidad = aNumero($id('edit_cantidad').value);
+
+    if (!trabajador) return;
+
+    poner('edit_resumen', `Cantidad de la línea: ${cant(linea.cantidad)} → ${cantidad > 0 ? cant(linea.cantidad - trabajador.cantidad + cantidad) : '—'}`);
+};
+
+const abrirEdicionTrabajador = (idLinea, tercero) => {
+    const linea = estado.lineas.find((item) => item.id === idLinea);
+    const trabajador = linea?.trabajadores.find((item) => item.tercero === tercero);
+
+    if (!trabajador || linea.cargando) return;
+
+    const opcion = new Option(trabajador.terceroNombre || tercero, tercero, true, true);
+
+    opcion.dataset.codigo = trabajador.terceroCodigo || '';
+    edicionTrabajador.linea = linea;
+    edicionTrabajador.tercero = tercero;
+    poner('chip_editar_trabajador', `#${estado.lineas.indexOf(linea) + 1} · ${linea.lote} · ${fechaCorta(linea.fecha).substring(0, 5)}`);
+    $('#edit_tercero').empty().append(opcion).trigger('change');
+    $id('edit_cantidad').value = String(trabajador.cantidad).replace('.', ',');
+    ['error_edit_tercero', 'error_edit_cantidad'].forEach((id) => mostrar($id(id), false));
+    $id('edit_tercero').closest('.tx-select-ancho').classList.remove('is-invalid');
+    $id('edit_cantidad').classList.remove('is-invalid');
+    resumenEdicion();
+    bootstrap.Modal.getOrCreateInstance($id('modalEditarTrabajador')).show();
+};
+
+const guardarEdicionTrabajador = (evento) => {
+    evento.preventDefault();
+
+    const linea = edicionTrabajador.linea;
+    const trabajador = trabajadorEditado();
+    const modal = bootstrap.Modal.getOrCreateInstance($id('modalEditarTrabajador'));
+
+    if (!trabajador || !estado.lineas.includes(linea) || linea.cargando) {
+        modal.hide();
+
+        return;
+    }
+
+    const seleccion = $('#edit_tercero').select2('data')[0] || {};
+    const nuevo = texto(seleccion.id);
+    const cantidad = aNumero($id('edit_cantidad').value);
+    const errorTercero = nuevo === '' ? 'Seleccione el tercero.' : (nuevo !== trabajador.tercero && linea.trabajadores.some((item) => item.tercero === nuevo) ? 'Ese tercero ya está en esta línea.' : '');
+
+    $id('error_edit_tercero').textContent = errorTercero;
+    mostrar($id('error_edit_tercero'), errorTercero !== '');
+    $id('edit_tercero').closest('.tx-select-ancho').classList.toggle('is-invalid', errorTercero !== '');
+    mostrar($id('error_edit_cantidad'), !(cantidad > 0));
+    $id('edit_cantidad').classList.toggle('is-invalid', !(cantidad > 0));
+
+    if (errorTercero || !(cantidad > 0)) return;
+
+    const cambio = nuevo !== trabajador.tercero;
+    const numero = estado.lineas.indexOf(linea) + 1;
+
+    trabajador.cantidad = cantidad;
+    trabajador.marca = 'tx-flash';
+    linea.manual = true;
+
+    if (cambio) {
+        Object.assign(trabajador, { tercero: nuevo, terceroNombre: texto(seleccion.text), terceroCodigo: codigoTercero(seleccion), precio: null, existe: 0 });
+        linea.cargando = true;
+    }
+
+    linea.cantidad = Math.round(linea.trabajadores.reduce((suma, item) => suma + item.cantidad, 0) * 100) / 100;
+    linea.jornales = Math.round(linea.trabajadores.reduce((suma, item) => suma + item.jornales, 0) * 100) / 100;
+    linea.insumos.forEach((insumo) => { insumo.cantidad = undefined; });
+    linea.marca = 'tx-recalculo';
+    modal.hide();
+    pintarLineas();
+    Toast.fire({ icon: 'success', title: cambio ? `Trabajador actualizado · línea #${numero} en re-liquidación` : `Trabajador actualizado · línea #${numero}` });
+
+    if (cambio) precioLinea(linea);
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -1434,6 +1603,34 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     $id('cap_um').addEventListener('change', () => errorCampo('error_um', false));
     $id('cap_fecha').addEventListener('change', () => errorCampo('error_fecha_labor', false));
+    $id('btn_agregar_fecha')?.addEventListener('click', agregarFecha);
+    $id('cap_fecha').addEventListener('keydown', (evento) => {
+        if (evento.key !== 'Enter' || !$id('btn_agregar_fecha') || $id('btn_agregar_fecha').classList.contains('d-none')) return;
+
+        evento.preventDefault();
+        agregarFecha();
+    });
+    $id('col_fechas')?.addEventListener('click', (evento) => {
+        const quitar = evento.target.closest('[data-quitar-fecha]');
+
+        if (!quitar && !evento.target.closest('[data-limpiar-fechas]')) return;
+
+        estado.fechas = quitar ? estado.fechas.filter((fecha) => fecha !== quitar.dataset.quitarFecha) : [];
+        errorCampo('error_fecha_labor', false);
+        pintarFechas();
+        $id('cap_fecha').focus();
+    });
+    $id('formulario_editar_trabajador')?.addEventListener('submit', guardarEdicionTrabajador);
+    $id('edit_cantidad')?.addEventListener('input', () => {
+        $id('edit_cantidad').classList.remove('is-invalid');
+        mostrar($id('error_edit_cantidad'), false);
+        resumenEdicion();
+    });
+    $('#edit_tercero').on('change', () => {
+        $id('edit_tercero').closest('.tx-select-ancho').classList.remove('is-invalid');
+        mostrar($id('error_edit_tercero'), false);
+    });
+    $id('modalEditarTrabajador')?.addEventListener('shown.bs.modal', () => $id('edit_cantidad').focus());
     $id('cap_cantidad').addEventListener('input', () => {
         errorCampo('error_cantidad', false);
         revisarPalmas();
@@ -1485,6 +1682,9 @@ document.addEventListener('DOMContentLoaded', () => {
     $id('lista_lineas').addEventListener('click', async (evento) => {
         const linea = evento.target.closest('[data-quitar-linea]');
         const trabajador = evento.target.closest('[data-quitar-trabajador]');
+        const editar = evento.target.closest('[data-editar-trabajador]');
+
+        if (editar) abrirEdicionTrabajador(Number(editar.dataset.linea), editar.dataset.editarTrabajador);
 
         if (linea) {
             const id = Number(linea.dataset.quitarLinea);
