@@ -35,6 +35,8 @@ class ProduccionModel extends Model
 
     private ?bool $eliminadas = null;
 
+    private ?bool $modificacion = null;
+
     // ── Catálogos ────────────────────────────────────────────────────────────
 
     public function getEmpresas(): array
@@ -226,7 +228,7 @@ class ProduccionModel extends Model
                        CASE WHEN ISNULL(t.anulado, 0) = 0 THEN 0 ELSE 1 END AS anulado,
                        CASE WHEN EXISTS (SELECT 1 FROM cPeriodo p WHERE p.empresa = t.empresa AND p.[año] = t.[año]
                                             AND p.mes = t.mes AND p.cerrado = 1) THEN 1 ELSE 0 END AS cerrado,
-                       CASE WHEN " . $this->liquidadaSql('t') . " THEN 1 ELSE 0 END AS bloqueada
+                       CASE WHEN " . $this->liquidadaSql('t') . " THEN 1 ELSE 0 END AS bloqueada" . $this->auditoriaSql('t') . "
                   FROM aTransaccion t
                  OUTER APPLY (SELECT TOP 1 * FROM aTransaccionBascula x
                                WHERE x.empresa = t.empresa AND x.tipo = t.tipo AND x.numero = t.numero) b
@@ -549,6 +551,30 @@ class ProduccionModel extends Model
 
         return " AND NOT EXISTS (SELECT 1 FROM aTransaccionEliminada el WHERE el.empresa = {$alias}.empresa"
             . " AND el.tipo = {$alias}.tipo AND el.numero = LTRIM(RTRIM({$alias}.numero)))";
+    }
+
+    public function columnasModificacion(): bool
+    {
+        if ($this->modificacion === null) {
+            $this->modificacion = (int) $this->db->query(
+                "SELECT CASE WHEN COL_LENGTH('aTransaccion', 'fechaModificacion') IS NOT NULL
+                              AND COL_LENGTH('aTransaccion', 'usuarioModificacion') IS NOT NULL THEN 1 ELSE 0 END AS existe"
+            )->getRow()->existe === 1;
+        }
+
+        return $this->modificacion;
+    }
+
+    protected function auditoriaSql(string $alias): string
+    {
+        return ", LTRIM(RTRIM(ISNULL({$alias}.usuarioRegistro, ''))) AS usuarioRegistro, " . ($this->columnasModificacion()
+            ? "ISNULL(CONVERT(varchar(16), {$alias}.fechaModificacion, 120), '') AS fechaModificacion, LTRIM(RTRIM(ISNULL({$alias}.usuarioModificacion, ''))) AS usuarioModificacion"
+            : "'' AS fechaModificacion, '' AS usuarioModificacion");
+    }
+
+    protected function modificacionSql(string $usuario): array
+    {
+        return $this->columnasModificacion() ? [', fechaModificacion = ?, usuarioModificacion = ?', [date('Y-m-d\TH:i:s'), $usuario]] : ['', []];
     }
 
     // ── Validadores ──────────────────────────────────────────────────────────
@@ -884,10 +910,12 @@ class ProduccionModel extends Model
         $this->db->transBegin();
 
         try {
+            [$modificado, $valores] = $this->modificacionSql($datos['usuario']);
+
             $this->db->query(
-                'UPDATE aTransaccion SET fecha = ?, [año] = ?, mes = ?, observacion = ?
+                'UPDATE aTransaccion SET fecha = ?, [año] = ?, mes = ?, observacion = ?' . $modificado . '
                   WHERE empresa = ? AND tipo = ? AND LTRIM(RTRIM(numero)) = ? AND ISNULL(anulado, 0) = 0',
-                array_merge([$fecha, $anio, $mes, $datos['observacion']], $llave)
+                array_merge([$fecha, $anio, $mes, $datos['observacion']], $valores, $llave)
             );
 
             if ($this->db->affectedRows() !== 1) {

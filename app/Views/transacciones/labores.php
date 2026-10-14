@@ -446,6 +446,7 @@ $etiqueta    = static fn ($valor) => ucfirst(mb_strtolower(trim(preg_replace('/\
                                 <th style="width:110px">Fecha</th>
                                 <th style="width:110px">Finca</th>
                                 <th>Observación</th>
+                                <th style="width:160px">Registro</th>
                                 <th class="text-center" style="width:110px">Anulado</th>
                             </tr>
                         </thead>
@@ -459,6 +460,53 @@ $etiqueta    = static fn ($valor) => ucfirst(mb_strtolower(trim(preg_replace('/\
     <?php endif; ?>
 
     </div>
+
+    <?php if ($conRegistro): ?>
+    <div class="modal fade" id="modalEditarTrabajador" tabindex="-1" aria-labelledby="titulo_editar_trabajador" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title d-flex flex-wrap align-items-center gap-2" id="titulo_editar_trabajador">
+                        <span><i class="bi bi-pencil-square me-1" aria-hidden="true"></i>Editar trabajador</span>
+                        <span class="gp-chip-fila tx-chip-neutro font-monospace" id="chip_editar_trabajador"></span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <form id="formulario_editar_trabajador" novalidate>
+                    <div class="modal-body px-4 py-3">
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label mb-1 small fw-semibold text-muted" for="edit_tercero">Tercero <span class="text-danger">*</span></label>
+                                <div class="tx-select-ancho">
+                                    <select class="form-select" id="edit_tercero"></select>
+                                </div>
+                                <div class="invalid-feedback d-block d-none" id="error_edit_tercero">Ese tercero ya está en esta línea.</div>
+                                <div class="form-text">Escriba el código (ej. CR150), la identificación o el nombre. Mínimo 3 caracteres.</div>
+                            </div>
+                            <div class="col-12 col-sm-6">
+                                <label class="form-label mb-1 small fw-semibold text-muted" for="edit_cantidad">Cantidad <span class="text-muted fw-normal" id="edit_um"></span> <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control font-monospace text-end" id="edit_cantidad" inputmode="decimal" maxlength="14" autocomplete="off">
+                                <div class="invalid-feedback d-block d-none" id="error_edit_cantidad">Indique una cantidad mayor que cero (máx. 2 decimales).</div>
+                                <span class="gp-subtexto tx-num mt-1" id="edit_resumen" aria-live="polite"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer py-2 justify-content-between">
+                        <small class="text-muted"><span class="text-danger">*</span> Campos obligatorios</small>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                <i class="bi bi-x-circle me-1" aria-hidden="true"></i>Cancelar
+                            </button>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-floppy me-1" aria-hidden="true"></i>Guardar
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
 
 </main>
 <?php echo $this->endSection(); ?>

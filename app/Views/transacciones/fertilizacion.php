@@ -565,6 +565,7 @@ $etiqueta    = static fn ($valor) => ucfirst(mb_strtolower(trim(preg_replace('/\
                                 <th style="width:110px">Finca</th>
                                 <th style="width:150px">Referencia</th>
                                 <th>Observación</th>
+                                <th style="width:160px">Registro</th>
                                 <th class="text-center" style="width:110px">Anulado</th>
                             </tr>
                         </thead>

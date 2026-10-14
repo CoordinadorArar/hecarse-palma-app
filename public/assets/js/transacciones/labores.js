@@ -305,7 +305,7 @@ const celdaPrecio = (trabajador) => {
 const filaTrabajadorLab = (linea, trabajador) => {
     const nombre = escaparHtml(trabajador.terceroNombre || trabajador.tercero);
     const titulo = linea.trabajadores.length === 1 ? 'Quitar trabajador (se quita la línea)' : `Quitar a ${nombre}`;
-    const bloqueo = CFG.referencia && linea.cargando ? ' disabled' : '';
+    const bloqueo = linea.cargando ? ' disabled' : '';
     const codigo = trabajador.terceroCodigo ? `<span class="font-monospace fw-semibold">${escaparHtml(trabajador.terceroCodigo)}</span> ` : '';
 
     return `<tr class="${trabajador.marca || ''}">
@@ -315,9 +315,9 @@ ${CFG.jornales ? `        <td class="text-end tx-num${trabajador.jornales === 0 
         <td class="text-end tx-num">${celdaPrecio(trabajador)}</td>
         <td class="text-end tx-num fw-semibold">${trabajador.precio === null ? '<span class="text-muted">—</span>' : fmt(valorTrabajador(trabajador))}</td>
         <td class="text-center gp-col-sticky"><div class="d-flex gap-1 justify-content-center">
-            ${CFG.referencia ? `<button type="button" class="btn btn-sm btn-outline-secondary" data-editar-trabajador="${escaparHtml(trabajador.tercero)}" data-linea="${linea.id}" title="Editar a ${nombre}" aria-label="Editar a ${nombre}"${bloqueo}>
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-editar-trabajador="${escaparHtml(trabajador.tercero)}" data-linea="${linea.id}" title="Editar a ${nombre}" aria-label="Editar a ${nombre}"${bloqueo}>
                 <i class="bi bi-pencil" aria-hidden="true"></i>
-            </button>` : ''}
+            </button>
             <button type="button" class="btn btn-sm btn-outline-danger" data-quitar-trabajador="${escaparHtml(trabajador.tercero)}" data-linea="${linea.id}" title="${titulo}" aria-label="${titulo}"${bloqueo}>
                 <i class="bi bi-x-lg" aria-hidden="true"></i>
             </button>
@@ -474,7 +474,7 @@ ${CFG.jornales ? `                <span class="tx-dato text-end"><span class="gp
 ${CFG.jornales ? '                        <th class="text-end" style="width:100px">Jornales</th>' : ''}
                         <th class="text-end" style="width:120px">Precio</th>
                         <th class="text-end" style="width:130px">Valor</th>
-                        <th class="text-center gp-col-sticky" style="width:${CFG.referencia ? 88 : 52}px"><span class="visually-hidden">${CFG.referencia ? 'Acciones' : 'Quitar'}</span></th>
+                        <th class="text-center gp-col-sticky" style="width:88px"><span class="visually-hidden">Acciones</span></th>
                     </tr>
                 </thead>
                 <tbody>${linea.trabajadores.map((trabajador) => filaTrabajadorLab(linea, trabajador)).join('')}</tbody>
@@ -971,7 +971,7 @@ const quitarTrabajador = (idLinea, tercero) => {
 
     if (linea.trabajadores.length === 0) {
         estado.lineas = estado.lineas.filter((item) => item !== linea);
-    } else if (CFG.referencia && linea.manual) {
+    } else if (linea.manual) {
         linea.cantidad = Math.round(linea.trabajadores.reduce((suma, item) => suma + item.cantidad, 0) * 100) / 100;
         linea.jornales = Math.round(linea.trabajadores.reduce((suma, item) => suma + item.jornales, 0) * 100) / 100;
         linea.insumos.forEach((insumo) => { insumo.cantidad = undefined; });
@@ -1209,6 +1209,12 @@ const cargarEdicion = async (numero, tipo = '') => {
             existe: Number(trabajador.precioLabor || 0) > 0 ? 1 : 0
         }))
     }));
+    estado.lineas.forEach((linea) => {
+        const cantidades = repartir(linea.cantidad, linea.trabajadores.length);
+        const jornales = repartir(linea.jornales, linea.trabajadores.length);
+
+        if (linea.trabajadores.some((trabajador, indice) => trabajador.cantidad !== cantidades[indice] || trabajador.jornales !== jornales[indice])) linea.manual = true;
+    });
     if (!CFG.referencia) $id('todas_fechas').checked = estado.lineas.some((linea) => linea.fecha !== fecha);
     sincronizarFechas();
 
@@ -1416,7 +1422,7 @@ const resumenEdicion = () => {
 
     if (!trabajador) return;
 
-    poner('edit_resumen', `Cantidad de la línea: ${cant(linea.cantidad)} → ${cantidad > 0 ? cant(linea.cantidad - trabajador.cantidad + cantidad) : '—'}`);
+    poner('edit_resumen', `Cantidad de la línea: ${cant(linea.cantidad)} → ${cantidad > 0 ? cant(linea.cantidad - trabajador.cantidad + cantidad) : '—'}${CFG.jornales ? ` · Jornales: ${cant(trabajador.jornales)} (sin cambio)` : ''}`);
 };
 
 const abrirEdicionTrabajador = (idLinea, tercero) => {
@@ -1432,6 +1438,7 @@ const abrirEdicionTrabajador = (idLinea, tercero) => {
     edicionTrabajador.tercero = tercero;
     poner('chip_editar_trabajador', `#${estado.lineas.indexOf(linea) + 1} · ${linea.lote} · ${fechaCorta(linea.fecha).substring(0, 5)}`);
     $('#edit_tercero').empty().append(opcion).trigger('change');
+    if ($id('edit_um')) $id('edit_um').textContent = `(${Array.from($id('cap_um').options).find((item) => item.value === linea.uMedida)?.textContent.trim() || linea.uMedida})`;
     $id('edit_cantidad').value = String(trabajador.cantidad).replace('.', ',');
     ['error_edit_tercero', 'error_edit_cantidad'].forEach((id) => mostrar($id(id), false));
     $id('edit_tercero').closest('.tx-select-ancho').classList.remove('is-invalid');

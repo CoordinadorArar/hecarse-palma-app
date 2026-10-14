@@ -519,6 +519,7 @@ $anchoAcciones = [1 => 64, 2 => 98, 3 => 132][1 + (int) $pEditar + (int) $pElimi
                                 <th class="text-end" style="width:80px">Líneas</th>
                                 <th class="text-end" style="width:110px">Trabajadores</th>
                                 <th>Observación</th>
+                                <th style="width:160px">Registro</th>
                                 <th class="text-center" style="width:110px">Estado</th>
                                 <th class="text-center gp-col-sticky" style="width:<?= $anchoAcciones ?>px"><span class="visually-hidden">Acciones</span></th>
                             </tr>
