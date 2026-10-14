@@ -375,6 +375,8 @@ class LaboresTransaccionModel extends ProduccionModel
                 return ['success' => false, 'message' => 'No se pudo actualizar el encabezado de la transacción.'];
             }
 
+            $liquidacion = $this->estadoLiquidacion($llave);
+
             foreach (['aTransaccionTercero', 'aTransaccionNovedad'] as $tabla) {
                 $this->db->query('DELETE FROM ' . $tabla . ' WHERE empresa = ? AND tipo = ? AND LTRIM(RTRIM(numero)) = ?', $llave);
             }
@@ -387,12 +389,14 @@ class LaboresTransaccionModel extends ProduccionModel
                 return ['success' => false, 'message' => $detalle];
             }
 
+            $this->conservarLiquidacion($liquidacion, $llave);
+
             $auditoria = $this->insertarAuditoria('UPDATE', [
                 'empresa' => $empresa,
                 'tipo'    => static::TIPO,
                 'numero'  => $numero,
-                'antes'   => $antes,
-                'despues' => $datos,
+                'antes'   => $antes + ['liquidada' => $liquidacion !== []],
+                'despues' => $datos + ['liquidada' => $liquidacion !== []],
             ], $usu_id);
 
             if (! $auditoria || $this->db->transStatus() === false) {

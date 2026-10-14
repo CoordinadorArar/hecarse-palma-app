@@ -602,7 +602,7 @@ class ProduccionController extends BaseController
             return $this->error('La transacción ' . $numero . ' está anulada y no se puede ' . $accion . '.');
         }
 
-        if ($this->produccionModel->liquidada($empresa, $numero)) {
+        if ($accion !== 'editar' && $this->produccionModel->liquidada($empresa, $numero)) {
             return $this->error('La transacción ' . $numero . ' ya fue liquidada o ejecutada en nómina y no se puede ' . $accion . '.');
         }
 

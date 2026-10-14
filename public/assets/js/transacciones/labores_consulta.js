@@ -49,15 +49,17 @@ const conFila = (fila) => {
     const anulado = Number(fila.anulado) === 1;
     const observacion = texto(fila.observacion);
     const bloqueo = conMotivoBloqueo(fila);
+    const liquidada = bloqueo === 'Liquidada en nómina';
     const claseBloqueo = bloqueo ? ' tx-accion-bloqueada' : '';
+    const indicador = liquidada ? 'Liquidada en nómina · solo edición' : bloqueo;
     const fecha = texto(fila.fecha).substring(0, 10);
 
     return `<tr${anulado ? ' class="tx-fila-anulada"' : ''} data-numero="${numero}" data-tipo="${tipo}">
         <td class="text-center text-nowrap">
             <div class="btn-group btn-group-sm" role="group" aria-label="Acciones de ${numero}">
-                ${PERMISOS.editar ? `<button type="button" class="btn btn-outline-primary${claseBloqueo}" data-editar="${numero}" data-tipo="${tipo}" title="Editar transacción ${tipo} ${numero}" aria-label="Editar transacción ${tipo} ${numero}"><i class="bi bi-pencil" aria-hidden="true"></i></button>` : ''}
+                ${PERMISOS.editar ? `<button type="button" class="btn btn-outline-primary${liquidada ? '' : claseBloqueo}" data-editar="${numero}" data-tipo="${tipo}" title="Editar transacción ${tipo} ${numero}" aria-label="Editar transacción ${tipo} ${numero}"><i class="bi bi-pencil" aria-hidden="true"></i></button>` : ''}
                 ${PERMISOS.eliminar ? `<button type="button" class="btn btn-outline-danger${claseBloqueo}" data-eliminar="${numero}" data-tipo="${tipo}" title="Eliminar transacción ${tipo} ${numero}" aria-label="Eliminar transacción ${tipo} ${numero}"><i class="bi bi-trash" aria-hidden="true"></i></button>` : ''}
-            </div>${bloqueo && (PERMISOS.editar || PERMISOS.eliminar) ? `<i class="bi bi-lock text-muted ms-1" role="img" title="${bloqueo}" aria-label="${bloqueo}"></i>` : ''}
+            </div>${bloqueo && (PERMISOS.editar || PERMISOS.eliminar) ? `<i class="bi ${liquidada ? 'bi-lock-half' : 'bi-lock'} text-muted ms-1" role="img" title="${indicador}" aria-label="${indicador}"></i>` : ''}
         </td>
         <td><span class="gp-chip-fila tx-chip-neutro">${tipo}</span></td>
         <td class="font-monospace fw-semibold">${numero}</td>

@@ -500,6 +500,38 @@ class ProduccionModel extends Model
         return "(EXISTS (SELECT 1 FROM aTransaccionNovedad WHERE {$filtro}) OR EXISTS (SELECT 1 FROM aTransaccionTercero WHERE {$filtro}))";
     }
 
+    protected function estadoLiquidacion(array $llave): array
+    {
+        $estado = [];
+
+        foreach (['aTransaccionNovedad', 'aTransaccionTercero'] as $tabla) {
+            $fila = $this->db->query(
+                'SELECT COUNT(*) AS filas, MAX(periodo) AS periodo, MAX(CAST(ISNULL(ejecutado, 0) AS int)) AS ejecutado,
+                        MAX(CASE WHEN ISNULL(saldo, 0) <> ISNULL(cantidad, 0) THEN 1 ELSE 0 END) AS saldo
+                   FROM ' . $tabla . ' WHERE empresa = ? AND tipo = ? AND LTRIM(RTRIM(numero)) = ?
+                    AND (periodo IS NOT NULL OR ISNULL(ejecutado, 0) = 1 OR ISNULL(saldo, 0) <> ISNULL(cantidad, 0))',
+                $llave
+            )->getRowArray();
+
+            if ((int) ($fila['filas'] ?? 0) > 0) {
+                $estado[$tabla] = $fila;
+            }
+        }
+
+        return $estado;
+    }
+
+    protected function conservarLiquidacion(array $estado, array $llave): void
+    {
+        foreach ($estado as $tabla => $fila) {
+            $this->db->query(
+                'UPDATE ' . $tabla . ' SET periodo = ?, ejecutado = ?, saldo = ' . ((int) $fila['saldo'] === 1 ? '0' : 'cantidad') . '
+                  WHERE empresa = ? AND tipo = ? AND LTRIM(RTRIM(numero)) = ?',
+                array_merge([$fila['periodo'] === null ? null : (int) $fila['periodo'], (int) $fila['ejecutado']], $llave)
+            );
+        }
+    }
+
     public function tablaEliminadas(): bool
     {
         if ($this->eliminadas === null) {
@@ -864,6 +896,8 @@ class ProduccionModel extends Model
                 return ['success' => false, 'message' => 'No se pudo actualizar el encabezado de la transacción.'];
             }
 
+            $liquidacion = $this->estadoLiquidacion($llave);
+
             foreach (['aTransaccionTercero', 'aTransaccionNovedad', 'aTransaccionBascula'] as $tabla) {
                 $this->db->query('DELETE FROM ' . $tabla . ' WHERE empresa = ? AND tipo = ? AND LTRIM(RTRIM(numero)) = ?', $llave);
             }
@@ -876,12 +910,15 @@ class ProduccionModel extends Model
                 return ['success' => false, 'message' => $detalle];
             }
 
+            $this->conservarLiquidacion($liquidacion, $llave);
+
             $auditoria = $this->insertarAuditoria('UPDATE', [
                 'empresa' => $empresa,
                 'tipo'    => static::TIPO,
                 'numero'  => $numero,
-                'antes'   => $antes,
+                'antes'   => $antes + ['liquidada' => $liquidacion !== []],
                 'despues' => [
+                    'liquidada'    => $liquidacion !== [],
                     'año'          => $anio,
                     'mes'          => $mes,
                     'fecha'        => $fecha,
