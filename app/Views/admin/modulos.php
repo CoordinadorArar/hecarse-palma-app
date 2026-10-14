@@ -23,6 +23,11 @@
                 Crear Módulo
             </a>
         </li>
+        <li class="nav-item" role="presentation">
+            <a class="nav-link" id="organizeMenu-tab" data-bs-toggle="tab" href="#organizeMenu" role="tab" aria-controls="organizeMenu" aria-selected="false">
+                <i class="bi bi-arrows-move me-1"></i>Organizar menú
+            </a>
+        </li>
     </ul>
     <!-- Contenido de los Tabs -->
     <div class="tab-content" id="moduleManagementTabs">
@@ -104,6 +109,80 @@
                             </div>
                         </div>
                     </form>
+                </div>
+            </div>
+        </div>
+        <div class="tab-pane fade" id="organizeMenu" role="tabpanel" aria-labelledby="organizeMenu-tab">
+            <?php
+            $ordenLosetas = [];
+            $ordenModulos = [];
+            $ordenSubmodulos = [];
+            foreach ($modulos_orden ?? [] as $m) {
+                if (empty($m['IdLoseta'])) {
+                    $ordenLosetas[] = $m;
+                } elseif (empty($m['IdModulo'])) {
+                    $ordenModulos[$m['IdLoseta']][] = $m;
+                } else {
+                    $ordenSubmodulos[$m['IdModulo']][] = $m;
+                }
+            }
+            $filaOrden = function ($m, $nivel, $extra = '') {
+                $badges = ['loseta' => ['bg-primary', 'Loseta'], 'modulo' => ['bg-info text-dark', 'Módulo'], 'submodulo' => ['bg-light text-dark border', 'Submódulo']];
+                $icono = trim((string) $m['Icono']) !== '' ? esc($m['Icono'], 'attr') : 'bi bi-square text-muted';
+                return '<div class="orden-fila d-flex align-items-center gap-2">'
+                    . '<span class="orden-handle" title="Arrastrar para reordenar"><i class="bi bi-grip-vertical"></i></span>'
+                    . '<i class="' . $icono . ' orden-icono"></i>'
+                    . '<span class="orden-nombre text-truncate' . ($nivel === 'loseta' ? ' fw-semibold' : '') . '">' . esc($m['Nombre']) . '</span>'
+                    . '<span class="badge ' . $badges[$nivel][0] . ' d-none d-sm-inline-block">' . $badges[$nivel][1] . '</span>'
+                    . ($m['FechaFinalizacion'] !== null ? '<span class="badge bg-secondary-subtle text-secondary-emphasis border">Inactivo</span>' : '')
+                    . $extra . '</div>';
+            };
+            $claseItem = fn ($m, $nivel) => 'orden-item orden-item-' . $nivel . ($m['FechaFinalizacion'] !== null ? ' inactivo' : '');
+            ?>
+            <div class="card">
+                <div class="card-body p-4">
+                    <div class="alert alert-light border py-2 small mb-3">
+                        <i class="bi bi-info-circle text-primary me-1"></i><strong>Arrastra</strong> desde el icono <i class="bi bi-grip-vertical"></i> para cambiar el orden. Las losetas y los módulos se reordenan dentro de su mismo grupo. Los <strong>submódulos</strong> también pueden moverse a otro módulo, incluso de otra loseta, siempre que ese módulo sea contenedor (sin ruta o con submódulos); al arrastrar verás resaltadas las zonas donde puedes soltar. Los cambios se guardan automáticamente.
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                        <span id="orden_estado" class="small text-muted"></span>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="btn_expandir_todo"><i class="bi bi-arrows-expand me-1"></i>Expandir todo</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="btn_contraer_todo"><i class="bi bi-arrows-collapse me-1"></i>Contraer todo</button>
+                        </div>
+                    </div>
+                    <div id="orden_arbol">
+                        <ul class="orden-lista orden-losetas">
+                            <?php foreach ($ordenLosetas as $i => $loseta) : ?>
+                                <?php $hijos = $ordenModulos[$loseta['Id']] ?? []; ?>
+                                <li class="<?= $claseItem($loseta, 'loseta') ?>" data-id="<?= esc($loseta['Id'], 'attr') ?>">
+                                    <?= $filaOrden($loseta, 'loseta', $hijos ? '<span class="text-muted small ms-auto d-none d-sm-inline">' . count($hijos) . ' módulo(s)</span><button type="button" class="btn btn-sm btn-link text-secondary orden-toggle" data-bs-toggle="collapse" data-bs-target="#orden_modulos_' . esc($loseta['Id'], 'attr') . '" aria-controls="orden_modulos_' . esc($loseta['Id'], 'attr') . '" aria-expanded="' . ($i === 0 ? 'true' : 'false') . '"><i class="bi bi-chevron-down"></i></button>' : '') ?>
+                                    <?php if ($hijos) : ?>
+                                        <ul class="orden-lista orden-modulos collapse<?= $i === 0 ? ' show' : '' ?>" id="orden_modulos_<?= esc($loseta['Id'], 'attr') ?>">
+                                            <?php foreach ($hijos as $modulo) : ?>
+                                                <?php $subs = $ordenSubmodulos[$modulo['Id']] ?? []; ?>
+                                                <?php $contenedor = $subs || trim((string) $modulo['Ruta']) === ''; ?>
+                                                <li class="<?= $claseItem($modulo, 'modulo') ?>" data-id="<?= esc($modulo['Id'], 'attr') ?>"<?= $contenedor ? ' data-contenedor="1"' : '' ?>>
+                                                    <?= $filaOrden($modulo, 'modulo') ?>
+                                                    <?php if ($contenedor) : ?>
+                                                        <ul class="orden-lista orden-submodulos<?= $subs ? '' : ' orden-vacia' ?>">
+                                                            <?php foreach ($subs as $submodulo) : ?>
+                                                                <li class="<?= $claseItem($submodulo, 'submodulo') ?>" data-id="<?= esc($submodulo['Id'], 'attr') ?>">
+                                                                    <?= $filaOrden($submodulo, 'submodulo') ?>
+                                                                </li>
+                                                            <?php endforeach; ?>
+                                                        </ul>
+                                                    <?php endif; ?>
+                                                </li>
+                                            <?php endforeach; ?>
+                                        </ul>
+                                    <?php else : ?>
+                                        <p class="orden-sin-modulos text-muted small fst-italic mb-0">Sin módulos</p>
+                                    <?php endif; ?>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </div>
                 </div>
             </div>
         </div>
@@ -190,6 +269,7 @@
 
 <!-- SECCION DE SCRIPTS -->
 <?php echo $this->section('scripts'); ?>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 <script>
     /**
      * Configuración de Toast de Sweetalert.
@@ -211,6 +291,8 @@
     const AYUDA_SIN_LOSETA  = 'Un registro sin loseta es una loseta; las losetas no tienen módulo padre.';
     const AYUDA_SIN_MODULOS = 'Esta loseta aún no tiene módulos; el registro quedará como módulo de primer nivel.';
     const AYUDA_MODULO      = 'Vacío = módulo de primer nivel. Si eliges un módulo, este registro será un submódulo y aparecerá desplegable dentro de él.';
+
+    let arbolDesactualizado = false;
 
     const cfgCrear = {
         loseta: '#select_loseta_padre',
@@ -283,6 +365,12 @@
     document.addEventListener('DOMContentLoaded', function() {
         renderizarTabla();
         actualizarNivel(cfgCrear);
+        inicializarOrden();
+
+        if (location.hash === '#organizeMenu') {
+            bootstrap.Tab.getOrCreateInstance(document.querySelector('#organizeMenu-tab')).show();
+            history.replaceState(null, '', location.pathname + location.search);
+        }
     });
 
     /**Método para imprimir el icono en la vista */
@@ -436,6 +524,13 @@
                 body: formData
             });
 
+            if (!response.ok) {
+                const error = await response.json();
+                Toast.fire({ icon: 'error', title: error.message });
+                $('#btn_actualizar_modulo').prop('disabled', false);
+                return;
+            }
+
             let result = await response.text();
 
             $('#editModuloModal').modal('hide');
@@ -448,9 +543,12 @@
             $('#contenedor_table').html(result);
             $('#btn_actualizar_modulo').prop('disabled', false);
             renderizarTabla();
+            arbolDesactualizado = true;
 
         } catch (error) {
             console.log('Se ha producido un error: ', error);
+            $('#btn_actualizar_modulo').prop('disabled', false);
+            Toast.fire({ icon: 'error', title: 'No se pudo actualizar el módulo.' });
         }
     }
 
@@ -473,6 +571,13 @@
                 body: formData
             });
 
+            if (!response.ok) {
+                const error = await response.json();
+                Toast.fire({ icon: 'error', title: error.message });
+                $('#btn_crear_modulo').prop('disabled', false);
+                return;
+            }
+
             const result = await response.text();
 
             Toast.fire({
@@ -485,10 +590,161 @@
             $('#btn_crear_modulo').prop('disabled', false);
             renderizarTabla();
             sincronizarPadres(cfgCrear);
+            arbolDesactualizado = true;
 
         } catch (error) {
             console.log('Se ha producido un error: ', error);
+            $('#btn_crear_modulo').prop('disabled', false);
+            Toast.fire({ icon: 'error', title: 'No se pudo crear el módulo.' });
         }
+    }
+
+    /**
+     * Metodo para guardar el orden de un grupo de hermanos.
+     */
+    const guardarOrden = async (sortable, lista, previo) => {
+        const $estado = $('#orden_estado');
+        $estado.attr('class', 'small text-muted').html('<span class="spinner-border spinner-border-sm text-primary me-1"></span> Guardando…');
+        sortable.option('disabled', true);
+        lista.classList.add('orden-guardando');
+
+        const formData = new FormData();
+        sortable.toArray().forEach(id => formData.append('Ids[]', id));
+
+        try {
+            const response = await fetch(`<?= base_url() ?>admin/modulos/actualizarOrden`, {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+
+            if (!response.ok || !result.success) {
+                throw new Error(result.message);
+            }
+
+            $estado.attr('class', 'small text-success').html('<i class="bi bi-check-circle me-1"></i>Orden guardado');
+            Toast.fire({ icon: 'success', title: 'Orden guardado.' });
+            $('#contenedor_table').html(result.tabla);
+            renderizarTabla();
+
+        } catch (error) {
+            console.log('Se ha producido un error: ', error);
+            sortable.sort(previo, true);
+            const mensaje = error.message || 'No se pudo guardar el orden.';
+            $estado.attr('class', 'small text-danger').html('<i class="bi bi-exclamation-circle me-1"></i>').append(document.createTextNode(mensaje));
+            Toast.fire({ icon: 'error', title: mensaje });
+        }
+
+        sortable.option('disabled', false);
+        lista.classList.remove('orden-guardando');
+    }
+
+    /**
+     * Metodo para mover un submodulo a otro modulo contenedor.
+     */
+    const moverSubmodulo = async (evt, marcarVacias) => {
+        const $estado = $('#orden_estado');
+        const listas = [evt.from, evt.to];
+        const destino = evt.to.closest('.orden-item-modulo').querySelector(':scope > .orden-fila .orden-nombre').textContent;
+        $estado.attr('class', 'small text-muted').html('<span class="spinner-border spinner-border-sm text-primary me-1"></span> Guardando…');
+        listas.forEach(l => l.classList.add('orden-guardando'));
+
+        const formData = new FormData();
+        formData.append('Id', evt.item.dataset.id);
+        formData.append('IdModulo', evt.to.closest('.orden-item-modulo').dataset.id);
+        Sortable.get(evt.to).toArray().forEach(id => formData.append('IdsDestino[]', id));
+        Sortable.get(evt.from).toArray().forEach(id => formData.append('IdsOrigen[]', id));
+
+        try {
+            const response = await fetch(`<?= base_url() ?>admin/modulos/moverSubmodulo`, {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+
+            if (!response.ok || !result.success) {
+                throw new Error(result.message);
+            }
+
+            $estado.attr('class', 'small text-success').html('<i class="bi bi-check-circle me-1"></i>').append(document.createTextNode(`Submódulo movido a «${destino}»`));
+            Toast.fire({ icon: 'success', title: 'Submódulo movido.' });
+            $('#contenedor_table').html(result.tabla);
+            renderizarTabla();
+
+        } catch (error) {
+            console.log('Se ha producido un error: ', error);
+            evt.from.insertBefore(evt.item, evt.from.children[evt.oldIndex] || null);
+            marcarVacias();
+            const mensaje = error.message || 'No se pudo mover el submódulo.';
+            $estado.attr('class', 'small text-danger').html('<i class="bi bi-exclamation-circle me-1"></i>').append(document.createTextNode(mensaje));
+            Toast.fire({ icon: 'error', title: mensaje });
+        }
+
+        listas.forEach(l => l.classList.remove('orden-guardando'));
+    }
+
+    /**
+     * Metodo que inicializa el arbol de ordenamiento del menu.
+     */
+    const inicializarOrden = () => {
+        const arbol = document.querySelector('#orden_arbol');
+        const subListas = () => arbol.querySelectorAll('.orden-submodulos');
+        const marcarVacias = () => subListas().forEach(ul => ul.classList.toggle('orden-vacia', !ul.children.length));
+
+        arbol.querySelectorAll('.orden-lista').forEach((lista, i) => {
+            let previo = [];
+            const esSub = lista.classList.contains('orden-submodulos');
+            const sortable = Sortable.create(lista, {
+                group: esSub ? { name: 'orden-sub', pull: true, put: true } : { name: `orden-${i}`, pull: false, put: false },
+                handle: '.orden-handle',
+                dataIdAttr: 'data-id',
+                animation: 150,
+                ghostClass: 'orden-ghost',
+                chosenClass: 'orden-chosen',
+                dragClass: 'orden-drag',
+                forceFallback: true,
+                fallbackOnBody: true,
+                fallbackClass: 'orden-drag',
+                delay: 150,
+                delayOnTouchOnly: true,
+                fallbackTolerance: 3,
+                onStart: () => {
+                    previo = sortable.toArray();
+                    arbol.classList.add('orden-arrastrando');
+                    if (esSub) {
+                        arbol.classList.add('orden-arrastrando-sub');
+                        subListas().forEach(ul => ul.classList.add('orden-destino'));
+                    }
+                },
+                onMove: (evt) => {
+                    if (!esSub) return;
+                    arbol.querySelectorAll('.orden-destino-activo').forEach(ul => ul !== evt.to && ul.classList.remove('orden-destino-activo'));
+                    evt.to.classList.add('orden-destino-activo');
+                },
+                onAdd: marcarVacias,
+                onRemove: marcarVacias,
+                onEnd: (evt) => {
+                    arbol.classList.remove('orden-arrastrando', 'orden-arrastrando-sub');
+                    subListas().forEach(ul => ul.classList.remove('orden-destino', 'orden-destino-activo'));
+                    marcarVacias();
+                    if (evt.from !== evt.to) {
+                        moverSubmodulo(evt, marcarVacias);
+                    } else if (evt.oldIndex !== evt.newIndex) {
+                        guardarOrden(sortable, lista, previo);
+                    }
+                }
+            });
+        });
+
+        const alternarTodo = (mostrar) => arbol.querySelectorAll('.orden-modulos').forEach(el => {
+            const collapse = bootstrap.Collapse.getOrCreateInstance(el, { toggle: false });
+            mostrar ? collapse.show() : collapse.hide();
+        });
+
+        $('#btn_expandir_todo').on('click', () => alternarTodo(true));
+        $('#btn_contraer_todo').on('click', () => alternarTodo(false));
     }
 
     /**
@@ -501,6 +757,13 @@
     $('#losetaPadre').on('change', () => sincronizarPadres(cfgEditar));
     $('#moduloPadre').on('change', () => actualizarNivel(cfgEditar));
     $('#nombre').on('keyup', () => actualizarNivel(cfgEditar));
+
+    $('#organizeMenu-tab').on('show.bs.tab', () => {
+        if (arbolDesactualizado) {
+            location.hash = '#organizeMenu';
+            location.reload();
+        }
+    });
 
     document.querySelector('#formulario_creacion').addEventListener('submit', (e) => {
         e.preventDefault();

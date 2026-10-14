@@ -488,6 +488,8 @@
         });
     }
 
+    $(document).ready(() => renderizarTabla());
+
     /**
      * Metodo para crear un nuevo usuario.
      */

@@ -93,7 +93,7 @@ class UsuariosModel extends Model
             'TokenExpiry' => $tokenExpiry,
         ];
 
-        $this->db->table('ResetsPasswords')->insert($data);
+        $this->db->table('ResetPasswords')->insert($data);
     }
 
 
@@ -102,7 +102,7 @@ class UsuariosModel extends Model
      */
     public function verifyResetToken($resetToken)
     {
-        $builder = $this->db->table('ResetsPasswords');
+        $builder = $this->db->table('ResetPasswords');
         $builder->where('ResetToken', $resetToken);
         // Verificar si el token ha expirado
         $builder->where('TokenExpiry >=', (new \DateTime())->format('Y-m-d\TH:i:s')); // Compara con la fecha actual
@@ -137,11 +137,11 @@ class UsuariosModel extends Model
 
 
     /**
-     * Metodo para eliminar el token de la base ResetsPasswords.
+     * Metodo para eliminar el token de la base ResetPasswords.
      */
     public function deleteToken($resetToken)
     {
-        $builder = $this->db->table('ResetsPasswords');
+        $builder = $this->db->table('ResetPasswords');
         $builder->where('ResetToken', $resetToken);
         $builder->delete();
         

@@ -51,6 +51,8 @@ class LosetasModel extends Model
         $builder->select('m.*, lp.Nombre as LosetaPadre, mp.Nombre as ModuloPadre');
         $builder->join('Modulos lp', 'm.IdLoseta=lp.Id', 'left'); // Loseta Padre
         $builder->join('Modulos mp', 'm.IdModulo = mp.Id', 'left'); // Modulo Padre
+        $builder->orderBy('m.Orden', 'ASC');
+        $builder->orderBy('m.Id', 'ASC');
         $query = $builder->get();
 
         return $query->getResultArray();
@@ -83,12 +85,16 @@ class LosetasModel extends Model
     {
         $builder = $this->db->table('Usuarios u');
         $builder->distinct();
-        $builder->select('m.Id, m.Nombre as Nombre, m.Icono as Icono, m.Ruta AS Ruta');
+        $builder->select('m.Id, m.Nombre as Nombre, m.Icono as Icono, m.Ruta AS Ruta, m.Orden');
         $builder->join('UsuariosRoles us', 'us.IdUsuario = u.Id');
         $builder->join('ModulosRoles mr', 'mr.IdRol = us.IdRol');
         $builder->join('Modulos m', 'm.Id = mr.IdModulo AND m.IdLoseta IS NULL');
         $builder->where('u.Id', $codigo_usuario);
+        $builder->where('m.FechaFinalizacion', null);
+        $builder->where('mr.FechaFinalizacion', null);
         $builder->where('us.FechaFinalizacion', null);
+        $builder->orderBy('m.Orden', 'ASC');
+        $builder->orderBy('m.Id', 'ASC');
         $query = $builder->get();
 
         return $query->getResultArray();
@@ -106,7 +112,7 @@ class LosetasModel extends Model
     {
         $builder = $this->db->table('Usuarios u');
         $builder->distinct();
-        $builder->select('m.Id as IdModulo, m.Nombre as Nombre, m.Icono as Icono, m.Ruta AS Ruta');
+        $builder->select('m.Id as IdModulo, m.Nombre as Nombre, m.Icono as Icono, m.Ruta AS Ruta, m.Orden');
         $builder->join('UsuariosRoles us', 'us.IdUsuario = u.Id');
         $builder->join('ModulosRoles mr', 'mr.IdRol = us.IdRol');
         $builder->join('Modulos m', 'm.Id = mr.IdModulo');
@@ -116,6 +122,8 @@ class LosetasModel extends Model
         $builder->where('mr.FechaFinalizacion', null);
         $builder->where('m.IdModulo', null);
         $builder->where('us.FechaFinalizacion', null);
+        $builder->orderBy('m.Orden', 'ASC');
+        $builder->orderBy('m.Id', 'ASC');
         $query = $builder->get();
 
         return $query->getResultArray();
@@ -133,7 +141,7 @@ class LosetasModel extends Model
     {
         $builder = $this->db->table('Usuarios u');
         $builder->distinct();
-        $builder->select('m.IdModulo AS IdModuloPadre, m.Nombre as Nombre, m.Icono as Icono, m.Ruta AS Ruta');
+        $builder->select('m.Id AS Id, m.IdModulo AS IdModuloPadre, m.Nombre as Nombre, m.Icono as Icono, m.Ruta AS Ruta, m.Orden');
         $builder->join('UsuariosRoles us', 'us.IdUsuario = u.Id');
         $builder->join('ModulosRoles mr', 'mr.IdRol = us.IdRol');
         $builder->join('Modulos m', 'm.Id = mr.IdModulo');
@@ -143,6 +151,8 @@ class LosetasModel extends Model
         $builder->where('m.FechaFinalizacion', null);
         $builder->where('mr.FechaFinalizacion', null);
         $builder->where('us.FechaFinalizacion', null);
+        $builder->orderBy('m.Orden', 'ASC');
+        $builder->orderBy('m.Id', 'ASC');
         $query = $builder->get();
 
         return $query->getResultArray();
@@ -312,9 +322,95 @@ class LosetasModel extends Model
      */
     public function updateModule($id, $data)
     {
+        $this->db->transStart();
         $builder = $this->db->table('Modulos');
         $builder->where('Id', $id);
         $builder->update($data);
+        if (!empty($data['IdLoseta']) && empty($data['IdModulo'])) {
+            $this->db->table('Modulos')->where('IdModulo', $id)->update(['IdLoseta' => $data['IdLoseta']]);
+        }
+        $this->db->transComplete();
+    }
+
+    public function getSiguienteOrden($id_loseta, $id_modulo): int
+    {
+        $builder = $this->db->table('Modulos');
+        $builder->selectMax('Orden', 'MaxOrden');
+        $builder->where('IdLoseta', empty($id_loseta) ? null : $id_loseta);
+        $builder->where('IdModulo', empty($id_modulo) ? null : $id_modulo);
+        $row = $builder->get()->getRowArray();
+
+        return ((int) ($row['MaxOrden'] ?? 0)) + 1;
+    }
+
+    public function actualizarOrden(array $ids): bool
+    {
+        $ids = array_values(array_map('intval', $ids));
+        if (empty($ids) || count($ids) !== count(array_unique($ids))) {
+            return false;
+        }
+
+        $modulos = $this->db->table('Modulos')->select('Id, IdLoseta, IdModulo')->whereIn('Id', $ids)->get()->getResultArray();
+        if (count($modulos) !== count($ids)) {
+            return false;
+        }
+
+        foreach ($modulos as $modulo) {
+            if ($modulo['IdLoseta'] !== $modulos[0]['IdLoseta'] || $modulo['IdModulo'] !== $modulos[0]['IdModulo']) {
+                return false;
+            }
+        }
+
+        $this->db->transStart();
+        foreach ($ids as $posicion => $id) {
+            $this->db->table('Modulos')->where('Id', $id)->update(['Orden' => $posicion + 1]);
+        }
+        $this->db->transComplete();
+
+        return $this->db->transStatus();
+    }
+
+    public function moverSubmodulo(int $id, int $idModulo, array $idsDestino, array $idsOrigen): bool
+    {
+        $idsDestino = array_values(array_map('intval', $idsDestino));
+        $idsOrigen = array_values(array_map('intval', $idsOrigen));
+        if (count($idsDestino) !== count(array_unique($idsDestino)) || count($idsOrigen) !== count(array_unique($idsOrigen)) || !in_array($id, $idsDestino, true)) {
+            return false;
+        }
+
+        $submodulo = $this->db->table('Modulos')->select('Id, IdModulo')->where('Id', $id)->get()->getRowArray();
+        $destino = $this->db->table('Modulos')->select('Id, Ruta, IdLoseta, IdModulo')->where('Id', $idModulo)->get()->getRowArray();
+        if (!$submodulo || !$destino || is_null($submodulo['IdModulo']) || is_null($destino['IdLoseta']) || !is_null($destino['IdModulo']) || (int) $submodulo['IdModulo'] === $idModulo) {
+            return false;
+        }
+
+        $hijosDestino = array_map('intval', array_column($this->db->table('Modulos')->select('Id')->where('IdModulo', $idModulo)->get()->getResultArray(), 'Id'));
+        if (trim((string) $destino['Ruta']) !== '' && empty($hijosDestino)) {
+            return false;
+        }
+
+        $hijosOrigen = array_map('intval', array_column($this->db->table('Modulos')->select('Id')->where('IdModulo', $submodulo['IdModulo'])->where('Id !=', $id)->get()->getResultArray(), 'Id'));
+        $restoDestino = array_values(array_diff($idsDestino, [$id]));
+        sort($restoDestino);
+        sort($hijosDestino);
+        $ordenOrigen = $idsOrigen;
+        sort($ordenOrigen);
+        sort($hijosOrigen);
+        if ($restoDestino !== $hijosDestino || $ordenOrigen !== $hijosOrigen) {
+            return false;
+        }
+
+        $this->db->transStart();
+        $this->db->table('Modulos')->where('Id', $id)->update(['IdModulo' => $idModulo, 'IdLoseta' => $destino['IdLoseta']]);
+        foreach ($idsDestino as $posicion => $idDestino) {
+            $this->db->table('Modulos')->where('Id', $idDestino)->update(['Orden' => $posicion + 1]);
+        }
+        foreach ($idsOrigen as $posicion => $idOrigen) {
+            $this->db->table('Modulos')->where('Id', $idOrigen)->update(['Orden' => $posicion + 1]);
+        }
+        $this->db->transComplete();
+
+        return $this->db->transStatus();
     }
 
     /** Método para visualizar las acciones de los módulos */

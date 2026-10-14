@@ -3,7 +3,7 @@
 
 <!-- SECCION DE CSS -->
 <?php echo $this->section('css'); ?>
-<link rel="stylesheet" href="public/assets/css/login.css">
+<link rel="stylesheet" href="<?= base_url('public/assets/css/login.css') ?>">
 <?php echo $this->endSection(); ?>
 <!-- FIN SECCION DE CSS -->
 
@@ -80,7 +80,7 @@
                                     </div>
                                     <div class="col-12 text-center">
                                         <a class="small text-decoration-underline text-primary"
-                                            href="pages-register.html"><?= $data_protection ?></a>
+                                            href="#"><?= $data_protection ?></a>
                                     </div>
                                 </form>
 
@@ -150,7 +150,7 @@
             });
             setTimeout(function () {
                 loader("hide");
-                window.location.href = 'https://distrirex.com/app/'; // Redirige a la página de login
+                window.location.href = '<?= base_url('/') ?>'; // Redirige a la página de login
             }, 4000); // 4 segundos
         <?php endif; ?>
     })
@@ -186,7 +186,7 @@
                 // Redirigir después de 5 segundos (5000 milisegundos)
                 setTimeout(function () {
                     loader('hide');
-                    window.location.href = 'https://distrirex.com/app/'; // Redirige a la página de login
+                    window.location.href = '<?= base_url('/') ?>'; // Redirige a la página de login
                 }, 3000);
             } else {
                 loader('hide');
