@@ -163,7 +163,7 @@ class LaboresTransaccionModel extends ProduccionModel
                        CASE WHEN ISNULL(t.anulado, 0) = 0 THEN 0 ELSE 1 END AS anulado,
                        CASE WHEN EXISTS (SELECT 1 FROM cPeriodo p WHERE p.empresa = t.empresa AND p.[año] = t.[año]
                                             AND p.mes = t.mes AND p.cerrado = 1) THEN 1 ELSE 0 END AS cerrado,
-                       CASE WHEN " . $this->liquidadaSql('t') . " THEN 1 ELSE 0 END AS bloqueada
+                       CASE WHEN " . $this->liquidadaSql('t') . " THEN 1 ELSE 0 END AS bloqueada" . $this->auditoriaSql('t') . "
                   FROM aTransaccion t
                  WHERE t.empresa = ? AND t.tipo IN (" . $this->marcas() . ')' . $this->sinEliminadas('t');
 
@@ -363,10 +363,12 @@ class LaboresTransaccionModel extends ProduccionModel
             $cabecera = array_key_exists('referencia', $datos) ? ', finca = ?, referencia = ?' : '';
             $valores  = $cabecera === '' ? [] : [$datos['finca'], $datos['referencia']];
 
+            [$modificado, $marca] = $this->modificacionSql($datos['usuario']);
+
             $this->db->query(
-                'UPDATE aTransaccion SET fecha = ?, [año] = ?, mes = ?, remision = ?, observacion = ?' . $cabecera . '
+                'UPDATE aTransaccion SET fecha = ?, [año] = ?, mes = ?, remision = ?, observacion = ?' . $cabecera . $modificado . '
                   WHERE empresa = ? AND tipo = ? AND LTRIM(RTRIM(numero)) = ? AND ISNULL(anulado, 0) = 0',
-                array_merge([$datos['fecha'], $anio, $mes, $datos['remision'], $datos['observacion']], $valores, $llave)
+                array_merge([$datos['fecha'], $anio, $mes, $datos['remision'], $datos['observacion']], $valores, $marca, $llave)
             );
 
             if ($this->db->affectedRows() !== 1) {

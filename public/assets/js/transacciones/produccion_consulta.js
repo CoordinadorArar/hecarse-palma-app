@@ -51,6 +51,16 @@ const contador = (total) => {
     $id('contador_consulta').innerHTML = `<i class="bi bi-hash me-1" aria-hidden="true"></i><strong>${fmt(total)}</strong> ${total === 1 ? 'registro encontrado' : 'registros encontrados'}`;
 };
 
+const celdaRegistro = (fila) => {
+    const usuario = texto(fila.usuarioRegistro);
+    const modificado = texto(fila.fechaModificacion);
+    const editor = texto(fila.usuarioModificacion);
+    const cuando = modificado === '' ? '' : fFechaHora(modificado);
+    const titulo = `Registrado por ${escaparHtml(usuario)}${cuando ? ` · Modificado el ${cuando}${editor ? ` por ${escaparHtml(editor)}` : ''}` : ''}`;
+
+    return `<td data-order="${escaparHtml(usuario)}" title="${titulo}">${usuario === '' ? VACIO : `<span class="text-nowrap">${escaparHtml(usuario)}</span>`}${cuando ? `<span class="gp-subtexto text-nowrap"><i class="bi bi-pencil-square me-1" aria-hidden="true"></i>${cuando}${editor ? ` · ${escaparHtml(editor)}` : ''}</span>` : ''}</td>`;
+};
+
 const filaConsulta = (fila) => {
     const numero = texto(fila.numero);
     const anulado = Number(fila.anulado) === 1;
@@ -69,6 +79,7 @@ const filaConsulta = (fila) => {
         <td class="tx-num" data-order="${Number(fila.lineas || 0)}">${fmt(fila.lineas)}</td>
         <td class="tx-num" data-order="${Number(fila.trabajadores || 0)}">${fmt(fila.trabajadores)}</td>
         <td data-order="${escaparHtml(observacion)}">${observacion === '' ? VACIO : `<span class="gp-truncar d-inline-block align-bottom" title="${escaparHtml(observacion)}">${escaparHtml(observacion)}</span>`}</td>
+        ${celdaRegistro(fila)}
         <td class="text-center" data-order="${anulado ? 1 : 0}">${insignia(fila.anulado)}</td>
         <td class="text-center gp-col-sticky">
             <div class="btn-group btn-group-sm" role="group" aria-label="Acciones de ${escaparHtml(numero)}">
@@ -94,7 +105,7 @@ const iniciarTabla = () => $('.tx-tabla-consulta').DataTable({
     orderClasses: false,
     order: [[1, 'desc'], [0, 'desc']],
     columnDefs: [
-        { targets: [10], orderable: false, searchable: false },
+        { targets: [11], orderable: false, searchable: false },
         { targets: [4, 5, 6, 7], searchable: false }
     ],
     dom: "<'tx-dt-barra'lf><'table-responsive't><'tx-dt-barra tx-dt-pie'ip>",

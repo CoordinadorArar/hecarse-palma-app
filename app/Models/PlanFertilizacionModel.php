@@ -173,11 +173,13 @@ class PlanFertilizacionModel extends FertilizacionTransaccionModel
         $this->db->transBegin();
 
         try {
+            [$modificado, $valores] = $this->modificacionSql($datos['usuario']);
+
             $this->db->query(
-                'UPDATE aTransaccion SET fecha = ?, fechaFinal = ?, [año] = ?, mes = ?, finca = ?, observacion = ?
+                'UPDATE aTransaccion SET fecha = ?, fechaFinal = ?, [año] = ?, mes = ?, finca = ?, observacion = ?' . $modificado . '
                   WHERE empresa = ? AND tipo = ? AND LTRIM(RTRIM(numero)) = ? AND ISNULL(anulado, 0) = 0',
-                [$datos['fecha'], $datos['fechaFinal'], $datos['anio'], $datos['mes'], $datos['finca'], $datos['observacion'],
-                 $datos['empresa'], static::TIPO, $numero]
+                array_merge([$datos['fecha'], $datos['fechaFinal'], $datos['anio'], $datos['mes'], $datos['finca'], $datos['observacion']],
+                 $valores, [$datos['empresa'], static::TIPO, $numero])
             );
 
             if ($this->db->affectedRows() !== 1) {

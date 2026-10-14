@@ -43,6 +43,16 @@ const conMotivoBloqueo = (fila) => {
     return Number(fila.bloqueada) === 1 ? 'Liquidada en nómina' : '';
 };
 
+const conRegistro = (fila) => {
+    const usuario = texto(fila.usuarioRegistro);
+    const modificado = texto(fila.fechaModificacion);
+    const editor = texto(fila.usuarioModificacion);
+    const cuando = modificado === '' ? '' : escaparHtml(`${fechaCorta(modificado)} ${modificado.substring(11, 16)}`.trim());
+    const titulo = `Registrado por ${escaparHtml(usuario)}${cuando ? ` · Modificado el ${cuando}${editor ? ` por ${escaparHtml(editor)}` : ''}` : ''}`;
+
+    return `<td data-order="${escaparHtml(usuario)}" title="${titulo}">${usuario === '' ? '<span class="text-muted">—</span>' : `<span class="text-nowrap">${escaparHtml(usuario)}</span>`}${cuando ? `<span class="gp-subtexto text-nowrap"><i class="bi bi-pencil-square me-1" aria-hidden="true"></i>${cuando}${editor ? ` · ${escaparHtml(editor)}` : ''}</span>` : ''}</td>`;
+};
+
 const conFila = (fila) => {
     const numero = escaparHtml(texto(fila.numero));
     const tipo = escaparHtml(texto(fila.tipo));
@@ -67,6 +77,7 @@ const conFila = (fila) => {
         <td class="font-monospace">${texto(fila.finca) ? escaparHtml(texto(fila.finca)) : '<span class="text-muted">—</span>'}</td>
         ${CFG.referencia ? `<td class="font-monospace text-nowrap">${texto(fila.referencia) ? escaparHtml(texto(fila.referencia)) : '<span class="text-muted">—</span>'}</td>` : ''}
         <td>${observacion === '' ? '<span class="text-muted">—</span>' : `<span class="gp-truncar d-inline-block align-bottom" title="${escaparHtml(observacion)}">${escaparHtml(observacion)}</span>`}</td>
+        ${conRegistro(fila)}
         <td class="text-center" data-order="${anulado ? 1 : 0}">${anulado
             ? '<span class="badge rounded-pill gp-badge-cerrado"><i class="bi bi-x-circle me-1" aria-hidden="true"></i>Anulado</span>'
             : '<span class="badge rounded-pill gp-badge-abierto"><i class="bi bi-check-circle me-1" aria-hidden="true"></i>Vigente</span>'}</td>
