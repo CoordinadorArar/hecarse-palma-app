@@ -79,10 +79,10 @@ class UsuariosController extends BaseController
             $estado = is_null($usuario['FechaFinalizacion']) ? 'activo' : 'inactivo';
             $html .= '<tr class="' . $estado . '">
                     <td>' . htmlspecialchars($usuario['Nombre']) . '</td>
-                    <td>' . htmlspecialchars($usuario['Apellido']) . '</td>
-                    <td>' . htmlspecialchars($usuario['Usuario']) . '</td>
-                    <td>' . htmlspecialchars($usuario['Email']) . '</td>
-                    <td>' . htmlspecialchars($usuario['Documento']) . '</td>
+                    <td>' . htmlspecialchars($usuario['Apellido'] ?? '') . '</td>
+                    <td>' . htmlspecialchars($usuario['Usuario']) . ($estado === 'inactivo' ? ' <span class="badge rounded-pill ms-1 usuarios-badge-inactivo">Inactivo</span>' : '') . '</td>
+                    <td>' . htmlspecialchars($usuario['Email'] ?? '') . '</td>
+                    <td>' . htmlspecialchars($usuario['Documento'] ?? '') . '</td>
                     <td>
                         <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#editUserModal" onclick="obtenerUsuario(' . $usuario['Id'] . ')">Modificar</button>
                     </td>

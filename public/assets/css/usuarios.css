@@ -1,11 +1,20 @@
-    /* Estilos para usuarios activos */
-    .activo {
-        background-color: #d4edda96 !important;
-        /* Verde claro */
-    }
-
-    /* Estilos para usuarios inactivos */
-    .inactivo {
-        background-color: #f8d7da !important;
-        /* Rojo claro */
-    }
+#tabla_usuarios > tbody > tr.inactivo > td {
+  --bs-table-bg-type: #fbe4e6;
+  --bs-table-accent-bg: #fbe4e6;
+  background-color: #fbe4e6;
+  box-shadow: inset 0 0 0 9999px var(--bs-table-bg-state, var(--bs-table-bg-type));
+}
+#tabla_usuarios > tbody > tr.inactivo:hover > td {
+  --bs-table-bg-state: #f6d3d7;
+  --bs-table-accent-bg: #f6d3d7;
+}
+#tabla_usuarios > tbody > tr.inactivo > td:first-child {
+  box-shadow: inset 3px 0 0 #e4606d, inset 0 0 0 9999px var(--bs-table-bg-state, var(--bs-table-bg-type));
+}
+.usuarios-badge-inactivo {
+  background-color: #fff;
+  color: #b02a37;
+  border: 1px solid #f1aeb5;
+  font-weight: 600;
+  font-size: .72rem;
+}

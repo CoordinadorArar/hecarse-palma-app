@@ -142,7 +142,7 @@
                 if (result.requiereCambioPass) {
                     setTimeout(function () {
                         loader('hide');
-                        window.location.href = 'http://localhost/distribuidora-rex/recover';
+                        window.location.href = '<?= base_url('recover') ?>';
                     }, 8000);
                 }
             }

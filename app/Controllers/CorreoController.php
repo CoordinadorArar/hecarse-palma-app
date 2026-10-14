@@ -14,15 +14,15 @@ class CorreoController extends BaseController
         try {
             // Configuración SMTP
             $mail->isSMTP();
-            $mail->Host       = 'smtp.office365.com';
+            $mail->Host       = env('email.SMTPHost');
             $mail->SMTPAuth   = true;
-            $mail->Username   = 'sistemas@distrirex.com';
-            $mail->Password   = '@DistriREX*25+@';
-            $mail->SMTPSecure = 'tls';
-            $mail->Port       = 587;
+            $mail->Username   = env('email.SMTPUser');
+            $mail->Password   = env('email.SMTPPass');
+            $mail->SMTPSecure = env('email.smtpSecure') ?: 'tls';
+            $mail->Port       = (int) env('email.SMTPPort', 587);
 
             // Configuración de remitente y destinatario
-            $mail->setFrom('sistemas@distrirex.com', 'Soporte');
+            $mail->setFrom(env('email.fromEmail') ?: env('email.SMTPUser'), 'Soporte');
             $mail->addAddress($to);
 
             $mail->CharSet = 'UTF-8';

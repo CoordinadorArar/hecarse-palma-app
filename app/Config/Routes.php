@@ -76,6 +76,8 @@ $routes->post('admin/modulos/crearModulo', 'admin\ModulosController::createModul
 $routes->post('admin/modulos/actualizarModulo', 'admin\ModulosController::updateModule');
 $routes->post('admin/modulos/buscarModulo', 'admin\ModulosController::findModuleByName');
 $routes->post('admin/modulos/quitarModulo', 'admin\ModulosController::deleteModule');
+$routes->post('admin/modulos/actualizarOrden', 'admin\ModulosController::actualizarOrden');
+$routes->post('admin/modulos/moverSubmodulo', 'admin\ModulosController::moverSubmodulo');
 
 /** Rutas de módulo administración de acciones */
 $routes->post('admin/acciones/(:num)', 'admin\AccionesController::getAccionById/$1');
@@ -181,6 +183,10 @@ $routes->post('gestion-palma/contabilidad/terceros/eliminar', 'gestionpalma\Cont
 $routes->post('gestion-palma/contabilidad/terceros/cambiar-estado', 'gestionpalma\ContabilidadController::cambiarEstadoTercero');
 $routes->post('gestion-palma/contabilidad/terceros/siguiente-id', 'gestionpalma\ContabilidadController::siguienteIdTercero');
 $routes->post('gestion-palma/contabilidad/terceros/buscar-ciudad', 'gestionpalma\ContabilidadController::buscarCiudad');
+$routes->get('gestion-palma/contabilidad/presupuesto/(:num)', 'gestionpalma\PresupuestoProduccionController::index/$1');
+$routes->post('gestion-palma/contabilidad/presupuesto/listar', 'gestionpalma\PresupuestoProduccionController::listar');
+$routes->post('gestion-palma/contabilidad/presupuesto/guardar', 'gestionpalma\PresupuestoProduccionController::guardar');
+$routes->post('gestion-palma/contabilidad/presupuesto/eliminar', 'gestionpalma\PresupuestoProduccionController::eliminar');
 $routes->get('gestion-palma/nomina/periodos/(:num)', 'gestionpalma\NominaController::periodos/$1');
 $routes->post('gestion-palma/nomina/periodos/listar', 'gestionpalma\NominaController::listarPeriodosNomina');
 $routes->post('gestion-palma/nomina/periodos/obtener', 'gestionpalma\NominaController::obtenerPeriodoNomina');
@@ -318,6 +324,9 @@ $routes->post('transacciones/fertilizacion/eliminar', 'transacciones\Fertilizaci
 
 /** Rutas de la loseta de  "Dashboards".*/
 $routes->get('dashboards/onboarding/(:num)', 'dashboards\DashboardsController::index/$1');
+$routes->get('dashboards/admin/(:num)', 'dashboards\InformesGerencialesController::index/$1');
+$routes->post('dashboards/informes-gerenciales/fincas', 'dashboards\InformesGerencialesController::fincas');
+$routes->post('dashboards/informes-gerenciales/consultar', 'dashboards\InformesGerencialesController::consultar');
 
 /** Rutas de la loseta de  "Reportes".*/
 $routes->get('informes/onboarding/(:num)', 'informes\InformeController::index/$1');

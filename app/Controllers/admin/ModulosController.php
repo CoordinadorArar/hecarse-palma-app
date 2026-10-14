@@ -43,7 +43,8 @@ class ModulosController extends BaseController
 
         $data['tabla_modulos'] = $tabla_modulos;
         $data['losetas'] = $this->losetas_model->getAllModules(['IdLoseta IS NULL']);
-             
+        $data['modulos_orden'] = $this->losetas_model->getAllModulesWithParents();
+
         return view('admin/modulos', $data);
     }
 
@@ -144,6 +145,10 @@ class ModulosController extends BaseController
      */
     public function createModule(): ResponseInterface
     {
+        if (trim((string) $this->request->getVar('Nombre')) === '' || trim((string) $this->request->getVar('Icono')) === '') {
+            return $this->response->setStatusCode(400)->setJSON(['success' => false, 'message' => 'El nombre y el icono son obligatorios.']);
+        }
+
         $id_loseta = (!empty($this->request->getVar('IdLosetaPadre')))? $this->request->getVar('IdLosetaPadre') : NULL;
         $id_modulo = (!empty($this->request->getVar('IdModuloPadre')))? $this->request->getVar('IdModuloPadre') : NULL;
         $data = [
@@ -152,7 +157,8 @@ class ModulosController extends BaseController
             'Icono' => $this->request->getVar('Icono'),
             'IdLoseta' => $id_loseta,
             'IdModulo' => $id_modulo,
-            'IdUsuario' => $this->session->get('usu_id')
+            'IdUsuario' => $this->session->get('usu_id'),
+            'Orden' => $this->losetas_model->getSiguienteOrden($id_loseta, $id_modulo)
         ];
 
         $this->losetas_model->createModule($data);
@@ -180,6 +186,10 @@ class ModulosController extends BaseController
      */
     public function updateModule(): ResponseInterface
     {
+        if (trim((string) $this->request->getVar('Nombre')) === '' || trim((string) $this->request->getVar('Icono')) === '') {
+            return $this->response->setStatusCode(400)->setJSON(['success' => false, 'message' => 'El nombre y el icono son obligatorios.']);
+        }
+
         $date = date('Y-m-d H:i:s');
         $fecha = explode(' ', $date)[0] . 'T' . explode(' ', $date)[1];
 
@@ -196,8 +206,60 @@ class ModulosController extends BaseController
         $data['IdLoseta'] = (!empty($id_loseta)) ? $id_loseta : NULL;
         $data['IdModulo'] = (!empty($id_modulo)) ? $id_modulo : NULL;
 
+        $actual = $this->losetas_model->getModuleById($this->request->getVar('Id'));
+        if ((string) $actual['IdLoseta'] !== (string) $data['IdLoseta'] || (string) $actual['IdModulo'] !== (string) $data['IdModulo']) {
+            $data['Orden'] = $this->losetas_model->getSiguienteOrden($data['IdLoseta'], $data['IdModulo']);
+        }
+
         $this->losetas_model->updateModule($this->request->getVar('Id'), $data);
         $table = $this->renderizarListaModulos();
         return $this->response->setBody($table);
+    }
+
+    public function actualizarOrden(): ResponseInterface
+    {
+        $ids = $this->request->getPost('Ids');
+
+        if (!is_array($ids) || empty($ids)) {
+            return $this->response->setStatusCode(400)->setJSON(['success' => false, 'message' => 'No se recibieron módulos para ordenar.']);
+        }
+
+        foreach ($ids as $id) {
+            if (!ctype_digit((string) $id)) {
+                return $this->response->setStatusCode(400)->setJSON(['success' => false, 'message' => 'Identificadores de módulos no válidos.']);
+            }
+        }
+
+        if (!$this->losetas_model->actualizarOrden($ids)) {
+            return $this->response->setStatusCode(400)->setJSON(['success' => false, 'message' => 'No fue posible actualizar el orden. Verifique que los módulos existan y pertenezcan al mismo nivel.']);
+        }
+
+        return $this->response->setJSON(['success' => true, 'tabla' => $this->renderizarListaModulos()]);
+    }
+
+    public function moverSubmodulo(): ResponseInterface
+    {
+        $id = $this->request->getPost('Id');
+        $idModulo = $this->request->getPost('IdModulo');
+        $id = is_string($id) ? $id : '';
+        $idModulo = is_string($idModulo) ? $idModulo : '';
+        $idsDestino = $this->request->getPost('IdsDestino');
+        $idsOrigen = $this->request->getPost('IdsOrigen') ?: [];
+
+        if (!ctype_digit($id) || !ctype_digit($idModulo) || !is_array($idsDestino) || empty($idsDestino) || !is_array($idsOrigen)) {
+            return $this->response->setStatusCode(400)->setJSON(['success' => false, 'message' => 'Datos incompletos para mover el submódulo.']);
+        }
+
+        foreach (array_merge($idsDestino, $idsOrigen) as $valor) {
+            if (!ctype_digit((string) $valor)) {
+                return $this->response->setStatusCode(400)->setJSON(['success' => false, 'message' => 'Identificadores de módulos no válidos.']);
+            }
+        }
+
+        if (!$this->losetas_model->moverSubmodulo((int) $id, (int) $idModulo, $idsDestino, $idsOrigen)) {
+            return $this->response->setStatusCode(400)->setJSON(['success' => false, 'message' => 'No fue posible mover el submódulo. Verifique que el destino sea un módulo contenedor válido.']);
+        }
+
+        return $this->response->setJSON(['success' => true, 'tabla' => $this->renderizarListaModulos()]);
     }
 }

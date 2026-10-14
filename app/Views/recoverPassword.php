@@ -2,7 +2,7 @@
 
 <!-- SECCION DE CSS -->
 <?php echo $this->section('css'); ?>
-<link rel="stylesheet" href="public/assets/css/login.css">
+<link rel="stylesheet" href="<?= base_url('public/assets/css/login.css') ?>">
 <?php echo $this->endSection(); ?>
 
 <!-- SECCION PRINCIPAL -->
@@ -18,7 +18,7 @@
 
                         <div class="d-flex justify-content-center py-4">
                             <a href="#" class="logo d-flex align-items-center w-auto">
-                                <img src="public/assets/img/logo_hecarse.png" width="300" height="130" alt="Hecarse">
+                                <img src="<?= base_url('public/assets/img/logo_hecarse.png') ?>" width="300" height="130" alt="Hecarse">
                             </a>
                         </div>
 

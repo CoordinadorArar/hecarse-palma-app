@@ -65,7 +65,6 @@ class ResetPassController extends BaseController
         if ($this->request->getMethod() == 'POST') {
 
             $resetToken = $this->request->getPost('token_generado');
-            $userId = $this->request->getPost('id_usuario');
             $password = $this->request->getPost('password');
             $password_confirm = $this->request->getPost('password_confirm');
 
@@ -85,10 +84,14 @@ class ResetPassController extends BaseController
 
             // Ahora instanciamos el modelo UsuariosModel
             $usuariosModel = new UsuariosModel();
+            $resetData = $usuariosModel->verifyResetToken($resetToken);
 
+            if (!$resetData) {
+                return $this->response->setJSON(['success' => false, 'message' => 'El enlace de recuperación ha caducado o no es válido.']);
+            }
 
             //Actualizar contraseña en la base
-            if ($usuariosModel->updatePassword($userId, $password)) {
+            if ($usuariosModel->updatePassword($resetData['IdUsuario'], $password)) {
                 $usuariosModel->deleteToken($resetToken);
                 return $this->response->setJSON(['success' => true, 'message' => 'Contraseña actualizada correctamente. Ya puedes iniciar sesión']);
             } else {

@@ -10,8 +10,6 @@ class InformacionMenus
      * Metodo para obtener los modulos de la loseta a los que tiene acceso el usuario
      * dependiendo del rol que tenga.
      * 
-     * Se ordenan los modulos de la loseta, dejando el modulo "Onboarding" en primer lugar.
-     * 
      * @param string $usu_id Codigo del usuario.
      * @param string $id_loseta Identificador de la loseta.
      * @return array Modulos de la loseta ordenados.
@@ -19,19 +17,7 @@ class InformacionMenus
     public function getModuloByUsuarioRolAndLoseta($usu_id, $id_loseta): array
     {
         $losetas_model = new LosetasModel();
-        $modulos = $losetas_model->getModuloByUsuarioRolAndLoseta($usu_id, $id_loseta);
-
-        usort($modulos, function ($a, $b) {
-            if ($a['Nombre'] === 'Onboarding') {
-                return -1;
-            }
-            if ($b['Nombre'] === 'Onboarding') {
-                return 1;
-            }
-            return 0;
-        });
-
-        return $modulos;
+        return $losetas_model->getModuloByUsuarioRolAndLoseta($usu_id, $id_loseta);
     }
 
     /**
@@ -45,19 +31,7 @@ class InformacionMenus
     public function getSubModuloByUsuarioRolAndLoseta($usu_id, $id_loseta, $id_modulo): array
     {
         $losetas_model = new LosetasModel();
-        $submodulos = $losetas_model->getSubModuloByUsuarioRolAndLoseta($usu_id, $id_loseta, $id_modulo);
-
-        usort($submodulos, function ($a, $b) {
-            if ($a['Nombre'] === 'Onboarding') {
-                return -1;
-            }
-            if ($b['Nombre'] === 'Onboarding') {
-                return 1;
-            }
-            return 0;
-        });
-
-        return $submodulos;
+        return $losetas_model->getSubModuloByUsuarioRolAndLoseta($usu_id, $id_loseta, $id_modulo);
     }
 
     /**
