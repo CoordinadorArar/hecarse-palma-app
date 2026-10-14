@@ -1104,8 +1104,8 @@ const alertaBloqueo = (fila, accion) => {
         return true;
     }
 
-    if (Number(fila.bloqueada) === 1) {
-        Swal.fire({ icon: 'warning', title: 'Transacción liquidada', html: 'Ya fue liquidada en nómina; no admite cambios.', confirmButtonText: 'Entendido' });
+    if (accion === 'eliminar' && Number(fila.bloqueada) === 1) {
+        Swal.fire({ icon: 'warning', title: 'Transacción liquidada', html: 'Ya fue liquidada en nómina; no se puede eliminar.', confirmButtonText: 'Entendido' });
 
         return true;
     }
@@ -1150,6 +1150,8 @@ const cargarEdicion = async (numero, tipo = '') => {
 
     if (alertaBloqueo({ ...encabezado, numero }, 'editar')) return;
 
+    const avisoLiquidada = () => Number(encabezado.bloqueada) === 1 && Toast.fire({ icon: 'info', title: 'Transacción liquidada en nómina: los cambios quedarán registrados en auditoría.' });
+
     limpiarTodo();
     ['pestanas', 'item_registro'].forEach((id) => $id(id)?.classList.remove('d-none'));
     bootstrap.Tab.getOrCreateInstance($id('tab_registro')).show();
@@ -1158,6 +1160,7 @@ const cargarEdicion = async (numero, tipo = '') => {
     if (EXT.editar && texto(encabezado.tipo) === 'PFA') {
         await EXT.editar(encabezado, resultado, numero);
         estado.foto = JSON.stringify(cuerpoBase());
+        avisoLiquidada();
 
         return;
     }
@@ -1221,6 +1224,7 @@ const cargarEdicion = async (numero, tipo = '') => {
     sincronizarFechas();
     pintarLineas();
     estado.foto = JSON.stringify(cuerpoBase());
+    avisoLiquidada();
 };
 
 const guardar = async () => {

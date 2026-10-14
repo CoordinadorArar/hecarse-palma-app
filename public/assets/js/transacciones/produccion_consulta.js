@@ -55,7 +55,9 @@ const filaConsulta = (fila) => {
     const numero = texto(fila.numero);
     const anulado = Number(fila.anulado) === 1;
     const observacion = texto(fila.observacion);
-    const bloqueo = anulado ? '' : (Number(fila.bloqueada) === 1 ? 'Liquidada en nómina' : (Number(fila.cerrado) === 1 ? 'Periodo cerrado' : ''));
+    const bloqueo = anulado ? '' : (Number(fila.cerrado) === 1 ? 'Periodo cerrado' : '');
+    const liquidada = !anulado && !bloqueo && Number(fila.bloqueada) === 1;
+    const indicador = bloqueo || (liquidada ? 'Liquidada en nómina · solo edición' : '');
 
     return `<tr${anulado ? ' class="tx-fila-anulada"' : ''} data-numero="${escaparHtml(numero)}">
         <td class="font-monospace fw-semibold" data-order="${escaparHtml(numero)}">${escaparHtml(numero)}</td>
@@ -76,10 +78,10 @@ const filaConsulta = (fila) => {
                 ${anulado || bloqueo || !PERMISOS.editar ? '' : `<button type="button" class="btn btn-outline-secondary" data-editar="${escaparHtml(numero)}" title="Editar transacción TLC ${escaparHtml(numero)}" aria-label="Editar transacción TLC ${escaparHtml(numero)}">
                     <i class="bi bi-pencil" aria-hidden="true"></i>
                 </button>`}
-                ${anulado || bloqueo || !PERMISOS.eliminar ? '' : `<button type="button" class="btn btn-outline-danger" data-eliminar="${escaparHtml(numero)}" title="Eliminar transacción TLC ${escaparHtml(numero)}" aria-label="Eliminar transacción TLC ${escaparHtml(numero)}">
+                ${anulado || bloqueo || liquidada || !PERMISOS.eliminar ? '' : `<button type="button" class="btn btn-outline-danger" data-eliminar="${escaparHtml(numero)}" title="Eliminar transacción TLC ${escaparHtml(numero)}" aria-label="Eliminar transacción TLC ${escaparHtml(numero)}">
                     <i class="bi bi-trash" aria-hidden="true"></i>
                 </button>`}
-            </div>${bloqueo && (PERMISOS.editar || PERMISOS.eliminar) ? `<i class="bi bi-lock text-muted ms-2" role="img" title="${bloqueo}" aria-label="${bloqueo}"></i>` : ''}
+            </div>${indicador && (PERMISOS.editar || PERMISOS.eliminar) ? `<i class="bi ${liquidada ? 'bi-lock-half' : 'bi-lock'} text-muted ms-2" role="img" title="${indicador}" aria-label="${indicador}"></i>` : ''}
         </td>
     </tr>`;
 };

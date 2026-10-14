@@ -1544,6 +1544,10 @@ const cargarEdicion = async (numero) => {
     congelar(false);
     ['btn_guardar', 'btn_cancelar'].forEach((id) => { $id(id).disabled = false; });
     estado.foto = JSON.stringify(cuerpoBase());
+
+    if (Number(consulta.filas.find((item) => texto(item.numero) === numero)?.bloqueada) === 1) {
+        Toast.fire({ icon: 'info', title: 'Transacción liquidada en nómina: los cambios quedarán registrados en auditoría.' });
+    }
 };
 
 const salirEdicion = async () => {
