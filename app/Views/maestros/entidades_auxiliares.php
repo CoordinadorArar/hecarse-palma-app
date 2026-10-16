@@ -51,7 +51,6 @@ foreach ($entidades as $entidad) {
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    <div class="form-text">Cada entidad se guarda por empresa.</div>
                 </div>
 
                 <div class="col-md-4">
@@ -69,7 +68,6 @@ foreach ($entidades as $entidad) {
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    <div class="form-text">Cada entidad es un catálogo independiente.</div>
                 </div>
 
                 <div class="col-md-3">
@@ -107,7 +105,7 @@ foreach ($entidades as $entidad) {
 
             <div class="maestros-nota m-3 mb-0 d-none" id="nota_llave_completa">
                 <i class="bi bi-info-circle" aria-hidden="true"></i>
-                <span>En esta entidad las dos columnas forman la llave del registro, así que no se puede editar: para corregir una fila, elimínela y cree la correcta.</span>
+                <span>Las dos columnas forman la llave: para corregir una fila, elimínela y cree la correcta.</span>
             </div>
 
             <div class="maestros-nota-alerta m-3 mb-0 d-none flex-wrap justify-content-between gap-2" role="alert" id="nota_desactualizada">
@@ -135,14 +133,12 @@ foreach ($entidades as $entidad) {
 
             <div class="maestros-estado-vacio" id="estado_sin_entidad">
                 <div class="maestros-medallon chico neutro"><i class="bi bi-collection" aria-hidden="true"></i></div>
-                <h6 class="mb-1">Elija una entidad para ver sus registros</h6>
-                <p class="mb-0">Cada entidad es un catálogo independiente. Selecciónela arriba y aquí aparecerán sus registros.</p>
+                <h6 class="mb-0">Elija una entidad para ver sus registros</h6>
             </div>
 
             <div class="maestros-estado-vacio d-none" id="estado_vacio">
                 <div class="maestros-medallon"><i class="bi bi-inbox" aria-hidden="true"></i></div>
-                <h6 class="mb-1" id="titulo_estado_vacio"></h6>
-                <p class="mb-3">Varios de estos catálogos llegan vacíos del sistema anterior; puede crear el primero ahora.</p>
+                <h6 class="mb-3" id="titulo_estado_vacio"></h6>
                 <button type="button" class="btn btn-success" id="btn_crear_primero">
                     <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Crear el primero
                 </button>

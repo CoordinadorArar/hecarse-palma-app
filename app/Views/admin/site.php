@@ -47,7 +47,7 @@
                                         </div>
                                     <?php endif; ?>
                                     <input class="form-control" type="file" name="logo" accept="image/png,image/jpeg,image/svg+xml,image/webp">
-                                    <div class="form-text">PNG, SVG o JPG. Recomendado: fondo transparente. Máx. 2MB.</div>
+                                    <div class="form-text">PNG, SVG o JPG, fondo transparente. Máx. 2 MB.</div>
                                 </div>
                             </div>
 
@@ -99,7 +99,6 @@
                                             maxlength="7"
                                             style="max-width: 110px;">
                                     </div>
-                                    <div class="form-text">Define los colores principales de la aplicación.</div>
                                 </div>
                             </div>
 

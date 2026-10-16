@@ -37,7 +37,7 @@ $urlPorLabor = base_url('gestion-palma/precios/por-labor/' . $id_loseta);
     <section class="section">
 
         <div class="gp-nota mb-3">
-            <i class="bi bi-info-circle me-1"></i>Aquí se registran precios de labor acotados a una finca o a un lote. Cuando existe uno, la liquidación lo usa en lugar del precio general del año. La búsqueda va del detalle a lo general: primero lote, luego sección, luego finca; si no encuentra ninguno, usa la lista general.
+            <i class="bi bi-info-circle me-1"></i>Estos precios reemplazan al general del año para una finca, sección o lote.
             <a class="gp-enlace-general ms-1" href="<?= esc($urlPorLabor, 'attr') ?>"><i class="bi bi-box-arrow-up-right me-1"></i>Abrir Precios por labor</a>
         </div>
 
@@ -149,7 +149,6 @@ $urlPorLabor = base_url('gestion-palma/precios/por-labor/' . $id_loseta);
                                                     <?php endforeach; ?>
                                                 </select>
                                             </div>
-                                            <div class="form-text<?= empty($anios) ? ' d-none' : '' ?>" id="ayuda_anio">Se listan los años que existen en la lista general de precios.</div>
                                             <div class="form-text<?= empty($anios) ? '' : ' d-none' ?>" id="nota_anio">
                                                 <i class="bi bi-info-circle me-1" aria-hidden="true"></i>Aún no hay años en la lista general de precios.
                                                 <a class="gp-enlace-general" href="<?= esc($urlPorLabor, 'attr') ?>">Abrir Precios por labor</a>
@@ -178,7 +177,7 @@ $urlPorLabor = base_url('gestion-palma/precios/por-labor/' . $id_loseta);
                                                     <label class="form-check-label" for="form_switch_seccion">Especificar sección</label>
                                                 </div>
                                                 <div class="form-text" id="nota_seccion">
-                                                    <i class="bi bi-info-circle me-1"></i><span id="nota_seccion_texto">Esta empresa aún no tiene secciones registradas. El precio quedará a nivel de finca o de lote. Puede crearlas en Gestión Palma &rsaquo; Secciones y esta opción se habilitará automáticamente.</span>
+                                                    <i class="bi bi-info-circle me-1"></i><span id="nota_seccion_texto">La empresa no tiene secciones. Créelas en Gestión Palma &rsaquo; Secciones.</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -240,7 +239,7 @@ $urlPorLabor = base_url('gestion-palma/precios/por-labor/' . $id_loseta);
 
                                 <div class="col-12 d-none" id="nota_llave">
                                     <div class="gp-nota">
-                                        <i class="bi bi-info-circle me-1"></i>El año, la labor y el ámbito (finca, sección y lote) identifican el registro y no se pueden modificar. Si necesita cambiarlos, use Duplicar para crear el registro correcto y luego elimine este.
+                                        <i class="bi bi-info-circle me-1"></i>Año, labor y ámbito no se pueden modificar. Para cambiarlos use Duplicar y elimine este registro.
                                     </div>
                                 </div>
 
@@ -347,7 +346,7 @@ $urlPorLabor = base_url('gestion-palma/precios/por-labor/' . $id_loseta);
                                         <label class="form-check-label" for="valor_baseSueldo">Base al sueldo</label>
                                     </div>
                                     <div class="gp-nota mt-2">
-                                        <i class="bi bi-info-circle me-1"></i>Base sueldo activo: la liquidación ignora el precio de destajo y usa el salario mínimo diario. Si el porcentaje es mayor que 0, usa ese porcentaje del salario.
+                                        <i class="bi bi-info-circle me-1"></i>Activo: se liquida con el salario mínimo diario en lugar del destajo, o con el porcentaje del salario si es mayor que 0.
                                     </div>
                                 </div>
 
@@ -388,7 +387,7 @@ $urlPorLabor = base_url('gestion-palma/precios/por-labor/' . $id_loseta);
                     </div>
                     <div class="card-body p-0">
 
-                        <div class="table-responsive" id="gp_contenedor_tabla">
+                        <div id="gp_contenedor_tabla">
                             <table id="tabla_precios" class="table table-striped table-hover align-middle mb-0 gp-tabla gp-tabla-ancha" style="width:100%">
                                 <thead class="gp-thead">
                                     <tr>
@@ -414,7 +413,7 @@ $urlPorLabor = base_url('gestion-palma/precios/por-labor/' . $id_loseta);
                                 <i class="bi bi-geo-alt"></i>
                             </div>
                             <h6>Aún no hay precios por ámbito</h6>
-                            <p class="text-muted">Los precios registrados aquí sobrescriben la lista general del año para una finca o un lote. Mientras no exista ninguno, todas las labores se liquidan con Precios por labor.</p>
+                            <p class="text-muted">Mientras no exista ninguno, se liquida con Precios por labor.</p>
                             <div class="d-flex flex-wrap justify-content-center gap-2">
                                 <button type="button" class="btn btn-success" id="btn_registrar_primero">
                                     <i class="bi bi-plus-lg me-1"></i>Registrar el primero

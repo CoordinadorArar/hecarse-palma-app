@@ -42,7 +42,7 @@ class LaboresController extends BaseController
             return $data;
         }
 
-        if (! $this->permisos()['registrar'] && ! $this->permisos()['consultar']) {
+        if (! $this->puedeAbrir()) {
             return redirect()->to(base_url('losetas'));
         }
 
@@ -199,6 +199,8 @@ class LaboresController extends BaseController
         if ($datos['periodoCerrado'] === 1) {
             return $this->error('El periodo ' . $this->etiquetaPeriodo($datos['anio'], $datos['mes']) . ' está cerrado.');
         }
+
+        $datos['planeacionLinea'] = max(0, (int) $this->campo('planeacionLinea'));
 
         try {
             $resultado = $this->laboresModel->guardar($datos, $this->session->get('usu_id'));
@@ -538,6 +540,11 @@ class LaboresController extends BaseController
     protected function datosVista(int $empresa): array
     {
         return [];
+    }
+
+    protected function puedeAbrir(): bool
+    {
+        return $this->permisos()['registrar'] || $this->permisos()['consultar'];
     }
 
     protected function lineasValidas(int $empresa, string $fecha, array $periodo, int $anio, int $mes, array $extra): array|string

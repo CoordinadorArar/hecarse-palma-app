@@ -280,24 +280,6 @@
             .catch(() => select.prop('disabled', false));
     }
 
-    const idiomaDataTable = {
-        lengthMenu: "Mostrar _MENU_ registros",
-        zeroRecords: "No se encontraron registros",
-        info: "Mostrando _START_ a _END_ de _TOTAL_",
-        infoEmpty: "No hay registros disponibles",
-        infoFiltered: "(filtrado de _MAX_ registros totales)",
-        search: "Buscar:",
-        loadingRecords: "Cargando...",
-        processing: "Procesando...",
-        emptyTable: "No hay datos disponibles",
-        paginate: {
-            first: "Primero",
-            last: "Último",
-            next: "›",
-            previous: "‹"
-        }
-    };
-
     // function consultarReporte() {
     //     const anio = $('#anio').val();
     //     const mes = $('#mes').val();
@@ -502,9 +484,7 @@
                     className: 'text-end'
                 }
             ],
-            responsive: true,
             pageLength: 10,
-            language: idiomaDataTable,
             order: [
                 [1, 'desc']
             ] // Ordenar por Valor Hecarse descendente
@@ -559,9 +539,7 @@
                     className: 'text-end'
                 }
             ],
-            responsive: true,
             pageLength: 10,
-            language: idiomaDataTable,
             order: [
                 [1, 'desc']
             ] // Ordenar por Valor Hecarse descendente
@@ -605,9 +583,7 @@
                     render: $.fn.dataTable.render.number('.', ',', 0, '$')
                 }
             ],
-            responsive: true,
-            pageLength: 10,
-            language: idiomaDataTable
+            pageLength: 10
         });
     }
 

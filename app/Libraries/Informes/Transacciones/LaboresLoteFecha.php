@@ -103,6 +103,7 @@ class LaboresLoteFecha extends Informe
         $grupos = [];
         $fincas = [];
         $neg    = 0.0;
+        $porLabor = [];
         $sinReg = 0;
         $sinVal = 0.0;
 
@@ -111,7 +112,8 @@ class LaboresLoteFecha extends Informe
             $valor = (float) $c['valor'];
             $fecha = substr((string) $c['fecha'], 0, 10);
             $finca = trim($c['finca']);
-            $f     = &$filas[$c['lote'] . '|' . $c['labor'] . '|' . $c['uMedida']];
+            $f     = &$filas[$c['lote'] . '|' . $c['labor'] . '|' . $c['uMedida'] . '|' . $fecha];
+            $porLabor[$c['lote'] . '|' . $c['labor'] . '|' . $c['uMedida']] = ($porLabor[$c['lote'] . '|' . $c['labor'] . '|' . $c['uMedida']] ?? 0) + $valor;
             $f['lote']        = $clave;
             $f['sinLote']     = $c['lote'] === '';
             $f['anioSiembra'] = (int) $c['anioSiembra'] === 0 ? '' : (string) (int) $c['anioSiembra'];
@@ -121,13 +123,14 @@ class LaboresLoteFecha extends Informe
             $f['grupo']       = $c['grupo'] === '' ? 'Sin grupo' : $c['grupo'] . ' — ' . trim($c['grupoNombre']);
             $f['labor']       = $c['labor'] . ' — ' . trim($c['laborNombre']);
             $f['codLabor']    = $c['labor'];
+            $f['claveLabor']  = $c['lote'] . '|' . $c['labor'] . '|' . $c['uMedida'];
             $f['uMedida']     = $c['uMedida'];
             $f['cantidad']    = ($f['cantidad'] ?? 0) + (float) $c['cantidad'];
             $f['valor']       = ($f['valor'] ?? 0) + $valor;
             $f['valorContratista'] = ($f['valorContratista'] ?? 0) + ((int) $c['contratista'] === 1 ? $valor : 0);
             $f['hay'][(int) $c['contratista']] = true;
             $f['precios'][(string) (float) $c['precio']] = true;
-            $f['fechas'][$fecha] = true;
+            $f['fecha']       = $fecha;
             $f['fincas'][$finca] = true;
             unset($f);
 
@@ -157,7 +160,7 @@ class LaboresLoteFecha extends Informe
 
         $filas = array_values($filas);
 
-        usort($filas, static fn ($x, $y) => [$x['sinLote'], $lotes[$y['lote']]['valor'], $x['lote'], $y['valor']] <=> [$y['sinLote'], $lotes[$x['lote']]['valor'], $y['lote'], $x['valor']]);
+        usort($filas, static fn ($x, $y) => [$x['sinLote'], $lotes[$y['lote']]['valor'], $x['lote'], $porLabor[$y['claveLabor']], $x['claveLabor'], $x['fecha']] <=> [$y['sinLote'], $lotes[$x['lote']]['valor'], $y['lote'], $porLabor[$x['claveLabor']], $y['claveLabor'], $y['fecha']]);
 
         if (count($filas) > self::MAX_FILAS) {
             $filas    = array_slice($filas, 0, self::MAX_FILAS);
@@ -176,11 +179,11 @@ class LaboresLoteFecha extends Informe
                 'palmas'               => $p,
                 'grupo'                => $f['grupo'],
                 'labor'                => $f['labor'],
+                'fecha'                => $f['fecha'],
                 'uMedida'              => $f['uMedida'],
                 'ejecucion'            => isset($f['hay'][1]) ? (isset($f['hay'][0]) ? 'Mixta' : 'Contratista') : 'Nómina',
                 'cantidad'             => round($f['cantidad'], 2),
                 'precio'               => round($f['cantidad'], 2) == 0 ? null : round($f['valor'] / $f['cantidad'], 2),
-                'dias'                 => count($f['fechas']),
                 'valor'                => round($f['valor'], 2),
                 'costoPalma'           => $p > 0 ? round($f['valor'] / $p, 2) : null,
                 'palmasPeso'           => $p > 0 ? $p / $porLote[$f['lote']] : 0,
@@ -296,11 +299,11 @@ class LaboresLoteFecha extends Informe
                 ['clave' => 'palmas', 'titulo' => 'Palmas prod.', 'tipo' => 'entero', 'alineacion' => 'derecha', 'total' => false],
                 ['clave' => 'grupo', 'titulo' => 'Grupo labor', 'tipo' => 'texto', 'alineacion' => 'izquierda', 'total' => false],
                 ['clave' => 'labor', 'titulo' => 'Labor', 'tipo' => 'texto', 'alineacion' => 'izquierda', 'total' => false],
+                ['clave' => 'fecha', 'titulo' => 'Fecha ejecución', 'tipo' => 'fecha', 'alineacion' => 'centro', 'total' => false],
                 ['clave' => 'uMedida', 'titulo' => 'U. medida', 'tipo' => 'texto', 'alineacion' => 'centro', 'total' => false],
                 ['clave' => 'ejecucion', 'titulo' => 'Ejecución', 'tipo' => 'texto', 'alineacion' => 'centro', 'total' => false, 'ayuda' => 'Nómina, Contratista o Mixta según los trabajadores de la labor.'],
-                ['clave' => 'cantidad', 'titulo' => 'Cantidad', 'tipo' => 'decimal', 'alineacion' => 'derecha', 'total' => false, 'ayuda' => 'Suma por labor; no se totaliza porque mezcla unidades.'],
+                ['clave' => 'cantidad', 'titulo' => 'Cantidad', 'tipo' => 'decimal', 'alineacion' => 'derecha', 'total' => false, 'ayuda' => 'Suma por labor y fecha; no se totaliza porque mezcla unidades.'],
                 ['clave' => 'precio', 'titulo' => 'Precio prom.', 'tipo' => 'moneda', 'alineacion' => 'derecha', 'total' => false, 'ayuda' => 'Valor / cantidad.'],
-                ['clave' => 'dias', 'titulo' => 'Días', 'tipo' => 'entero', 'alineacion' => 'derecha', 'total' => false, 'ayuda' => 'Fechas distintas con esta labor en el lote.'],
                 ['clave' => 'valor', 'titulo' => 'Valor', 'tipo' => 'moneda', 'alineacion' => 'derecha', 'total' => true, 'ayuda' => 'Los ajustes con signo negativo restan.'],
                 ['clave' => 'costoPalma', 'titulo' => 'Costo/palma', 'tipo' => 'moneda', 'alineacion' => 'derecha', 'total' => 'ponderado', 'numerador' => 'valorConPalmas', 'denominador' => 'palmasPeso',
                     'ayuda' => 'Valor / palmas en producción del lote. Subtotal y total ponderados; excluyen sin lote y lotes sin palmas.'],

@@ -80,7 +80,7 @@
             </div>
             <div class="card-body p-0">
 
-                <div class="table-responsive" id="gp_contenedor_tabla">
+                <div id="gp_contenedor_tabla">
                     <table id="tabla_secciones" class="table table-striped table-hover align-middle mb-0 gp-tabla" style="width:100%">
                         <thead class="gp-thead">
                             <tr>
@@ -183,7 +183,6 @@
                                     <input type="number" class="form-control text-end" id="seccion_hbrutas" step="0.01" min="0">
                                     <span class="input-group-text bg-light">ha</span>
                                 </div>
-                                <div class="form-text">Opcional. Déjelo vacío si aún no se ha medido.</div>
                             </div>
 
                             <div class="col-12">

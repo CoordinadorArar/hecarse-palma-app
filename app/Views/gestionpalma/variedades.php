@@ -67,7 +67,7 @@
             </div>
             <div class="card-body p-0">
 
-                <div class="table-responsive" id="gp_contenedor_tabla">
+                <div id="gp_contenedor_tabla">
                     <table id="tabla_variedades" class="table table-striped table-hover align-middle mb-0 gp-tabla" style="width:100%">
                         <thead class="gp-thead">
                             <tr>
@@ -152,7 +152,7 @@
                                     <span class="input-group-text bg-light"><i class="bi bi-signpost"></i></span>
                                     <input type="text" class="form-control" id="variedad_procedencia" maxlength="550" required>
                                 </div>
-                                <div class="form-text">Texto libre. Ej.: Guineensis.</div>
+                                <div class="form-text">Ej.: Guineensis.</div>
                             </div>
 
                             <div class="col-12 d-none" id="variedad_aviso_llave">

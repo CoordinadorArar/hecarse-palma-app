@@ -39,8 +39,7 @@
         <div class="tab-pane fade show active" id="listUsers" role="tabpanel" aria-labelledby="listUsers-tab">
             <div class="card">
                 <div class="card-body">
-                    <!-- Agrega un contenedor table-responsive para evitar el desbordamiento -->
-                    <div class="table-responsive" id="contenedor_table">
+                    <div id="contenedor_table">
                         <?php echo $tabla_usuarios; ?>
                     </div>
                 </div>
@@ -465,27 +464,7 @@
             $('#tabla_usuarios').DataTable().destroy();
         }
 
-        $('#tabla_usuarios').DataTable({
-            responsive: true,
-            language: {
-                "lengthMenu": "Mostrar _MENU_ registros por página",
-                "zeroRecords": "No se encontraron resultados",
-                "info": "Mostrando página _PAGE_ de _PAGES_",
-                "infoEmpty": "No hay registros disponibles",
-                "infoFiltered": "(filtrado de _MAX_ registros totales)",
-                "search": "Buscar:",
-                "loadingRecords": "Cargando...",
-                "processing": "Procesando...",
-                "emptyTable": "No hay datos disponibles en la tabla",
-                "thousands": ",",
-                "decimal": ".",
-                "infoPostFix": "",
-                "aria": {
-                    "sortAscending": ": activar para ordenar la columna ascendente",
-                    "sortDescending": ": activar para ordenar la columna descendente"
-                }
-            }
-        });
+        $('#tabla_usuarios').DataTable();
     }
 
     $(document).ready(() => renderizarTabla());

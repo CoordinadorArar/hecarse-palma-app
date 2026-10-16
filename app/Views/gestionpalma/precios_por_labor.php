@@ -78,7 +78,7 @@
                 </div>
                 <div class="card-body p-0">
 
-                    <div class="table-responsive" id="gp_contenedor_tabla">
+                    <div id="gp_contenedor_tabla">
                         <table id="tabla_anios" class="table table-striped table-hover align-middle mb-0 gp-tabla" style="width:100%">
                             <thead class="gp-thead">
                                 <tr>
@@ -101,7 +101,6 @@
                             <i class="bi bi-tags"></i>
                         </div>
                         <h6>No hay años de precios registrados</h6>
-                        <p class="text-muted">Cree el primer año de la lista de precios de mano de obra.</p>
                         <button type="button" class="btn btn-success" id="btn_nuevo_anio_vacio">
                             <i class="bi bi-plus-lg me-1"></i>Nuevo año
                         </button>
@@ -180,12 +179,9 @@
                     </div>
                 </div>
 
-                <div class="px-3 pt-3">
-                    <div class="gp-nota">
-                        <i class="bi bi-info-circle me-1"></i>Base sueldo activo: la liquidación ignora el precio de destajo y usa el salario mínimo diario. Si el porcentaje es mayor que 0, usa ese porcentaje del salario.
-                    </div>
-                    <div class="gp-nota-alerta mt-2 d-none" id="editor_aviso_huerfanas">
-                        <i class="bi bi-exclamation-triangle me-1"></i>Estas labores tienen precios registrados pero ya no existen en el maestro de labores. Se conservan porque tienen movimientos históricos; puede editarlas normalmente.
+                <div class="px-3">
+                    <div class="gp-nota-alerta mt-3 d-none" id="editor_aviso_huerfanas">
+                        <i class="bi bi-exclamation-triangle me-1"></i>Estas labores ya no existen en el maestro; se conservan por tener movimientos históricos y se pueden editar.
                     </div>
                 </div>
 
@@ -274,7 +270,6 @@
                                             <i class="bi bi-files me-1"></i>Replicar desde un año existente
                                         </label>
                                     </div>
-                                    <span class="gp-subtexto">Copia todos los precios del año que elija.</span>
                                     <div class="form-text d-none" id="anio_sin_origen">No hay años previos para replicar</div>
 
                                     <div class="mt-2" id="anio_bloque_origen">
@@ -297,7 +292,6 @@
                                             <i class="bi bi-file-earmark-plus me-1"></i>Iniciar en ceros
                                         </label>
                                     </div>
-                                    <span class="gp-subtexto">Crea una fila por cada labor activa con todos los valores en cero.</span>
                                     <div class="form-text" id="anio_ceros_ayuda"></div>
                                     <div class="form-text d-none" id="anio_sin_labores">La empresa no tiene labores activas</div>
                                 </div>

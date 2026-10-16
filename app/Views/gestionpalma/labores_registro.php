@@ -94,7 +94,7 @@
             </div>
             <div class="card-body p-0">
 
-                <div class="table-responsive" id="gp_contenedor_tabla">
+                <div id="gp_contenedor_tabla">
                     <table id="tabla_labores" class="table table-striped table-hover align-middle mb-0 gp-tabla gp-tabla-ancha" style="width:100%">
                         <thead class="gp-thead">
                             <tr>
@@ -190,7 +190,7 @@
 
                             <div class="col-12 d-none" id="labor_aviso_llave">
                                 <div class="gp-nota">
-                                    <i class="bi bi-info-circle me-1"></i>La empresa, el código y el concepto de nómina no se pueden modificar. Si esta labor debe usar otro concepto, cree una labor nueva.
+                                    <i class="bi bi-info-circle me-1"></i>La empresa, el código y el concepto no se pueden modificar. Para otro concepto, cree una labor nueva.
                                 </div>
                             </div>
 
@@ -212,7 +212,7 @@
                                     <span class="input-group-text bg-light"><i class="bi bi-card-heading"></i></span>
                                     <input type="text" class="form-control" id="labor_des_corta" maxlength="50" autocomplete="off" required>
                                 </div>
-                                <div class="form-text">Se autocompleta con la descripción (primeros 50 caracteres). Puede escribirla manualmente.</div>
+                                <div class="form-text">Se autocompleta con la descripción; puede editarla.</div>
                             </div>
 
                             <div class="col-12">
@@ -264,7 +264,7 @@
                                     <span class="input-group-text bg-light"><i class="bi bi-arrow-left-right"></i></span>
                                     <input type="text" class="form-control" id="labor_equivalencia" maxlength="20" autocomplete="off">
                                 </div>
-                                <div class="form-text">Código alterno de concepto de nómina. Opcional.</div>
+                                <div class="form-text">Código alterno del concepto de nómina.</div>
                             </div>
 
                             <div class="col-12">
@@ -412,12 +412,6 @@
 
                             <div class="col-12 collapse" id="labor_heredados">
                                 <div class="row g-3">
-
-                                    <div class="col-12">
-                                        <div class="gp-nota-alerta">
-                                            <i class="bi bi-exclamation-triangle me-1"></i>Estos campos existen en el sistema anterior; ninguna de las labores activas los usa hoy. Se incluyen por compatibilidad.
-                                        </div>
-                                    </div>
 
                                     <div class="col-12">
                                         <div class="form-check form-switch">

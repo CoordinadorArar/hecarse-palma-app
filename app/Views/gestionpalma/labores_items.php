@@ -67,7 +67,7 @@
             </div>
             <div class="card-body p-0">
 
-                <div class="table-responsive" id="gp_contenedor_tabla">
+                <div id="gp_contenedor_tabla">
                     <table id="tabla_items" class="table table-striped table-hover align-middle mb-0 gp-tabla" style="width:100%">
                         <thead class="gp-thead">
                             <tr>

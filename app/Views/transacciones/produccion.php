@@ -117,7 +117,6 @@ $anchoAcciones = [1 => 64, 2 => 98, 3 => 132][1 + (int) $pEditar + (int) $pElimi
                             </button>
                             <div class="invalid-feedback"></div>
                         </div>
-                        <div class="form-text">Número impreso en el tiquete de báscula.</div>
                     </div>
 
                     <div class="col-md-4">
@@ -126,7 +125,7 @@ $anchoAcciones = [1 => 64, 2 => 98, 3 => 132][1 + (int) $pEditar + (int) $pElimi
                                 <input class="form-check-input" type="checkbox" id="tiquete_externo">
                                 <label class="form-check-label fw-semibold" for="tiquete_externo">¿Tiquete externo?</label>
                             </div>
-                            <div class="form-text mb-0">Actívelo para capturar los datos del tiquete a mano.</div>
+                            <div class="form-text mb-0">Permite capturar el tiquete a mano.</div>
                         </div>
                     </div>
 
@@ -140,14 +139,13 @@ $anchoAcciones = [1 => 64, 2 => 98, 3 => 132][1 + (int) $pEditar + (int) $pElimi
                                 <?php endforeach; ?>
                             </select>
                         </div>
-                        <div class="form-text">Planta que recibe el fruto.</div>
                     </div>
 
                     <div class="col-12">
                         <div class="gp-nota-alerta d-none" role="alert" id="nota_tiquete">
                             <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i><span id="nota_tiquete_texto"></span>
                             <div class="mt-2 d-none" id="nota_tiquete_acciones">
-                                <button type="button" class="btn btn-sm btn-outline-secondary" id="btn_capturar_mano" title="Capturar el tiquete a mano">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="btn_capturar_mano">
                                     <i class="bi bi-pencil-square me-1" aria-hidden="true"></i>Capturarlo a mano
                                 </button>
                             </div>
@@ -236,7 +234,6 @@ $anchoAcciones = [1 => 64, 2 => 98, 3 => 132][1 + (int) $pEditar + (int) $pElimi
                                     <label class="form-label mb-1 small fw-semibold text-muted text-end d-block" for="pesoNeto">Peso neto (kg)</label>
                                     <input type="text" class="form-control font-monospace text-end tx-neto" id="pesoNeto" readonly>
                                     <div class="invalid-feedback d-block d-none" id="error_neto">El peso neto debe ser mayor que cero.</div>
-                                    <div class="form-text">Se calcula como bruto menos tara.</div>
                                 </div>
 
                             </div>
@@ -276,7 +273,6 @@ $anchoAcciones = [1 => 64, 2 => 98, 3 => 132][1 + (int) $pEditar + (int) $pElimi
                             <input type="text" class="form-control" id="observacion" maxlength="250" autocomplete="off">
                             <div class="invalid-feedback"></div>
                         </div>
-                        <div class="form-text">Opcional. Queda en el encabezado de la transacción.</div>
                     </div>
                     <div class="col-12">
                         <div class="gp-nota-alerta d-none" role="alert" id="nota_periodo">
@@ -299,7 +295,7 @@ $anchoAcciones = [1 => 64, 2 => 98, 3 => 132][1 + (int) $pEditar + (int) $pElimi
                         <i class="bi bi-truck" aria-hidden="true"></i>
                     </div>
                     <h6 class="mb-1">Comience por el tiquete</h6>
-                    <p class="text-muted mb-0">Busque el número de tiquete o márquelo como externo para capturarlo a mano.</p>
+                    <p class="text-muted mb-0">Busque el tiquete o márquelo como externo.</p>
                 </div>
 
                 <div class="tx-inactivo" id="detalle_cuerpo" inert>
@@ -353,7 +349,7 @@ $anchoAcciones = [1 => 64, 2 => 98, 3 => 132][1 + (int) $pEditar + (int) $pElimi
 
                             <div class="col-6 col-md-3 col-xl-2">
                                 <span class="form-label mb-1 small d-block" aria-hidden="true">&nbsp;</span>
-                                <button type="button" class="btn btn-success w-100" id="btn_agregar_linea" title="Agregar la línea al detalle">
+                                <button type="button" class="btn btn-success w-100" id="btn_agregar_linea">
                                     <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Agregar
                                 </button>
                             </div>
@@ -367,7 +363,7 @@ $anchoAcciones = [1 => 64, 2 => 98, 3 => 132][1 + (int) $pEditar + (int) $pElimi
 
                     <div class="gp-nota mb-3">
                         <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
-                        <span>Usted reparte los racimos del tiquete. El peso neto lo reparte el sistema entre las líneas, según sus racimos y el peso promedio de cada lote: por eso los kg de todas las líneas cambian cada vez que agrega o quita una.</span>
+                        <span>Usted reparte los racimos; el sistema reparte el peso neto según los racimos y el peso promedio de cada lote, por eso los kg de todas las líneas se recalculan al agregar o quitar una.</span>
                     </div>
 
                     <div class="gp-nota-alerta mb-3 d-none" role="alert" id="nota_sin_pesos">
@@ -382,10 +378,10 @@ $anchoAcciones = [1 => 64, 2 => 98, 3 => 132][1 + (int) $pEditar + (int) $pElimi
                             <i class="bi bi-list-ul" aria-hidden="true"></i>
                         </div>
                         <h6 class="mb-1">Todavía no hay líneas</h6>
-                        <p class="text-muted mb-0" id="texto_sin_lineas">Elija finca, lote y racimos y pulse Agregar para repartir los racimos del tiquete.</p>
+                        <p class="text-muted mb-0" id="texto_sin_lineas">Agregue líneas para repartir los racimos del tiquete.</p>
                     </div>
 
-                    <div class="gp-subtexto mt-2" id="pie_estimado">Los kg que ve son un estimado. El valor definitivo se confirma al guardar.</div>
+                    <div class="gp-subtexto mt-2" id="pie_estimado">Los kg son estimados; el valor definitivo se calcula al guardar.</div>
 
                 </div>
 
@@ -424,10 +420,10 @@ $anchoAcciones = [1 => 64, 2 => 98, 3 => 132][1 + (int) $pEditar + (int) $pElimi
         <div class="tx-acciones" id="barra_acciones">
             <small class="text-muted d-none d-sm-inline"><span class="text-danger">*</span> Campos obligatorios</small>
             <div class="d-flex gap-2 ms-auto">
-                <button type="button" class="btn btn-outline-secondary" id="btn_cancelar" title="Cancelar la transacción">
+                <button type="button" class="btn btn-outline-secondary" id="btn_cancelar">
                     <i class="bi bi-x-circle me-1" aria-hidden="true"></i>Cancelar
                 </button>
-                <button type="button" class="btn btn-primary" id="btn_guardar" title="Guardar la transacción (Ctrl+S)">
+                <button type="button" class="btn btn-primary" id="btn_guardar" title="Ctrl+S">
                     <i class="bi bi-floppy me-1" aria-hidden="true"></i>Guardar
                 </button>
             </div>
@@ -586,7 +582,7 @@ $anchoAcciones = [1 => 64, 2 => 98, 3 => 132][1 + (int) $pEditar + (int) $pElimi
                                     <select class="form-select" id="trab_tercero"></select>
                                 </div>
                                 <div class="invalid-feedback d-block d-none" id="error_trab_tercero"></div>
-                                <div class="form-text">Escriba el código (ej. CR150), la identificación o el nombre. Mínimo 3 caracteres.</div>
+                                <div class="form-text">Código (ej. CR150), identificación o nombre. Mínimo 3 caracteres.</div>
                             </div>
 
                             <div class="col-md-6">
@@ -629,7 +625,7 @@ $anchoAcciones = [1 => 64, 2 => 98, 3 => 132][1 + (int) $pEditar + (int) $pElimi
                                     <input type="text" class="form-control font-monospace text-end" id="trab_jornales" inputmode="decimal" maxlength="10" autocomplete="off" value="0">
                                     <div class="invalid-feedback"></div>
                                 </div>
-                                <div class="form-text">Hoy todas las transacciones se registran con jornales en cero.</div>
+                                <div class="form-text">Normalmente se registra en 0.</div>
                             </div>
 
                             <div class="col-md-4">

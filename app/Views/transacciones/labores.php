@@ -89,6 +89,10 @@ $etiqueta    = static fn ($valor) => ucfirst(mb_strtolower(trim(preg_replace('/\
             </div>
         </div>
 
+        <div class="gp-nota d-flex align-items-center gap-2 mb-3 d-none" role="status" id="nota_planeacion">
+            <i class="bi bi-calendar-check text-success" aria-hidden="true"></i><span id="nota_planeacion_texto"></span>
+        </div>
+
         <div class="card mb-3" id="card_tipo">
             <div class="card-header bg-white py-3">
                 <h6 class="gp-seccion mb-0"><i class="bi bi-journal-text" aria-hidden="true"></i>Tipo de transacción</h6>
@@ -122,8 +126,7 @@ $etiqueta    = static fn ($valor) => ucfirst(mb_strtolower(trim(preg_replace('/\
                 <div class="gp-medallon chico d-inline-flex align-items-center justify-content-center rounded-circle mb-2">
                     <i class="bi bi-ui-checks" aria-hidden="true"></i>
                 </div>
-                <h6 class="mb-1">Seleccione el tipo de transacción</h6>
-                <p class="text-muted mb-0">Al elegirlo se habilitan los datos y el detalle.</p>
+                <h6 class="mb-0">Seleccione el tipo de transacción</h6>
             </div>
         </div>
 
@@ -178,8 +181,7 @@ $etiqueta    = static fn ($valor) => ucfirst(mb_strtolower(trim(preg_replace('/\
                         <div class="col-12">
                             <label class="form-label mb-1 small fw-semibold text-muted" for="observacion">Observación / notas</label>
                             <textarea class="form-control" id="observacion" rows="2" maxlength="2550"></textarea>
-                            <div class="form-text d-flex justify-content-between">
-                                <span>Opcional.</span>
+                            <div class="form-text d-flex justify-content-end">
                                 <span class="tx-num" id="contador_observacion">0 / 2550</span>
                             </div>
                         </div>
@@ -281,7 +283,7 @@ $etiqueta    = static fn ($valor) => ucfirst(mb_strtolower(trim(preg_replace('/\
                                     <select class="form-select" id="cap_terceros" multiple></select>
                                 </div>
                                 <div class="invalid-feedback d-block d-none" id="error_terceros">Seleccione al menos un tercero.</div>
-                                <div class="form-text">Escriba el código (ej. CR150), la identificación o el nombre. Mínimo 3 caracteres.</div>
+                                <div class="form-text">Código (ej. CR150), identificación o nombre. Mínimo 3 caracteres.</div>
                             </div>
 
                             <div class="col-6 col-md-3 col-lg-2">
@@ -313,7 +315,7 @@ $etiqueta    = static fn ($valor) => ucfirst(mb_strtolower(trim(preg_replace('/\
 
                     <div class="gp-nota mb-3">
                         <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
-                        <span>Cargar crea una línea con la cantidad y los jornales indicados, repartidos en partes iguales entre los terceros seleccionados. Una vez cargada no se modifica: quite el trabajador o la línea y vuelva a cargar.</span>
+                        <span>Cargar reparte la cantidad y los jornales en partes iguales entre los terceros seleccionados.</span>
                     </div>
 
                     <div class="d-none" id="contenedor_lineas"><div id="lista_lineas"></div></div>
@@ -323,7 +325,7 @@ $etiqueta    = static fn ($valor) => ucfirst(mb_strtolower(trim(preg_replace('/\
                             <i class="bi bi-list-ul" aria-hidden="true"></i>
                         </div>
                         <h6 class="mb-1">Todavía no hay líneas</h6>
-                        <p class="text-muted mb-0">Complete labor, U.M., finca, lote, terceros y cantidad y pulse Cargar.</p>
+                        <p class="text-muted mb-0">Complete el detalle y pulse Cargar.</p>
                     </div>
 
                 </div>
@@ -360,10 +362,10 @@ $etiqueta    = static fn ($valor) => ucfirst(mb_strtolower(trim(preg_replace('/\
         <div class="tx-acciones" id="barra_acciones">
             <small class="text-muted d-none d-sm-inline"><span class="text-danger">*</span> Campos obligatorios</small>
             <div class="d-flex gap-2 ms-auto">
-                <button type="button" class="btn btn-outline-secondary" id="btn_cancelar" title="Cancelar la transacción">
+                <button type="button" class="btn btn-outline-secondary" id="btn_cancelar">
                     <i class="bi bi-x-circle me-1" aria-hidden="true"></i>Cancelar
                 </button>
-                <button type="button" class="btn btn-primary" id="btn_guardar" title="Guardar la transacción (Ctrl+S)" disabled>
+                <button type="button" class="btn btn-primary" id="btn_guardar" title="Ctrl+S" disabled>
                     <i class="bi bi-floppy me-1" aria-hidden="true"></i>Guardar
                 </button>
             </div>
@@ -481,7 +483,7 @@ $etiqueta    = static fn ($valor) => ucfirst(mb_strtolower(trim(preg_replace('/\
                                     <select class="form-select" id="edit_tercero"></select>
                                 </div>
                                 <div class="invalid-feedback d-block d-none" id="error_edit_tercero">Ese tercero ya está en esta línea.</div>
-                                <div class="form-text">Escriba el código (ej. CR150), la identificación o el nombre. Mínimo 3 caracteres.</div>
+                                <div class="form-text">Código (ej. CR150), identificación o nombre. Mínimo 3 caracteres.</div>
                             </div>
                             <div class="col-12 col-sm-6">
                                 <label class="form-label mb-1 small fw-semibold text-muted" for="edit_cantidad">Cantidad <span class="text-muted fw-normal" id="edit_um"></span> <span class="text-danger">*</span></label>

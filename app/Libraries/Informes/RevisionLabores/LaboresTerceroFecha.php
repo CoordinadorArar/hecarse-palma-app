@@ -73,9 +73,9 @@ class LaboresTerceroFecha extends Informe
                     SELECT tercero, COUNT(DISTINCT fecha) AS diasTrabajador, COUNT(DISTINCT labor) AS laboresTrabajador FROM base GROUP BY tercero
                 )
                 SELECT TOP " . (self::MAX_FILAS + 1) . " g.*, tr.diasTrabajador, tr.laboresTrabajador, ISNULL(t.nombre, '') AS nombre, ISNULL(cg.cargo, '') AS cargo
-                  FROM (SELECT tercero, labor, laborNombre, uMedida, SUM(signo * cantidad) AS cantidad, SUM(jornales) AS jornales, COUNT(DISTINCT fecha) AS dias,
+                  FROM (SELECT tercero, labor, laborNombre, uMedida, fecha, SUM(signo * cantidad) AS cantidad, SUM(jornales) AS jornales,
                                SUM(signo * valor) AS valor, MAX(contratista) AS contratista
-                          FROM base GROUP BY tercero, labor, laborNombre, uMedida) g
+                          FROM base GROUP BY tercero, labor, laborNombre, uMedida, fecha) g
                   JOIN tr ON tr.tercero = g.tercero
                  OUTER APPLY (SELECT TOP 1 id, codigo, ISNULL(NULLIF(LTRIM(RTRIM(razonSocial)), ''), descripcion) AS nombre FROM cTercero
                                WHERE empresa = ? AND (LTRIM(RTRIM(nit)) = g.tercero OR LTRIM(RTRIM(codigo)) = g.tercero)
@@ -95,7 +95,7 @@ class LaboresTerceroFecha extends Informe
 
         ini_set('sqlsrv.ClientBufferMaxKBSize', '51200');
 
-        $crudas = $this->db->query($sql . ' ORDER BY nombre ASC, g.tercero ASC, g.labor ASC', $binds)->getResultArray();
+        $crudas = $this->db->query($sql . ' ORDER BY nombre ASC, g.tercero ASC, g.labor ASC, g.fecha ASC', $binds)->getResultArray();
         $avisos = [];
 
         if (count($crudas) > self::MAX_FILAS) {
@@ -114,10 +114,10 @@ class LaboresTerceroFecha extends Informe
                 'codigo'            => $c['tercero'],
                 'cargo'             => $c['cargo'],
                 'labor'             => $c['labor'] . ' — ' . trim($c['laborNombre']),
+                'fecha'             => substr((string) $c['fecha'], 0, 10),
                 'uMedida'           => $c['uMedida'],
                 'cantidad'          => (float) $c['cantidad'],
                 'jornales'          => (float) $c['jornales'],
-                'dias'              => (int) $c['dias'],
                 'valor'             => $valor,
                 'diasTrabajador'    => (int) $c['diasTrabajador'],
                 'laboresTrabajador' => (int) $c['laboresTrabajador'],
@@ -187,10 +187,10 @@ class LaboresTerceroFecha extends Informe
                 ['clave' => 'codigo', 'titulo' => 'Código', 'tipo' => 'texto', 'alineacion' => 'centro', 'total' => false],
                 ['clave' => 'cargo', 'titulo' => 'Cargo', 'tipo' => 'texto', 'alineacion' => 'izquierda', 'total' => false],
                 ['clave' => 'labor', 'titulo' => 'Labor', 'tipo' => 'texto', 'alineacion' => 'izquierda', 'total' => false],
+                ['clave' => 'fecha', 'titulo' => 'Fecha ejecución', 'tipo' => 'fecha', 'alineacion' => 'centro', 'total' => false],
                 ['clave' => 'uMedida', 'titulo' => 'U. medida', 'tipo' => 'texto', 'alineacion' => 'centro', 'total' => false],
-                ['clave' => 'cantidad', 'titulo' => 'Cantidad', 'tipo' => 'decimal', 'alineacion' => 'derecha', 'total' => false, 'ayuda' => 'Suma por labor; no se totaliza porque mezcla unidades.'],
+                ['clave' => 'cantidad', 'titulo' => 'Cantidad', 'tipo' => 'decimal', 'alineacion' => 'derecha', 'total' => false, 'ayuda' => 'Suma por labor y fecha; no se totaliza porque mezcla unidades.'],
                 ['clave' => 'jornales', 'titulo' => 'Jornales', 'tipo' => 'decimal', 'alineacion' => 'derecha', 'total' => true],
-                ['clave' => 'dias', 'titulo' => 'Días', 'tipo' => 'entero', 'alineacion' => 'derecha', 'total' => false, 'ayuda' => 'Fechas distintas con esta labor. Los días totales del trabajador están en el encabezado del grupo.'],
                 ['clave' => 'valor', 'titulo' => 'Valor devengado', 'tipo' => 'moneda', 'alineacion' => 'derecha', 'total' => true, 'ayuda' => 'Los ajustes con signo negativo restan.'],
             ],
             'filas'   => $filas,

@@ -31,14 +31,13 @@ const renderizarTabla = () => {
     }
     $('#tabla_items').DataTable({
         paging: false,
-        info: false,
-        searching: false,
-        lengthChange: false,
+        dom: "<'gp-dt-barra'if><'table-responsive't>",
         columnDefs: [{ targets: [4, 7], orderable: false }],
         order: [[0, 'asc']],
         language: {
-            zeroRecords: 'No se encontraron resultados',
-            emptyTable: 'No hay datos disponibles'
+            info: '_TOTAL_ registros',
+            infoEmpty: '0 registros',
+            infoFiltered: '(de _MAX_)'
         }
     });
 };

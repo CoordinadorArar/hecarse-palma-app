@@ -204,8 +204,6 @@ $.fn.dataTable.ext.search.push((configuracion, datos, indice) => {
 });
 
 const destruirTabla = () => {
-    $id('pie_tabla').innerHTML = '';
-
     if (esDataTable()) {
         instanciaTabla().destroy();
     }
@@ -213,27 +211,14 @@ const destruirTabla = () => {
 
 const iniciarTabla = () => {
     const tabla = $('#tabla_tipos_transaccion').DataTable({
-        dom: 'rt<"maestros-paginado"ip>',
-        paging: true,
-        pageLength: 25,
         order: [[0, 'asc']],
         columnDefs: [{ targets: [7], orderable: false }],
         language: {
-            zeroRecords: 'No se encontraron resultados',
-            info: 'Mostrando _START_ a _END_ de _TOTAL_ registros',
-            infoEmpty: 'No hay registros disponibles',
-            infoFiltered: '(filtrado de _MAX_ registros totales)',
-            emptyTable: 'No hay datos disponibles',
-            paginate: {
-                first: 'Primero',
-                last: 'Último',
-                next: 'Siguiente',
-                previous: 'Anterior'
-            }
+            search: 'Buscar en resultados:',
+            searchPlaceholder: 'Filtrar lo listado…'
         }
     });
 
-    $id('pie_tabla').appendChild(tabla.table().container().querySelector('.maestros-paginado'));
     tabla.on('draw', actualizarEstados);
 };
 
@@ -291,7 +276,7 @@ const actualizarEstados = () => {
     const info = esDataTable() ? instanciaTabla().page.info() : null;
     const visibles = info ? info.recordsDisplay : 0;
     const vacia = estado.total === 0;
-    const sinCoincidencias = !vacia && visibles === 0;
+    const sinCoincidencias = !vacia && visibles === 0 && !(info && instanciaTabla().search() !== '');
     const conFilas = !vacia && !sinCoincidencias;
     const filtrando = estado.busqueda !== '' || estado.activos !== '';
 
@@ -299,16 +284,14 @@ const actualizarEstados = () => {
     mostrar($id('estado_vacio'), vacia);
     mostrar($id('estado_filtro'), sinCoincidencias);
     mostrar($id('contenedor_tabla'), conFilas);
-    mostrar($id('pie_tabla'), conFilas && visibles > info.length);
 
     pintarAvisoHuerfanos(conFilas);
-    mostrar($id('aviso_sin_formato'), conFilas && estado.filas.every((fila) => texto(fila.formato) === ''));
 
     if (sinCoincidencias) {
         $id('titulo_estado_filtro').innerHTML = tituloFiltro();
     }
 
-    const plural = (filtrando ? visibles : estado.total) === 1 ? 'registro encontrado' : 'registros encontrados';
+    const plural = (filtrando ? estado.total : visibles) === 1 ? 'registro encontrado' : 'registros encontrados';
 
     $id('contador_registros').innerHTML = conFilas
         ? `<i class="bi bi-arrow-left-right me-1"></i><strong>${numero(visibles)}</strong>`
@@ -320,9 +303,7 @@ const mostrarEstadoError = (mensaje) => {
     mostrar($id('estado_vacio'), false);
     mostrar($id('estado_filtro'), false);
     mostrar($id('contenedor_tabla'), false);
-    mostrar($id('pie_tabla'), false);
     mostrar($id('aviso_modulos_huerfanos'), false);
-    mostrar($id('aviso_sin_formato'), false);
     $id('contador_registros').innerHTML = '';
     $id('mensaje_estado_error').textContent = mensaje;
     mostrar($id('estado_error'), true);
@@ -342,9 +323,7 @@ const cargar = async () => {
     mostrar($id('estado_vacio'), false);
     mostrar($id('estado_filtro'), false);
     mostrar($id('estado_error'), false);
-    mostrar($id('pie_tabla'), false);
     mostrar($id('aviso_modulos_huerfanos'), false);
-    mostrar($id('aviso_sin_formato'), false);
     $id('contador_registros').innerHTML = '';
     velo(true);
     bloquear(true);
@@ -614,8 +593,8 @@ const abrirModal = (modo, fila) => {
     pintarCandado(edicion);
 
     $id('ayuda_codigo').textContent = edicion
-        ? 'El código identifica el registro y no se puede modificar. Si está mal, cree un tipo nuevo con el código correcto.'
-        : 'Máximo 50 caracteres. Identifica la transacción en todos los documentos.';
+        ? 'No se puede modificar. Si está mal, cree un tipo nuevo.'
+        : 'Máximo 50 caracteres.';
 
     modal().show();
     setTimeout(() => $id(edicion ? 'descripcion' : 'codigo').focus(), 300);

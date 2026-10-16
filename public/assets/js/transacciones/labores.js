@@ -166,7 +166,7 @@ const pintarFechas = (destacar = '') => {
     </div>` : '';
     $id('btn_cargar').innerHTML = `<i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Cargar${total ? ` · ${fmt(total)} ${total === 1 ? 'fecha' : 'fechas'}` : ''}`;
     $id('ayuda_fecha_labor').textContent = total
-        ? 'Una línea por fecha.'
+        ? ''
         : (todas ? 'Editable por línea, dentro del periodo.' : 'Igual a la fecha de la transacción');
 };
 
@@ -435,6 +435,12 @@ const agregarInsumo = (id) => {
     $(`#ins_item_${id}`).select2('open');
 };
 
+const chipCuadrilla = (linea) => {
+    const grupo = estado.lineas.filter((item) => item.novedad === linea.novedad && item.finca === linea.finca && item.lote === linea.lote && item.fecha === linea.fecha);
+
+    return grupo.length > 1 ? `<span class="gp-chip-fila tx-chip-neutro text-nowrap" title="Cuadrilla ${fmt(grupo.indexOf(linea) + 1)} de ${fmt(grupo.length)} en esta labor, lote y fecha"><i class="bi bi-people me-1" aria-hidden="true"></i>Cuadrilla ${fmt(grupo.indexOf(linea) + 1)} de ${fmt(grupo.length)}</span>` : '';
+};
+
 const tarjetaLinea = (linea, indice) => {
     const pendiente = linea.trabajadores.some((trabajador) => trabajador.precio === null);
     const faltaTarifa = linea.trabajadores.some(sinTarifa);
@@ -454,6 +460,7 @@ const tarjetaLinea = (linea, indice) => {
         : `<span class="text-nowrap">${fechaCorta(linea.fecha)}</span>`}
             <span class="tx-sep">&middot;</span>
             <span class="font-monospace">${CFG.referencia ? '' : `${escaparHtml(linea.finca)} / `}${linea.seccion ? escaparHtml(linea.seccion) : '<span class="text-muted">—</span>'} / ${escaparHtml(linea.lote)}</span>
+            ${chipCuadrilla(linea)}
             <span class="tx-chip-cont verde">${fmt(linea.trabajadores.length)} trab.</span>
             ${CFG.referencia ? `<span class="tx-chip-cont${linea.insumos.length ? ' verde' : ''}">${fmt(linea.insumos.length)} ins.</span>` : ''}
             <span class="ms-auto d-flex align-items-end gap-3">
@@ -703,7 +710,7 @@ const confirmarCambio = async (id, titulo, accion) => {
 
     if (selector.value === (selector.dataset.previo || '')) return;
 
-    if (estado.lineas.length > 0) {
+    if (estado.lineas.length > 0 && (selector.dataset.previo || !estado.planeacionLinea)) {
         const respuesta = await Swal.fire({
             icon: 'warning',
             title: titulo,
@@ -794,6 +801,8 @@ const errorCampo = (id, visible) => {
     marcarControl(id, visible);
 };
 
+const insumosDeLote = (lote) => (CFG.referencia ? (estado.insumosLote[lote] || []).filter((insumo) => insumo.dosis > 0).filter((insumo, indice, lista) => lista.findIndex((otro) => otro.item === insumo.item) === indice).map((insumo) => ({ ...insumo })) : []);
+
 const cargarLineas = () => {
     const labor = $id('cap_labor');
     const um = $id('cap_um').value;
@@ -863,7 +872,7 @@ const cargarLineas = () => {
         jornales,
         marca: 'tx-flash',
         cargando: true,
-        insumos: CFG.referencia ? (estado.insumosLote[lote] || []).filter((insumo) => insumo.dosis > 0).filter((insumo, indice, lista) => lista.findIndex((otro) => otro.item === insumo.item) === indice).map((insumo) => ({ ...insumo })) : [],
+        insumos: insumosDeLote(lote),
         trabajadores: terceros.map((tercero) => ({ tercero: texto(tercero.id), terceroNombre: texto(tercero.text), terceroCodigo: codigoTercero(tercero), cantidad: 0, jornales: 0, precio: null, existe: 0 }))
     }));
     const trabajadores = `${terceros.length} ${terceros.length === 1 ? 'trabajador' : 'trabajadores'}`;
@@ -1080,6 +1089,135 @@ const limpiarTodo = () => {
     $id('anio').value = $id('periodo').dataset.anio;
     cargarPeriodos($id('anio').value);
     EXT.limpiar?.();
+    quitarPlaneacion();
+};
+
+const quitarPlaneacion = () => {
+    const url = new URL(window.location.href);
+
+    estado.planeacionLinea = null;
+    mostrar($id('nota_planeacion'), false);
+
+    if (!url.searchParams.has('planeacion')) return;
+
+    url.searchParams.delete('planeacion');
+    history.replaceState(null, '', url.toString());
+};
+
+const precargarPlaneacion = async () => {
+    const parametros = new URLSearchParams(window.location.search);
+    const linea = parametros.get('planeacion');
+    const fallar = (titulo, mensaje) => Swal.fire({ icon: 'warning', title: titulo, html: escaparHtml(mensaje), confirmButtonText: 'Entendido' });
+
+    if (!/^\d+$/.test(texto(linea)) || Number(linea) <= 0) return;
+
+    let datos;
+
+    try {
+        datos = await pedir('../planeacion/precarga', { linea });
+    } catch (error) {
+        fallar('No se pudo precargar la actividad', error.message);
+
+        return;
+    }
+
+    if (texto(datos.destino) !== CFG.ruta) {
+        fallar('Formulario incorrecto', `La actividad se registra en ${texto(datos.destino) === 'fertilizacion' ? 'Fertilización' : 'Registro de labores'}.`);
+
+        return;
+    }
+
+    const empresa = texto(datos.empresa);
+
+    if (empresa !== empresaId()) {
+        if (parametros.get('empresa') === empresa) {
+            fallar('Empresa no disponible', 'No tiene acceso a la empresa de la actividad planeada.');
+
+            return;
+        }
+
+        const url = new URL(window.location.href);
+
+        url.searchParams.set('empresa', empresa);
+        estado.saliendo = true;
+        window.location.href = url.toString();
+
+        return;
+    }
+
+    const opcionTipo = Array.from($id('tipo').options).find((opcion) => opcion.value !== '' && texto(opcion.value) === texto(datos.tipo));
+
+    if (!opcionTipo) {
+        fallar('Tipo no disponible', `El tipo de transacción ${texto(datos.tipo)} no está habilitado para esta empresa.`);
+
+        return;
+    }
+
+    const fecha = texto(datos.fecha).substring(0, 10);
+    const anio = fecha.substring(0, 4);
+    const anios = Array.from($id('anio').options);
+    const finca = texto(datos.finca);
+    const lote = texto(datos.lote);
+
+    $('#tipo').val(opcionTipo.value).trigger('change');
+
+    if (!anios.some((opcion) => opcion.value === anio)) {
+        $id('anio').add(new Option(anio, anio), anios.find((opcion) => Number(opcion.value) < Number(anio)) || null);
+    }
+
+    $id('anio').value = anio;
+    $id('fecha').value = fecha;
+    await cargarPeriodos(anio);
+
+    const periodo = estado.periodos.find((item) => {
+        const inicio = texto(item.fechaInicial).substring(0, 10);
+        const fin = texto(item.fechaFinal).substring(0, 10);
+
+        return Number(item.cerrado) !== 1 && (inicio && fin ? fecha >= inicio && fecha <= fin : Number(item.mes) === Number(fecha.substring(5, 7)));
+    });
+
+    if (periodo) $id('periodo').value = String(Number(periodo.mes));
+
+    $id('fecha').value = fecha;
+    sincronizarFechas();
+    revisarPeriodo();
+
+    if (CFG.referencia) {
+        $('#cap_finca').val(finca).trigger('change.select2');
+        $id('cap_finca').dataset.previo = finca;
+        cargarSecciones(finca);
+        await cargarPlanes(finca, texto(datos.referencia), true);
+
+        if ($id('referencia').value) await cargarLotes(finca, '');
+    }
+
+    const nueva = {
+        id: estado.secuencia++,
+        novedad: texto(datos.novedad),
+        novedadNombre: texto(datos.novedadNombre),
+        uMedida: texto(datos.uMedida),
+        fecha,
+        finca,
+        seccion: texto(datos.seccion),
+        lote,
+        cantidad: Number(datos.cantidad || 0),
+        jornales: 0,
+        manual: true,
+        marca: 'tx-flash',
+        cargando: true,
+        insumos: insumosDeLote(lote),
+        trabajadores: (datos.trabajadores || []).map((trabajador) => ({
+            tercero: texto(trabajador.tercero), terceroNombre: texto(trabajador.nombre), terceroCodigo: texto(trabajador.codigo),
+            cantidad: Number(trabajador.cantidad || 0), jornales: 0, precio: null, existe: 0
+        }))
+    };
+
+    estado.lineas.push(nueva);
+    estado.planeacionLinea = Number(linea);
+    poner('nota_planeacion_texto', `Precargado desde la planeación del ${fechaCorta(fecha)} · ${nueva.novedad} — ${nueva.novedadNombre} · Lote ${lote}. Revise y guarde.`);
+    mostrar($id('nota_planeacion'), true);
+    pintarLineas();
+    precioLinea(nueva);
 };
 
 const alertaBloqueo = (fila, accion) => {
@@ -1290,7 +1428,7 @@ const guardar = async () => {
     try {
         resultado = estado.edicion
             ? await pedir('actualizar', { ...cuerpoBase(), numero: estado.edicion })
-            : await pedir('guardar', cuerpoBase());
+            : await pedir('guardar', { ...cuerpoBase(), ...(estado.planeacionLinea && !EXT.activo?.() ? { planeacionLinea: estado.planeacionLinea } : {}) });
     } catch (error) {
         fallo = error;
     }
@@ -1581,9 +1719,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (CFG.referencia) confirmarCambio('cap_finca', '¿Cambiar la finca?', cambiar);
         else cambiar();
     });
-    $('#referencia').on('change', () => confirmarCambio('referencia', '¿Cambiar la referencia?', () => {
+    $('#referencia').on('change', () => confirmarCambio('referencia', '¿Cambiar la referencia?', async () => {
         errorCampo('error_referencia', false);
-        cargarLotes($id('cap_finca').value, $id('cap_seccion').disabled ? '' : $id('cap_seccion').value);
+        await cargarLotes($id('cap_finca').value, $id('cap_seccion').disabled ? '' : $id('cap_seccion').value);
+
+        if (!estado.planeacionLinea || estado.lineas.length === 0) return;
+
+        estado.lineas.filter((linea) => linea.insumos.length === 0).forEach((linea) => { linea.insumos = insumosDeLote(linea.lote); });
+        liquidar();
     }));
     $id('cap_codigo')?.addEventListener('change', buscarCodigo);
     $id('cap_codigo')?.addEventListener('input', () => {
@@ -1742,4 +1885,6 @@ document.addEventListener('DOMContentLoaded', () => {
             e.returnValue = '';
         }
     });
+
+    if (PERMISOS.registrar) precargarPlaneacion();
 });

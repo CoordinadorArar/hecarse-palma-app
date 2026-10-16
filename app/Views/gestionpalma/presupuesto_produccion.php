@@ -32,7 +32,7 @@ $esqueleto = '<td><span class="placeholder col-8"></span></td>';
     <section class="section">
 
         <div class="gp-nota mb-3">
-            <i class="bi bi-info-circle me-1"></i>Kilos de fruta presupuestados por finca y mes. Este valor alimenta el informe Presupuesto vs Ejecutado.
+            <i class="bi bi-info-circle me-1"></i>Alimenta el informe Presupuesto vs Ejecutado.
         </div>
 
         <div class="gp-nota-alerta mb-3 d-flex gap-2 <?= $tabla_existe ? 'd-none' : '' ?>" role="alert" id="alerta_tabla">

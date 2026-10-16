@@ -234,6 +234,19 @@ $routes->post('gestion-palma/lotes/peso-rff/crear', 'gestionpalma\LotesControlle
 $routes->post('gestion-palma/lotes/peso-rff/actualizar', 'gestionpalma\LotesController::actualizarPeso');
 $routes->post('gestion-palma/lotes/peso-rff/eliminar', 'gestionpalma\LotesController::eliminarPeso');
 $routes->post('gestion-palma/lotes/peso-rff/lotes-por-finca', 'gestionpalma\LotesController::lotesPorFinca');
+$routes->get('gestion-palma/lotes/mapa/(:num)', 'gestionpalma\MapeoPalmasController::index/$1');
+$routes->post('gestion-palma/lotes/mapa/fincas', 'gestionpalma\MapeoPalmasController::fincas');
+$routes->post('gestion-palma/lotes/mapa/lotes', 'gestionpalma\MapeoPalmasController::lotes');
+$routes->post('gestion-palma/lotes/mapa/palmas', 'gestionpalma\MapeoPalmasController::palmas');
+$routes->post('gestion-palma/lotes/mapa/guardar-palma', 'gestionpalma\MapeoPalmasController::guardarPalma');
+$routes->post('gestion-palma/lotes/mapa/mover-palma', 'gestionpalma\MapeoPalmasController::moverPalma');
+$routes->post('gestion-palma/lotes/mapa/eliminar-palma', 'gestionpalma\MapeoPalmasController::eliminarPalma');
+$routes->post('gestion-palma/lotes/mapa/siguiente-numero', 'gestionpalma\MapeoPalmasController::siguienteNumero');
+$routes->post('gestion-palma/lotes/mapa/guardar-geometria', 'gestionpalma\MapeoPalmasController::guardarGeometria');
+$routes->post('gestion-palma/lotes/mapa/catalogo-censo', 'gestionpalma\MapeoPalmasController::catalogoCenso');
+$routes->post('gestion-palma/lotes/mapa/registrar-censo', 'gestionpalma\MapeoPalmasController::registrarCenso');
+$routes->post('gestion-palma/lotes/mapa/historial-censo', 'gestionpalma\MapeoPalmasController::historialCenso');
+$routes->post('gestion-palma/lotes/mapa/eliminar-censo', 'gestionpalma\MapeoPalmasController::eliminarCenso');
 $routes->get('gestion-palma/labores/grupos/(:num)', 'gestionpalma\LaboresController::grupos/$1');
 $routes->post('gestion-palma/labores/grupos/listar', 'gestionpalma\LaboresController::listarGrupos');
 $routes->post('gestion-palma/labores/grupos/obtener', 'gestionpalma\LaboresController::obtenerGrupo');
@@ -321,12 +334,30 @@ $routes->post('transacciones/fertilizacion/actualizar', 'transacciones\Fertiliza
 $routes->post('transacciones/fertilizacion/consultar', 'transacciones\FertilizacionController::consultar');
 $routes->post('transacciones/fertilizacion/detalle', 'transacciones\FertilizacionController::detalle');
 $routes->post('transacciones/fertilizacion/eliminar', 'transacciones\FertilizacionController::eliminar');
+$routes->get('transacciones/planeacion/(:num)', 'transacciones\PlaneacionController::index/$1');
+$routes->post('transacciones/planeacion/plan', 'transacciones\PlaneacionController::plan');
+$routes->post('transacciones/planeacion/pendientes', 'transacciones\PlaneacionController::pendientes');
+$routes->post('transacciones/planeacion/terceros', 'transacciones\PlaneacionController::terceros');
+$routes->post('transacciones/planeacion/lotes', 'transacciones\PlaneacionController::lotes');
+$routes->post('transacciones/planeacion/secciones', 'transacciones\PlaneacionController::secciones');
+$routes->post('transacciones/planeacion/planesFertilizacion', 'transacciones\PlaneacionController::planesFertilizacion');
+$routes->post('transacciones/planeacion/guardar', 'transacciones\PlaneacionController::guardar');
+$routes->post('transacciones/planeacion/trasladar', 'transacciones\PlaneacionController::trasladar');
+$routes->post('transacciones/planeacion/ausencia', 'transacciones\PlaneacionController::ausencia');
+$routes->post('transacciones/planeacion/quitarAusencia', 'transacciones\PlaneacionController::quitarAusencia');
+$routes->post('transacciones/planeacion/cerrarActividad', 'transacciones\PlaneacionController::cerrarActividad');
+$routes->post('transacciones/planeacion/reabrirActividad', 'transacciones\PlaneacionController::reabrirActividad');
+$routes->post('transacciones/planeacion/cerrarPlan', 'transacciones\PlaneacionController::cerrarPlan');
+$routes->post('transacciones/planeacion/reabrirPlan', 'transacciones\PlaneacionController::reabrirPlan');
+$routes->post('transacciones/planeacion/eliminar', 'transacciones\PlaneacionController::eliminar');
+$routes->post('transacciones/planeacion/precarga', 'transacciones\PlaneacionController::precarga');
 
 /** Rutas de la loseta de  "Dashboards".*/
 $routes->get('dashboards/onboarding/(:num)', 'dashboards\DashboardsController::index/$1');
 $routes->get('dashboards/admin/(:num)', 'dashboards\InformesGerencialesController::index/$1');
 $routes->post('dashboards/informes-gerenciales/fincas', 'dashboards\InformesGerencialesController::fincas');
 $routes->post('dashboards/informes-gerenciales/consultar', 'dashboards\InformesGerencialesController::consultar');
+$routes->post('dashboards/informes-gerenciales/palmas', 'dashboards\InformesGerencialesController::palmas');
 
 /** Rutas de la loseta de  "Reportes".*/
 $routes->get('informes/onboarding/(:num)', 'informes\InformeController::index/$1');

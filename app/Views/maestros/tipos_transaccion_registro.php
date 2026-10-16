@@ -35,7 +35,6 @@
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    <div class="form-text">Los tipos de transacción se guardan por empresa.</div>
                 </div>
 
                 <div class="col-md-4">
@@ -48,7 +47,6 @@
                             <i class="bi bi-x-lg" aria-hidden="true"></i>
                         </button>
                     </div>
-                    <div class="form-text">Filtra la lista mientras escribe.</div>
                 </div>
 
                 <div class="col-md-2">
@@ -61,7 +59,6 @@
                             <option value="0">Solo inactivos</option>
                         </select>
                     </div>
-                    <div class="form-text">Filtra por transacciones activas o inactivas.</div>
                 </div>
 
             </div>
@@ -79,24 +76,14 @@
 
         <div class="card-body p-0">
 
-            <div class="maestros-nota m-3 mb-0">
-                <i class="bi bi-info-circle" aria-hidden="true"></i>
-                <span>El código identifica el registro: no se puede modificar después de crearlo.</span>
-            </div>
-
             <div class="maestros-nota-alerta m-3 mb-0 d-none" role="alert" id="aviso_modulos_huerfanos">
                 <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
                 <span id="texto_modulos_huerfanos"></span>
             </div>
 
-            <div class="maestros-nota m-3 mb-0 d-none" id="aviso_sin_formato">
-                <i class="bi bi-info-circle" aria-hidden="true"></i>
-                <span>Ningún tipo de transacción de esta empresa tiene formato de impresión definido. Es un campo opcional.</span>
-            </div>
-
             <div class="maestros-grilla-relativa" id="zona_grilla">
 
-                <div class="table-responsive d-none" id="contenedor_tabla">
+                <div class="d-none" id="contenedor_tabla">
                     <table id="tabla_tipos_transaccion" class="table table-striped table-hover align-middle mb-0 maestros-tabla maestros-tabla-ancha" style="width:100%">
                         <thead class="maestros-thead">
                             <tr>
@@ -145,7 +132,6 @@
 
         </div>
 
-        <div class="card-footer bg-white py-2 d-none" id="pie_tabla"></div>
     </div>
 
     <div class="modal fade" id="modalTipoTransaccion" tabindex="-1" aria-hidden="true">
@@ -176,7 +162,7 @@
                                     <input type="text" class="form-control font-monospace rounded-end" id="codigo" maxlength="50" autocomplete="off" placeholder="RLF">
                                     <div class="invalid-feedback"></div>
                                 </div>
-                                <div class="form-text" id="ayuda_codigo">Máximo 50 caracteres. Identifica la transacción en todos los documentos.</div>
+                                <div class="form-text" id="ayuda_codigo">Máximo 50 caracteres.</div>
                             </div>
 
                             <div class="col-md-8">
@@ -187,7 +173,7 @@
                                         placeholder="TRANSACCIÓN DE LABORES DE CAMPO CON BÁSCULA">
                                     <div class="invalid-feedback"></div>
                                 </div>
-                                <div class="form-text">Máximo 50 caracteres. Es el texto que ve el usuario al elegir la transacción.</div>
+                                <div class="form-text">Máximo 50 caracteres.</div>
                             </div>
 
                             <div class="col-12">
@@ -196,7 +182,7 @@
                                         <input class="form-check-input" type="checkbox" id="activo">
                                         <label class="form-check-label fw-semibold" for="activo">Activo</label>
                                     </div>
-                                    <div class="form-text mb-0">Solo las transacciones activas se pueden usar al crear documentos nuevos.</div>
+                                    <div class="form-text mb-0">Solo las activas se pueden usar en documentos nuevos.</div>
                                 </div>
                             </div>
 
@@ -217,7 +203,6 @@
                                     <div class="invalid-feedback"></div>
                                 </div>
                                 <div class="maestros-nota-alerta mt-2 d-none" role="alert" id="nota_modulo_huerfano"></div>
-                                <div class="form-text">Módulo del sistema donde se usa la transacción.</div>
                             </div>
 
                             <div class="col-md-3">
@@ -232,7 +217,7 @@
                                     </select>
                                     <div class="invalid-feedback"></div>
                                 </div>
-                                <div class="form-text">Define cómo afecta la transacción a los saldos. Hoy todas usan «No aplica».</div>
+                                <div class="form-text">Cómo afecta a los saldos. Normalmente «No aplica».</div>
                             </div>
 
                             <div class="col-md-3">
@@ -258,7 +243,6 @@
                                         <input class="form-check-input" type="checkbox" id="numeracion">
                                         <label class="form-check-label fw-semibold" for="numeracion">Numeración automática</label>
                                     </div>
-                                    <div class="form-text mb-0">Actívela para que el sistema asigne el número del documento.</div>
 
                                     <div class="maestros-colapso" id="bloque_numeracion">
                                         <div class="row g-3 pt-3">
@@ -270,7 +254,7 @@
                                                     <input type="text" class="form-control font-monospace text-uppercase" id="prefijo" maxlength="50" autocomplete="off" placeholder="RLF">
                                                     <div class="invalid-feedback"></div>
                                                 </div>
-                                                <div class="form-text">Se antepone al número. Normalmente es igual al código.</div>
+                                                <div class="form-text">Normalmente igual al código.</div>
                                             </div>
 
                                             <div class="col-md-4">
@@ -280,7 +264,7 @@
                                                     <input type="text" class="form-control maestros-campo-mini" id="longitud" maxlength="2" inputmode="numeric" autocomplete="off">
                                                     <div class="invalid-feedback"></div>
                                                 </div>
-                                                <div class="form-text">Cantidad total de dígitos del número. Valores usados hoy: 10, 12 y 20.</div>
+                                                <div class="form-text">Total de dígitos. Usuales: 10, 12 o 20.</div>
                                             </div>
 
                                             <div class="col-md-4">
@@ -290,7 +274,7 @@
                                                     <input type="text" class="form-control font-monospace" id="actual" maxlength="10" inputmode="numeric" autocomplete="off">
                                                     <div class="invalid-feedback"></div>
                                                 </div>
-                                                <div class="form-text">Último número asignado. El siguiente documento tomará el número siguiente.</div>
+                                                <div class="form-text">Último número asignado.</div>
                                             </div>
 
                                             <div class="col-12">
@@ -327,7 +311,7 @@
                                                         placeholder="spSeleccionaProSinEjecucion">
                                                     <div class="invalid-feedback"></div>
                                                 </div>
-                                                <div class="form-text">Nombre exacto del procedimiento o vista de SQL Server que devuelve los documentos disponibles.</div>
+                                                <div class="form-text">Nombre exacto en SQL Server.</div>
                                             </div>
                                         </div>
                                     </div>
@@ -341,7 +325,7 @@
                                     <input type="text" class="form-control" id="formato" maxlength="50" autocomplete="off">
                                     <div class="invalid-feedback"></div>
                                 </div>
-                                <div class="form-text">Opcional. Nombre del formato usado al imprimir. Hoy ninguna transacción tiene formato definido.</div>
+                                <div class="form-text">Nombre del formato usado al imprimir.</div>
                             </div>
 
                         </div>

@@ -133,8 +133,6 @@ $.fn.dataTable.ext.search.push((configuracion, datos, indice) => {
 });
 
 const destruirTabla = () => {
-    $id('pie_tabla').innerHTML = '';
-
     if (esDataTable()) {
         instanciaTabla().destroy();
     }
@@ -142,27 +140,14 @@ const destruirTabla = () => {
 
 const iniciarTabla = () => {
     const tabla = $('#tabla_tipos_documentos').DataTable({
-        dom: 'rt<"maestros-paginado"ip>',
-        paging: true,
-        pageLength: 25,
         order: [[0, 'asc']],
         columnDefs: [{ targets: [7], orderable: false }],
         language: {
-            zeroRecords: 'No se encontraron resultados',
-            info: 'Mostrando _START_ a _END_ de _TOTAL_ registros',
-            infoEmpty: 'No hay registros disponibles',
-            infoFiltered: '(filtrado de _MAX_ registros totales)',
-            emptyTable: 'No hay datos disponibles',
-            paginate: {
-                first: 'Primero',
-                last: 'Último',
-                next: 'Siguiente',
-                previous: 'Anterior'
-            }
+            search: 'Buscar en resultados:',
+            searchPlaceholder: 'Filtrar lo listado…'
         }
     });
 
-    $id('pie_tabla').appendChild(tabla.table().container().querySelector('.maestros-paginado'));
     tabla.on('draw', actualizarEstados);
 };
 
@@ -193,16 +178,13 @@ const actualizarEstados = () => {
     const info = esDataTable() ? instanciaTabla().page.info() : null;
     const visibles = info ? info.recordsDisplay : 0;
     const vacia = estado.total === 0;
-    const sinCoincidencias = !vacia && visibles === 0;
+    const sinCoincidencias = !vacia && visibles === 0 && !(info && instanciaTabla().search() !== '');
     const conFilas = !vacia && !sinCoincidencias;
 
     mostrar($id('estado_error'), false);
     mostrar($id('estado_vacio'), vacia);
     mostrar($id('estado_filtro'), sinCoincidencias);
     mostrar($id('contenedor_tabla'), conFilas);
-    mostrar($id('pie_tabla'), conFilas && visibles > info.length);
-
-    mostrar($id('aviso_sin_equivalencia'), conFilas && estado.filas.every((fila) => texto(fila.equivalencia) === ''));
 
     if (sinCoincidencias) {
         $id('titulo_estado_filtro').innerHTML = `Ningún tipo de documento coincide con «${escaparHtml(texto($id('filtro_busqueda').value))}»`;
@@ -220,8 +202,6 @@ const mostrarEstadoError = (mensaje) => {
     mostrar($id('estado_vacio'), false);
     mostrar($id('estado_filtro'), false);
     mostrar($id('contenedor_tabla'), false);
-    mostrar($id('pie_tabla'), false);
-    mostrar($id('aviso_sin_equivalencia'), false);
     $id('contador_registros').innerHTML = '';
     $id('mensaje_estado_error').textContent = mensaje;
     mostrar($id('estado_error'), true);
@@ -241,8 +221,6 @@ const cargar = async () => {
     mostrar($id('estado_vacio'), false);
     mostrar($id('estado_filtro'), false);
     mostrar($id('estado_error'), false);
-    mostrar($id('pie_tabla'), false);
-    mostrar($id('aviso_sin_equivalencia'), false);
     $id('contador_registros').innerHTML = '';
     velo(true);
     bloquear(true);
@@ -360,11 +338,10 @@ const abrirModal = (modo, fila) => {
 
     if (edicion) {
         campoCodigo.setAttribute('aria-readonly', 'true');
-        $id('ayuda_codigo').textContent = 'El código identifica el registro y no se puede modificar.'
-            + ' Si está mal, elimine el registro y cree el correcto.';
+        $id('ayuda_codigo').textContent = 'No se puede modificar. Si está mal, elimínelo y cree el correcto.';
     } else {
         campoCodigo.removeAttribute('aria-readonly');
-        $id('ayuda_codigo').textContent = 'Máximo 3 caracteres. Es el valor que queda guardado en cada tercero.';
+        $id('ayuda_codigo').textContent = 'Máximo 3 caracteres.';
     }
 
     modal().show();

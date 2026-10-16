@@ -80,22 +80,7 @@ const renderizarTabla = () => {
 
     $('#tabla_parametros').DataTable({
         order: [[0, 'asc']],
-        columnDefs: [{ targets: [5], orderable: false }],
-        language: {
-            lengthMenu: 'Mostrar _MENU_ registros por página',
-            zeroRecords: 'No se encontraron resultados',
-            info: 'Mostrando _START_ a _END_ de _TOTAL_ registros',
-            infoEmpty: 'No hay registros disponibles',
-            infoFiltered: '(filtrado de _MAX_ registros totales)',
-            search: 'Buscar:',
-            emptyTable: 'No hay datos disponibles',
-            paginate: {
-                first: 'Primero',
-                last: 'Último',
-                next: 'Siguiente',
-                previous: 'Anterior'
-            }
-        }
+        columnDefs: [{ targets: [5], orderable: false }]
     });
 };
 
@@ -135,9 +120,6 @@ const aplicarVista = (suf) => {
     const activo = el('maneja_ds', suf).checked;
 
     el('panel_opcion', suf).classList.toggle('activo', activo);
-    el('ayuda_maneja_ds', suf).textContent = activo
-        ? 'El valor se elige de una tabla de la base de datos.'
-        : 'El valor se escribe a mano.';
 
     colapsar(el('bloque_valor_fijo', suf), !activo);
     colapsar(el('bloque_origen', suf), activo);
@@ -147,9 +129,7 @@ const aplicarVista = (suf) => {
     mostrar(el('grupo_valor_select', suf), activo);
     mostrar(el('valor_select', suf), activo);
 
-    el('ayuda_valor', suf).textContent = activo
-        ? 'Se elige entre los registros de la tabla de origen.'
-        : 'Se guarda tal cual se escribe, según el tipo de dato elegido.';
+    el('ayuda_valor', suf).textContent = '';
 };
 
 const enfocar = (elemento) => {
@@ -225,7 +205,7 @@ const origenCompleto = (suf) =>
 const actualizarValor = (suf) => {
     el('valor_select', suf).disabled = !origenCompleto(suf);
     el('ayuda_valor', suf).textContent = origenCompleto(suf)
-        ? 'Se elige entre los registros de la tabla de origen.'
+        ? ''
         : 'Elija la tabla, el campo valor y el campo etiqueta para habilitar la lista.';
 };
 

@@ -104,7 +104,7 @@ class LiquidacionContratistasPeriodoLotes extends Informe
             $binds[] = (int) $filtros['contratista'];
         }
 
-        $sql = "SELECT TOP " . (self::MAX_FILAS + 1) . " proveedor, nit, dv, razon, tercero, nombre, finca, seccion, lote, loteNombre, labor, laborNombre, uMedida, abreLote,
+        $sql = "SELECT TOP " . (self::MAX_FILAS + 1) . " proveedor, nit, dv, razon, tercero, nombre, finca, seccion, lote, loteNombre, labor, laborNombre, uMedida, abreLote, fecha,
                        SUM(cantidad) AS cantidad, SUM(jornales) AS jornales, SUM(valor) AS valor, MIN(NULLIF(precio, 0)) AS precioMin, MAX(NULLIF(precio, 0)) AS precioMax,
                        SUM(CASE WHEN precio = 0 THEN 1 ELSE 0 END) AS sinPrecio, SUM(CASE WHEN negativo = 1 THEN 1 ELSE 0 END) AS negativos
                   FROM (SELECT p.proveedor, p.nit, p.dv, p.razon, LTRIM(RTRIM(c.tercero)) AS tercero, CAST(ISNULL(t.nombre, '') AS varchar(150)) AS nombre,
@@ -112,7 +112,7 @@ class LiquidacionContratistasPeriodoLotes extends Informe
                                CASE WHEN ISNULL(d.muestraInformeContratista, 0) = 1 OR ISNULL(d.manejaLote, 0) = 1 THEN 1 ELSE 0 END AS abreLote,
                                CASE WHEN ISNULL(d.muestraInformeContratista, 0) = 1 OR ISNULL(d.manejaLote, 0) = 1 THEN LTRIM(RTRIM(ISNULL(b.lote, ''))) ELSE '' END AS lote,
                                CASE WHEN ISNULL(d.muestraInformeContratista, 0) = 1 OR ISNULL(d.manejaLote, 0) = 1 THEN CAST(ISNULL(k.descripcion, '') AS varchar(100)) ELSE '' END AS loteNombre,
-                               LTRIM(RTRIM(c.novedad)) AS labor, CAST(ISNULL(d.descripcion, '') AS varchar(150)) AS laborNombre, LTRIM(RTRIM(ISNULL(d.uMedida, ''))) AS uMedida,
+                               LTRIM(RTRIM(c.novedad)) AS labor, CAST(ISNULL(d.descripcion, '') AS varchar(150)) AS laborNombre, LTRIM(RTRIM(ISNULL(d.uMedida, ''))) AS uMedida, CONVERT(date, ISNULL(c.fechaNovedad, b.fecha)) AS fecha,
                                CASE WHEN b.signo = 2 THEN -1 ELSE 1 END * ISNULL(c.cantidad, 0) AS cantidad, ISNULL(c.jornales, 0) AS jornales, ISNULL(c.precioLabor, 0) AS precio,
                                CASE WHEN b.signo = 2 THEN -1 ELSE 1 END * ISNULL(c.valorTotal, 0) AS valor, CASE WHEN b.signo = 2 THEN 1 ELSE 0 END AS negativo
                           FROM aTransaccionTercero c
@@ -128,7 +128,7 @@ class LiquidacionContratistasPeriodoLotes extends Informe
                                        WHERE empresa = c.empresa AND (LTRIM(RTRIM(nit)) = LTRIM(RTRIM(c.tercero)) OR LTRIM(RTRIM(codigo)) = LTRIM(RTRIM(c.tercero)))
                                        ORDER BY CASE WHEN LTRIM(RTRIM(nit)) = LTRIM(RTRIM(c.tercero)) THEN 0 ELSE 1 END) t
                          WHERE c.empresa = ? AND CONVERT(date, a.fecha) BETWEEN ? AND ?{$where}) x
-                 GROUP BY proveedor, nit, dv, razon, tercero, nombre, finca, seccion, lote, loteNombre, labor, laborNombre, uMedida, abreLote
+                 GROUP BY proveedor, nit, dv, razon, tercero, nombre, finca, seccion, lote, loteNombre, labor, laborNombre, uMedida, abreLote, fecha
                  ORDER BY proveedor ASC, tercero ASC";
 
         ini_set('sqlsrv.ClientBufferMaxKBSize', '102400');
@@ -137,6 +137,7 @@ class LiquidacionContratistasPeriodoLotes extends Informe
         $query  = $this->db->query($sql, $binds);
         $avisos = [];
         $filas  = [];
+        $base   = [];
 
         while (($c = $query->getUnbufferedRow('array')) !== null) {
             if (count($filas) === self::MAX_FILAS) {
@@ -157,6 +158,7 @@ class LiquidacionContratistasPeriodoLotes extends Informe
                 'seccion'       => trim($c['seccion']),
                 'lote'          => self::codigo($c['lote'], $c['loteNombre']),
                 'labor'         => $c['labor'] . ' — ' . trim($c['laborNombre']),
+                'fecha'         => substr((string) $c['fecha'], 0, 10),
                 'uMedida'       => $c['uMedida'],
                 'cantidad'      => $cantidad,
                 'jornales'      => (float) $c['jornales'],
@@ -175,6 +177,18 @@ class LiquidacionContratistasPeriodoLotes extends Informe
                 'codLote'       => $c['lote'],
                 'codLabor'      => $c['labor'],
             ];
+
+            $b = &$base[$c['proveedor'] . '|' . $c['tercero'] . '|' . $c['finca'] . '|' . $c['seccion'] . '|' . $c['lote'] . '|' . $c['labor'] . '|' . $c['uMedida']];
+            $b['contratista'] = self::proveedor($c);
+            $b['faltaLote']   = (int) $c['abreLote'] === 1 && $c['lote'] === '';
+            $b['sinProveedor'] = $c['proveedor'] === null;
+            $b['cantidad']    = ($b['cantidad'] ?? 0) + $cantidad;
+            $b['valor']       = ($b['valor'] ?? 0) + $valor;
+            $b['sinPrecio']   = ($b['sinPrecio'] ?? 0) + (int) $c['sinPrecio'];
+            $b['negativos']   = ($b['negativos'] ?? 0) + (int) $c['negativos'];
+            $b['min']         = $min === null ? ($b['min'] ?? null) : min($b['min'] ?? $min, $min);
+            $b['max']         = $max === null ? ($b['max'] ?? null) : max($b['max'] ?? $max, $max);
+            unset($b);
         }
 
         $query->freeResult();
@@ -191,10 +205,6 @@ class LiquidacionContratistasPeriodoLotes extends Informe
             $g['trabajadores'][$f['codigo']] = true;
             $g['fincas'][$f['finca']] = true;
             $g['labores'][$f['codLabor']] = true;
-            $g['faltaLoteN']     = ($g['faltaLoteN'] ?? 0) + (int) $f['faltaLote'];
-            $g['sinPrecioN']     = ($g['sinPrecioN'] ?? 0) + (int) $f['sinPrecio'];
-            $g['variosPreciosN'] = ($g['variosPreciosN'] ?? 0) + (int) $f['variosPrecios'];
-            $g['ajusteN']        = ($g['ajusteN'] ?? 0) + (int) $f['conAjuste'];
 
             if ($f['codLote'] !== '') {
                 $g['lotes'][$f['finca'] . '|' . $f['codLote']] = true;
@@ -208,12 +218,25 @@ class LiquidacionContratistasPeriodoLotes extends Informe
             unset($t);
         }
 
+        foreach ($base as &$b) {
+            $b['sinPrecio']     = $b['sinPrecio'] > 0 || ($b['valor'] == 0 && $b['cantidad'] != 0);
+            $b['variosPrecios'] = $b['min'] !== null && $b['min'] != $b['max'];
+            $g                  = &$grupos[$b['contratista']];
+            $g['faltaLoteN']     = ($g['faltaLoteN'] ?? 0) + (int) $b['faltaLote'];
+            $g['sinPrecioN']     = ($g['sinPrecioN'] ?? 0) + (int) $b['sinPrecio'];
+            $g['variosPreciosN'] = ($g['variosPreciosN'] ?? 0) + (int) $b['variosPrecios'];
+            $g['ajusteN']        = ($g['ajusteN'] ?? 0) + (int) ($b['negativos'] > 0);
+            unset($g);
+        }
+
+        unset($b);
+
         uksort($grupos, static fn ($a, $b) => [$a === self::SIN_PROVEEDOR, -$grupos[$a]['valor']] <=> [$b === self::SIN_PROVEEDOR, -$grupos[$b]['valor']]);
 
         $orden = array_flip(array_keys($grupos));
 
-        usort($filas, static fn ($a, $b) => [$orden[$a['contratista']], strcasecmp($a['nombre'], $b['nombre']), $a['codigo'], strcasecmp($a['finca'], $b['finca']), strcasecmp($a['seccion'], $b['seccion']), $a['codLote'] === '', $a['codLote'], $a['codLabor']]
-            <=> [$orden[$b['contratista']], 0, $b['codigo'], 0, 0, $b['codLote'] === '', $b['codLote'], $b['codLabor']]);
+        usort($filas, static fn ($a, $b) => [$orden[$a['contratista']], strcasecmp($a['nombre'], $b['nombre']), $a['codigo'], strcasecmp($a['finca'], $b['finca']), strcasecmp($a['seccion'], $b['seccion']), $a['codLote'] === '', $a['codLote'], $a['codLabor'], $a['fecha']]
+            <=> [$orden[$b['contratista']], 0, $b['codigo'], 0, 0, $b['codLote'] === '', $b['codLote'], $b['codLabor'], $b['fecha']]);
 
         $n = count($filas);
 
@@ -287,7 +310,7 @@ class LiquidacionContratistasPeriodoLotes extends Informe
             }
         }
 
-        $faltaLote = array_sum(array_map(static fn ($f) => (int) $f['faltaLote'], $filas));
+        $faltaLote = array_sum(array_map(static fn ($b) => (int) $b['faltaLote'], $base));
         $lotes     = [];
         $fincasT   = [];
 
@@ -312,7 +335,7 @@ class LiquidacionContratistasPeriodoLotes extends Informe
         $nTrab    = count($trab[self::SIN_PROVEEDOR] ?? []);
 
         if ($sinProv !== []) {
-            $avisos[] = self::plural(count($sinProv), 'fila', 'filas') . ' de ' . self::plural($nTrab, 'trabajador', 'trabajadores')
+            $avisos[] = self::plural(count(array_filter(array_column($base, 'sinProveedor'))), 'fila', 'filas') . ' de ' . self::plural($nTrab, 'trabajador', 'trabajadores')
                 . ' sin proveedor asociado; se agrupan en "' . self::SIN_PROVEEDOR . '" y no deben liquidarse sin asignarlo.';
         }
 
@@ -326,7 +349,7 @@ class LiquidacionContratistasPeriodoLotes extends Informe
         return [
             'kpis' => [
                 ['etiqueta' => 'Valor total a liquidar', 'valor' => $n === 0 ? null : $total, 'formato' => 'moneda', 'icono' => 'bi bi-cash-coin',
-                    'ayuda' => $n === 0 ? '' : self::plural($n, 'fila', 'filas') . ' · ' . $rango],
+                    'ayuda' => $n === 0 ? '' : self::plural(count($base), 'fila', 'filas') . ' · ' . $rango],
                 ['etiqueta' => 'Contratistas', 'valor' => $n === 0 ? null : count($grupos), 'formato' => 'entero', 'icono' => 'bi bi-briefcase',
                     'ayuda' => $n === 0 ? '' : 'Con labores en el rango'],
                 ['etiqueta' => 'Lotes intervenidos', 'valor' => $n === 0 ? null : count($lotes), 'formato' => 'entero', 'icono' => 'bi bi-geo-alt',
@@ -359,6 +382,7 @@ class LiquidacionContratistasPeriodoLotes extends Informe
                 ['clave' => 'seccion', 'titulo' => 'Sección', 'tipo' => 'texto', 'alineacion' => 'izquierda', 'total' => false],
                 ['clave' => 'lote', 'titulo' => 'Lote', 'tipo' => 'texto', 'alineacion' => 'izquierda', 'total' => false],
                 ['clave' => 'labor', 'titulo' => 'Labor', 'tipo' => 'texto', 'alineacion' => 'izquierda', 'total' => false],
+                ['clave' => 'fecha', 'titulo' => 'Fecha ejecución', 'tipo' => 'fecha', 'alineacion' => 'centro', 'total' => false],
                 ['clave' => 'uMedida', 'titulo' => 'U. medida', 'tipo' => 'texto', 'alineacion' => 'centro', 'total' => false],
                 ['clave' => 'cantidad', 'titulo' => 'Cantidad', 'tipo' => 'decimal', 'alineacion' => 'derecha', 'total' => false],
                 ['clave' => 'jornales', 'titulo' => 'Jornales', 'tipo' => 'decimal', 'alineacion' => 'derecha', 'total' => true],

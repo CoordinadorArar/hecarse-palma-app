@@ -125,4 +125,42 @@ class InformesGerencialesModel extends Model
 
         return $this->db->query($sql, $binds)->getResultArray();
     }
+
+    public function getLotesCiclo(int $empresa, string $finca): array
+    {
+        return $this->db->query(
+            "SELECT LTRIM(RTRIM(codigo)) AS codigo, LTRIM(RTRIM(ISNULL(descripcion, ''))) AS descripcion, ISNULL(hNetas, 0) AS hectareas
+               FROM aLotes
+              WHERE empresa = ? AND LTRIM(RTRIM(finca)) = ? AND activo = 1 AND ISNULL(hNetas, 0) > 0.1
+                AND descripcion NOT LIKE 'DISTRIBUIR%' AND descripcion NOT LIKE 'VIVERO%'
+              ORDER BY numero, codigo",
+            [$empresa, $finca]
+        )->getResultArray();
+    }
+
+    public function getFechasLabor(int $empresa, string $finca, string $tipo, string $desde, string $hasta): array
+    {
+        $eliminadas = $this->db->query("SELECT OBJECT_ID('dbo.aTransaccionEliminada', 'U') AS id")->getRow()->id === null ? ''
+            : ' AND NOT EXISTS (SELECT 1 FROM aTransaccionEliminada el WHERE el.empresa = a.empresa AND el.tipo = a.tipo AND el.numero = LTRIM(RTRIM(a.numero)))';
+
+        $labor = $tipo === 'TLC'
+            ? "d.claseLabor = 2 AND LTRIM(RTRIM(d.uMedida)) = 'KG'"
+            : "d.grupo = '04' AND d.descripcion LIKE '%PODA%'";
+
+        return $this->db->query(
+            "SELECT LTRIM(RTRIM(k.codigo)) AS lote, CONVERT(varchar(10), e.fecha, 23) AS fecha, LTRIM(RTRIM(d.codigo)) AS labor,
+                    LTRIM(RTRIM(ISNULL(d.descripcion, ''))) AS laborNombre, ISNULL(d.ciclos, 0) AS ciclos
+               FROM aTransaccionTercero c
+               JOIN aNovedad d ON d.codigo = c.novedad AND d.empresa = c.empresa AND {$labor}
+               JOIN aTransaccionNovedad b ON b.empresa = c.empresa AND b.tipo = c.tipo AND b.numero = c.numero AND b.registro = c.registroNovedad
+               JOIN aTransaccion a ON a.empresa = b.empresa AND a.tipo = b.tipo AND a.numero = b.numero AND a.anulado = 0{$eliminadas}
+               JOIN aLotes k ON k.codigo = b.lote AND k.empresa = b.empresa AND LTRIM(RTRIM(k.finca)) = ?
+              CROSS APPLY (SELECT CONVERT(date, ISNULL(c.fechaNovedad, b.fecha)) AS fecha) e
+              WHERE c.empresa = ? AND a.tipo = ? AND e.fecha BETWEEN ? AND ?
+              GROUP BY k.codigo, e.fecha, d.codigo, d.descripcion, d.ciclos
+             HAVING SUM(CASE WHEN b.signo = 2 THEN -1 ELSE 1 END * ISNULL(c.cantidad, 0)) > 0
+              ORDER BY lote, fecha",
+            [$finca, $empresa, $tipo, $desde, $hasta]
+        )->getResultArray();
+    }
 }

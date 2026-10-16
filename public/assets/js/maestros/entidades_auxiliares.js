@@ -98,7 +98,7 @@ const actualizarRotulos = () => {
 const accionesFila = (v1, v2) => {
     const editar = estado.meta.llaveCompleta
         ? '<span class="d-inline-block maestros-accion-bloqueada" tabindex="0"'
-            + ' title="Las dos columnas forman la llave del registro: no hay nada que editar. Elimine la fila y cree la correcta.">'
+            + ' title="No editable: elimine la fila y cree la correcta.">'
             + '<button type="button" class="btn btn-outline-secondary btn-sm pe-none" disabled aria-disabled="true" tabindex="-1">'
             + '<i class="bi bi-pencil" aria-hidden="true"></i></button></span>'
         : '<button type="button" class="btn btn-outline-secondary btn-sm" data-accion="editar" title="Editar registro">'

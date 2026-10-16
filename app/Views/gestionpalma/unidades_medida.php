@@ -67,7 +67,7 @@
             </div>
             <div class="card-body p-0">
 
-                <div class="table-responsive" id="gp_contenedor_tabla">
+                <div id="gp_contenedor_tabla">
                     <table id="tabla_unidades" class="table table-striped table-hover align-middle mb-0 gp-tabla" style="width:100%">
                         <thead class="gp-thead">
                             <tr>
@@ -136,7 +136,7 @@
                                     <span class="input-group-text bg-light"><i class="bi bi-hash"></i></span>
                                     <input type="text" class="form-control font-monospace text-uppercase" id="um_codigo" maxlength="50" autocomplete="off" required>
                                 </div>
-                                <div class="form-text">Mnemónico corto. Ej.: KG, HA, JOR.</div>
+                                <div class="form-text">Ej.: KG, HA, JOR.</div>
                             </div>
 
                             <div class="col-md-4">

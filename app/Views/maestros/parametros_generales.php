@@ -24,8 +24,8 @@ $camposParametro = function (string $suf) use ($tipos_dato) {
             <div class="invalid-feedback"></div>
         </div>
         <div class="form-text"><?= $edicion
-            ? 'El nombre identifica el parámetro y no se puede cambiar aquí. Para renombrarlo, cree uno nuevo con el nombre correcto y elimine este.'
-            : 'Nombre técnico con el que los procesos leen el parámetro. Debe escribirse exactamente igual.' ?></div>
+            ? 'No se puede modificar. Para renombrarlo, cree uno nuevo y elimine este.'
+            : 'Nombre técnico que leen los procesos; debe coincidir exactamente.' ?></div>
     </div>
 
     <div class="col-12">
@@ -34,7 +34,6 @@ $camposParametro = function (string $suf) use ($tipos_dato) {
                 <input class="form-check-input" type="checkbox" id="maneja_ds<?= $suf ?>">
                 <label class="form-check-label fw-semibold" for="maneja_ds<?= $suf ?>">Maneja origen de datos</label>
             </div>
-            <div class="form-text mb-0" id="ayuda_maneja_ds<?= $suf ?>" aria-live="polite">El valor se escribe a mano.</div>
         </div>
     </div>
 
@@ -48,7 +47,6 @@ $camposParametro = function (string $suf) use ($tipos_dato) {
                     <label class="form-check-label" for="tipo_dato_<?= $i ?><?= $suf ?>"><?= esc($etiqueta) ?></label>
                 </div>
             <?php $i++; endforeach; ?>
-            <div class="form-text">Define cómo se valida y se guarda el valor.</div>
         </div>
     </div>
 
@@ -118,7 +116,7 @@ $camposParametro = function (string $suf) use ($tipos_dato) {
         </div>
         <div class="maestros-nota-alerta mt-2 d-none" role="alert" id="nota_huerfano<?= $suf ?>"></div>
         <div class="form-text maestros-nota mt-2 d-none" id="nota_recortada<?= $suf ?>"></div>
-        <div class="form-text" id="ayuda_valor<?= $suf ?>">Se guarda tal cual se escribe, según el tipo de dato elegido.</div>
+        <div class="form-text" id="ayuda_valor<?= $suf ?>"></div>
     </div>
 
 </div>
@@ -155,7 +153,6 @@ $camposParametro = function (string $suf) use ($tipos_dato) {
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    <div class="form-text">Cada parámetro se guarda para una sola empresa.</div>
                 </div>
             </div>
         </div>
@@ -180,7 +177,7 @@ $camposParametro = function (string $suf) use ($tipos_dato) {
                     <span id="contador_parametros" class="maestros-contador"></span>
                 </div>
                 <div class="card-body">
-                    <div class="table-responsive" id="contenedor_tabla">
+                    <div id="contenedor_tabla">
                         <table id="tabla_parametros" class="table table-striped table-hover align-middle mb-0 maestros-tabla maestros-tabla-media" style="width:100%">
                             <thead class="maestros-thead">
                                 <tr>

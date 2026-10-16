@@ -67,7 +67,7 @@
             </div>
             <div class="card-body p-0">
 
-                <div class="table-responsive" id="gp_contenedor_tabla">
+                <div id="gp_contenedor_tabla">
                     <table id="tabla_grupos" class="table table-striped table-hover align-middle mb-0 gp-tabla" style="width:100%">
                         <thead class="gp-thead">
                             <tr>
@@ -177,7 +177,7 @@
                                     <input class="form-check-input" type="checkbox" id="grupo_maneja_ccosto_siigo">
                                     <label class="form-check-label" for="grupo_maneja_ccosto_siigo">Maneja centro de costo Siigo</label>
                                 </div>
-                                <div class="gp-subtexto">Campo heredado del sistema anterior; no se usa en reportes ni integraciones actuales.</div>
+                                <div class="gp-subtexto">Campo heredado, sin uso actual.</div>
                             </div>
 
                             <div class="col-md-6 d-none" id="grupo_col_ccosto_siigo">

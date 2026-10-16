@@ -1,4 +1,19 @@
+Example Database
+ [ ] Model find all
+ [ ] Soft delete leaves row
+
+Example Session
+ [x] Session simple
+
 Health
  [x] Is defined app path
  [ ] Base url has been set
+
+Periodos Nomina (Tests\Feature\PeriodosNomina)
+ [ ] Estado inicial limpio
+ [ ] Render autenticado
+ [ ] Sin sesion devuelve 401
+ [ ] Ciclo crud
+ [ ] Validaciones rechazadas
+ [ ] Estado final limpio
 

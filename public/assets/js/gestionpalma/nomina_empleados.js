@@ -32,22 +32,11 @@ const renderizarTabla = () => {
         return;
     }
     $('#tabla_empleados').DataTable({
-        searching: false,
         columnDefs: [{ targets: [5, 7], orderable: false }],
         order: [[1, 'asc']],
         language: {
-            lengthMenu: 'Mostrar _MENU_ registros por página',
-            zeroRecords: 'No se encontraron resultados',
-            info: 'Mostrando _START_ a _END_ de _TOTAL_ registros',
-            infoEmpty: 'No hay registros disponibles',
-            infoFiltered: '(filtrado de _MAX_ registros totales)',
-            emptyTable: 'No hay datos disponibles',
-            paginate: {
-                first: 'Primero',
-                last: 'Último',
-                next: 'Siguiente',
-                previous: 'Anterior'
-            }
+            search: 'Buscar en resultados:',
+            searchPlaceholder: 'Filtrar lo listado…'
         }
     });
 };
@@ -204,8 +193,8 @@ const aplicarOpcionTercero = () => {
     const bloque = $id('empleado_bloque_tercero');
 
     $id('empleado_ayuda_opcion').textContent = crea
-        ? 'Se creará un tercero nuevo con los datos del recuadro. El selector de terceros queda inactivo.'
-        : 'Se vinculará un tercero ya existente. Escoja el tercero y la identificación y la descripción se completan solas.';
+        ? ''
+        : 'La identificación y la descripción se toman del tercero escogido.';
 
     $id('empleado_panel_opcion').querySelector('.gp-panel-opcion').classList.toggle('activo', crea);
 

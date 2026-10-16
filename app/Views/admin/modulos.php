@@ -35,8 +35,7 @@
         <div class="tab-pane fade show active" id="moduleList" role="tabpanel" aria-labelledby="moduleList-tab">
             <div class="card">
                 <div class="card-body">
-                    <!-- Agrega un contenedor table-responsive para evitar el desbordamiento -->
-                    <div class="table-responsive" id="contenedor_table">
+                    <div id="contenedor_table">
                         <?php echo $tabla_modulos; ?>
                     </div>
                 </div>
@@ -46,9 +45,6 @@
         <div class="tab-pane fade" id="createModule" role="tabpanel" aria-labelledby="createModule-tab">
             <div class="card">
                 <div class="card-body p-4">
-                    <div class="alert alert-light border py-2 small">
-                        <strong>Tres niveles.</strong> <strong>Loseta</strong> = tarjeta del menú principal (sin loseta padre). <strong>Módulo</strong> = opción del menú lateral (con loseta padre). <strong>Submódulo</strong> = opción desplegable dentro de un módulo (con loseta y módulo padre).
-                    </div>
                     <form id="formulario_creacion">
                         <div class="row mb-4">
                             <!-- Nombre -->
@@ -66,7 +62,7 @@
                                     <span class="input-group-text bg-light"><i class="bi bi-card-text"></i></span>
                                     <input type="text" class="form-control shadow-sm" id="ruta_crear" placeholder="Digite el ruta del módulo">
                                 </div>
-                                <div class="form-text">Déjala vacía si el módulo solo agrupa submódulos. Si el módulo tiene submódulos, su ruta no se usará: el clic solo desplegará el submenú.</div>
+                                <div class="form-text">Vacía si solo agrupa submódulos. Con submódulos, la ruta se ignora.</div>
                             </div>
                         </div>
                         <div class="row mb-4">
@@ -77,7 +73,7 @@
                                     <span class="input-group-text bg-light"><i class="bi bi-card-text"></i></span>
                                     <input type="text" class="form-control shadow-sm" id="icono_crear" placeholder="Digite el icono del módulo, ej: bi bi-gear" onkeypress="return noStrangeCharacters(event)">
                                 </div>
-                                <div class="form-text">Clase completa de Bootstrap Icons, incluyendo el prefijo. Ej.: <code>bi bi-tree</code>.</div>
+                                <div class="form-text">Clase de Bootstrap Icons. Ej.: <code>bi bi-tree</code>.</div>
                             </div>
                             <div class="col-md-6 d-flex flex-column">
                                 <label for="select_loseta_padre" class="form-label">Loseta padre</label>
@@ -95,7 +91,7 @@
                                 <select class="form-select" id="select_modulo_padre" disabled>
                                     <option value="" selected>— Ninguno: será un módulo de primer nivel —</option>
                                 </select>
-                                <div class="form-text text-muted" id="ayuda_modulo_padre_crear">Un registro sin loseta es una loseta; las losetas no tienen módulo padre.</div>
+                                <div class="form-text text-muted" id="ayuda_modulo_padre_crear">Sin loseta padre, el registro es una loseta.</div>
                             </div>
                             <div class="col-12">
                                 <div class="form-text fw-semibold" id="nivel_crear"></div>
@@ -142,7 +138,7 @@
             <div class="card">
                 <div class="card-body p-4">
                     <div class="alert alert-light border py-2 small mb-3">
-                        <i class="bi bi-info-circle text-primary me-1"></i><strong>Arrastra</strong> desde el icono <i class="bi bi-grip-vertical"></i> para cambiar el orden. Las losetas y los módulos se reordenan dentro de su mismo grupo. Los <strong>submódulos</strong> también pueden moverse a otro módulo, incluso de otra loseta, siempre que ese módulo sea contenedor (sin ruta o con submódulos); al arrastrar verás resaltadas las zonas donde puedes soltar. Los cambios se guardan automáticamente.
+                        <i class="bi bi-info-circle text-primary me-1"></i>Arrastre desde <i class="bi bi-grip-vertical"></i> para reordenar. Los submódulos pueden moverse a cualquier módulo contenedor (sin ruta o con submódulos). Los cambios se guardan automáticamente.
                     </div>
                     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
                         <span id="orden_estado" class="small text-muted"></span>
@@ -196,9 +192,6 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="alert alert-light border py-2 small">
-                        <strong>Tres niveles.</strong> <strong>Loseta</strong> = tarjeta del menú principal (sin loseta padre). <strong>Módulo</strong> = opción del menú lateral (con loseta padre). <strong>Submódulo</strong> = opción desplegable dentro de un módulo (con loseta y módulo padre).
-                    </div>
                     <!-- Custom Styled Validation -->
                     <form class="row g-3" id="formulario_editar_modulo">
                         <div class="col-md-6">
@@ -214,7 +207,7 @@
                                 <span class="input-group-text bg-light"><i class="bi bi-link"></i></span>
                                 <input type="text" class="form-control" id="ruta" value="">
                             </div>
-                            <div class="form-text">Déjala vacía si el módulo solo agrupa submódulos. Si el módulo tiene submódulos, su ruta no se usará: el clic solo desplegará el submenú.</div>
+                            <div class="form-text">Vacía si solo agrupa submódulos. Con submódulos, la ruta se ignora.</div>
                         </div>
                         <div class="col-md-6">
                             <label for="icono" class="form-label">Icono</label>
@@ -223,7 +216,7 @@
                                 <input type="text" class="form-control" id="icono" value="" onkeyup="printIcon(this)" onkeypress="return noStrangeCharacters(event)" required>
                                 <span class="input-group-text" id="IconoImage">-</span>
                             </div>
-                            <div class="form-text">Clase completa de Bootstrap Icons, incluyendo el prefijo. Ej.: <code>bi bi-tree</code>.</div>
+                            <div class="form-text">Clase de Bootstrap Icons. Ej.: <code>bi bi-tree</code>.</div>
                         </div>
                         <div class="col-md-6">
                             <label for="losetaPadre" class="form-label">Loseta padre</label>
@@ -239,7 +232,7 @@
                             <select class="form-select" id="moduloPadre" disabled>
                                 <option value="" selected>— Ninguno: será un módulo de primer nivel —</option>
                             </select>
-                            <div class="form-text text-muted" id="ayuda_modulo_padre">Un registro sin loseta es una loseta; las losetas no tienen módulo padre.</div>
+                            <div class="form-text text-muted" id="ayuda_modulo_padre">Sin loseta padre, el registro es una loseta.</div>
                         </div>
                         <div class="col-12">
                             <div class="form-text fw-semibold" id="nivel_editar"></div>
@@ -288,9 +281,9 @@
 
     const OPCION_NINGUNO = `<option value="" selected>— Ninguno: será un módulo de primer nivel —</option>`;
 
-    const AYUDA_SIN_LOSETA  = 'Un registro sin loseta es una loseta; las losetas no tienen módulo padre.';
-    const AYUDA_SIN_MODULOS = 'Esta loseta aún no tiene módulos; el registro quedará como módulo de primer nivel.';
-    const AYUDA_MODULO      = 'Vacío = módulo de primer nivel. Si eliges un módulo, este registro será un submódulo y aparecerá desplegable dentro de él.';
+    const AYUDA_SIN_LOSETA  = 'Sin loseta padre, el registro es una loseta.';
+    const AYUDA_SIN_MODULOS = 'Esta loseta no tiene módulos; quedará como módulo.';
+    const AYUDA_MODULO      = 'Si elige un módulo, este registro será un submódulo.';
 
     let arbolDesactualizado = false;
 
@@ -317,7 +310,6 @@
         }
 
         const tabla = $('#tabla_modulos').DataTable({
-            responsive: true,
             columnDefs: [
                 { targets: 0, visible: false, searchable: false },
                 { targets: 3, visible: false },
@@ -333,24 +325,6 @@
                         .text(group)
                         .append($('<span class="text-muted ms-2"></span>').text(`${rows.count()} registro(s)`))
                         .end();
-                }
-            },
-            language: {
-                "lengthMenu": "Mostrar _MENU_ registros por página",
-                "zeroRecords": "No se encontraron resultados",
-                "info": "Mostrando página _PAGE_ de _PAGES_",
-                "infoEmpty": "No hay registros disponibles",
-                "infoFiltered": "(filtrado de _MAX_ registros totales)",
-                "search": "Buscar:",
-                "loadingRecords": "Cargando...",
-                "processing": "Procesando...",
-                "emptyTable": "No hay datos disponibles en la tabla",
-                "thousands": ",",
-                "decimal": ".",
-                "infoPostFix": "",
-                "aria": {
-                    "sortAscending": ": activar para ordenar la columna ascendente",
-                    "sortDescending": ": activar para ordenar la columna descendente"
                 }
             }
         });

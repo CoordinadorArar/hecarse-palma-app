@@ -37,6 +37,8 @@ class ProduccionModel extends Model
 
     private ?bool $modificacion = null;
 
+    private ?bool $planeacion = null;
+
     // ── Catálogos ────────────────────────────────────────────────────────────
 
     public function getEmpresas(): array
@@ -543,6 +545,51 @@ class ProduccionModel extends Model
         return $this->eliminadas;
     }
 
+    public function planeacionDisponible(): bool
+    {
+        if ($this->planeacion === null) {
+            $this->planeacion = (int) $this->db->query(
+                "SELECT CASE WHEN OBJECT_ID('dbo.pPlaneacion', 'U') IS NOT NULL AND OBJECT_ID('dbo.pPlaneacionLinea', 'U') IS NOT NULL
+                              AND OBJECT_ID('dbo.pPlaneacionTrabajador', 'U') IS NOT NULL
+                              AND OBJECT_ID('dbo.pPlaneacionAusencia', 'U') IS NOT NULL THEN 1 ELSE 0 END AS existe"
+            )->getRow()->existe === 1;
+        }
+
+        return $this->planeacion;
+    }
+
+    protected function vincularPlaneacion(int $empresa, int $linea, string $numero): bool
+    {
+        if ($linea <= 0 || ! $this->planeacionDisponible()) {
+            return true;
+        }
+
+        $this->db->query(
+            "UPDATE l SET tipoTransaccion = ?, numeroTransaccion = ?
+               FROM pPlaneacionLinea l
+               JOIN pPlaneacion p ON p.id = l.planeacion
+              WHERE l.id = ? AND p.empresa = ? AND l.estado IN ('COMPLETADA', 'PARCIAL') AND l.numeroTransaccion IS NULL
+                AND EXISTS (SELECT 1 FROM aNovedad n WHERE n.empresa = p.empresa AND RTRIM(n.codigo) = l.novedad AND ISNULL(n.claseLabor, 0) <> 2
+                               AND CASE WHEN LTRIM(RTRIM(n.grupo)) = '02' THEN 'RLF' ELSE 'TLA' END = ?)",
+            [static::TIPO, $numero, $linea, $empresa, static::TIPO]
+        );
+
+        return $this->db->affectedRows() === 1;
+    }
+
+    protected function desvincularPlaneacion(int $empresa, string $numero): void
+    {
+        if ($this->planeacionDisponible()) {
+            $this->db->query(
+                'UPDATE l SET tipoTransaccion = NULL, numeroTransaccion = NULL
+                   FROM pPlaneacionLinea l
+                   JOIN pPlaneacion p ON p.id = l.planeacion
+                  WHERE p.empresa = ? AND l.tipoTransaccion = ? AND l.numeroTransaccion = ?',
+                [$empresa, static::TIPO, trim($numero)]
+            );
+        }
+    }
+
     protected function sinEliminadas(string $alias): string
     {
         if (! $this->tablaEliminadas()) {
@@ -1002,6 +1049,8 @@ class ProduccionModel extends Model
                 return ['success' => false, 'message' => 'No se pudo eliminar la transacción ' . $numero . '.'];
             }
 
+            $this->desvincularPlaneacion($empresa, $numero);
+
             $auditoria = $this->insertarAuditoria('DELETE', [
                 'empresa'     => $empresa,
                 'tipo'        => static::TIPO,
@@ -1038,7 +1087,7 @@ class ProduccionModel extends Model
                 . ', por lo que quedó en 0 kilos.';
         }
 
-        return $avisos;
+        return array_values(array_unique($avisos));
     }
 
     private function insertarDetalle(int $empresa, int $anio, int $mes, string $numero, array $datos, array $reparto): array|string
