@@ -96,7 +96,7 @@
             </div>
             <div class="card-body p-0">
 
-                <div class="table-responsive" id="gp_contenedor_tabla">
+                <div id="gp_contenedor_tabla">
                     <table id="tabla_caracteristicas" class="table table-striped table-hover align-middle mb-0 gp-tabla" style="width:100%">
                         <thead class="gp-thead">
                             <tr>
@@ -165,10 +165,7 @@
                                     <span class="input-group-text bg-light"><i class="bi bi-hash" aria-hidden="true"></i></span>
                                     <input type="text" class="form-control font-monospace" id="car_codigo" inputmode="numeric" autocomplete="off" required>
                                 </div>
-                            </div>
-
-                            <div class="col-12" id="car_ayuda_codigo">
-                                <div class="form-text mt-0">Consecutivo sugerido. Puede cambiarlo si necesita otro código.</div>
+                                <div class="form-text" id="car_ayuda_codigo">Consecutivo sugerido; puede cambiarlo.</div>
                             </div>
 
                             <div class="col-12">
@@ -177,16 +174,15 @@
                                     <span class="input-group-text bg-light"><i class="bi bi-card-text" aria-hidden="true"></i></span>
                                     <input type="text" class="form-control" id="car_descripcion" maxlength="500" autocomplete="off" required>
                                 </div>
-                                <div class="form-text">Nombre de la plaga, enfermedad o estado de la palma. Puede repetirse en grupos distintos.</div>
+                                <div class="form-text">Plaga, enfermedad o estado de la palma.</div>
                             </div>
 
                             <div class="col-12">
                                 <div class="gp-panel-opcion activo" id="car_panel_grupo">
-                                    <div class="form-check form-switch mb-1">
+                                    <div class="form-check form-switch mb-0">
                                         <input class="form-check-input" type="checkbox" id="car_maneja_grupo" checked>
                                         <label class="form-check-label" for="car_maneja_grupo">Asignar grupo característico</label>
                                     </div>
-                                    <span class="gp-subtexto">Indica en qué proceso de campo se usa la característica.</span>
 
                                     <div class="gp-revelar mt-3" id="car_bloque_grupo">
                                         <label class="form-label mb-1 small fw-semibold text-muted" for="car_grupo">Grupo característico <span class="text-danger">*</span></label>
@@ -202,7 +198,7 @@
                                     </div>
 
                                     <div class="gp-nota-alerta mt-3 d-none" id="car_nota_sin_grupo">
-                                        <i class="bi bi-exclamation-triangle-fill me-1" aria-hidden="true"></i>Sin grupo, la característica no se ofrece en los censos ni en los tratamientos de campo. Hoy todas las características registradas tienen grupo.
+                                        <i class="bi bi-exclamation-triangle-fill me-1" aria-hidden="true"></i>Sin grupo, no se ofrece en censos ni tratamientos de campo.
                                     </div>
                                 </div>
                             </div>

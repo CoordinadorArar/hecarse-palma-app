@@ -927,7 +927,6 @@ class ProduccionController extends BaseController
         }
 
         $lineas = [];
-        $vistas = [];
 
         foreach ($recibidas as $i => $fila) {
             $orden = $i + 1;
@@ -981,14 +980,6 @@ class ProduccionController extends BaseController
             if ($fueraPeriodo) {
                 return 'La fecha de la línea ' . $orden . ' no pertenece al periodo.';
             }
-
-            $clave = strtoupper($finca) . '|' . strtoupper($lote) . '|' . $fechaLinea;
-
-            if (isset($vistas[$clave])) {
-                return 'El lote ' . $lote . ' de la finca ' . $finca . ' ya está en otra línea con la fecha ' . $fechaLinea . ' (línea ' . $vistas[$clave] . ').';
-            }
-
-            $vistas[$clave] = $orden;
 
             $trabajadores = $this->trabajadoresValidos($empresa, $fechaLinea, $fila['trabajadores'] ?? [], $orden, $anio, $mes, $periodo);
 
@@ -1122,7 +1113,7 @@ class ProduccionController extends BaseController
                 . ' no tiene peso promedio registrado en el periodo ' . $periodo . ', por lo que quedó en 0 kilos.';
         }
 
-        return $avisos;
+        return array_values(array_unique($avisos));
     }
 
     private function fechaValida(string $fecha): ?string

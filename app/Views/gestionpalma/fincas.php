@@ -67,7 +67,7 @@
             </div>
             <div class="card-body p-0">
 
-                <div class="table-responsive" id="gp_contenedor_tabla">
+                <div id="gp_contenedor_tabla">
                     <table id="tabla_fincas" class="table table-striped table-hover align-middle mb-0 gp-tabla" style="width:100%">
                         <thead class="gp-thead">
                             <tr>
@@ -222,7 +222,7 @@
                                     <span class="input-group-text bg-light"><i class="bi bi-map"></i></span>
                                     <input type="text" class="form-control" id="finca_zona" maxlength="100">
                                 </div>
-                                <div class="form-text">Texto libre. Ej.: Zona Centro.</div>
+                                <div class="form-text">Ej.: Zona Centro.</div>
                             </div>
 
                             <div class="col-md-4">
@@ -231,7 +231,7 @@
                                     <span class="input-group-text bg-light"><i class="bi bi-diagram-3"></i></span>
                                     <input type="text" class="form-control font-monospace" id="finca_centro_operacion" maxlength="10" autocomplete="off">
                                 </div>
-                                <div class="form-text">Texto libre. Ej.: 002, 003</div>
+                                <div class="form-text">Ej.: 002, 003.</div>
                             </div>
 
                             <div class="col-12">

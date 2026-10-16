@@ -120,6 +120,7 @@ class LaboresCcostoFecha extends Informe
         $sinReg  = 0;
         $sinVal  = 0.0;
         $deLote  = 0;
+        $porLabor = [];
 
         while (($c = $query->getUnbufferedRow('array')) !== null) {
             $nombre = (int) $c['existe'] === 1 ? trim($c['ccostoNombre']) : 'Centro de costo no encontrado';
@@ -128,7 +129,9 @@ class LaboresCcostoFecha extends Informe
             $fecha  = substr((string) $c['fecha'], 0, 10);
             $finca  = trim($c['finca']);
             $contr  = (int) $c['contratista'] === 1 ? $valor : 0;
-            $f      = &$filas[$c['ccosto'] . '|' . $c['labor'] . '|' . $c['uMedida']];
+            $f      = &$filas[$c['ccosto'] . '|' . $c['labor'] . '|' . $c['uMedida'] . '|' . $fecha];
+            $porLabor[$c['ccosto'] . '|' . $c['labor'] . '|' . $c['uMedida']] = ($porLabor[$c['ccosto'] . '|' . $c['labor'] . '|' . $c['uMedida']] ?? 0) + $valor;
+            $f['claveLabor'] = $c['ccosto'] . '|' . $c['labor'] . '|' . $c['uMedida'];
             $f['ccosto']   = $clave;
             $f['grupo']    = $c['grupo'] === '' ? 'Sin grupo' : $c['grupo'] . ' — ' . trim($c['grupoNombre']);
             $f['labor']    = $c['labor'] . ' — ' . trim($c['laborNombre']);
@@ -138,7 +141,7 @@ class LaboresCcostoFecha extends Informe
             $f['valorContratista'] = ($f['valorContratista'] ?? 0) + $contr;
             $f['hay'][(int) $c['contratista']] = true;
             $f['precios'][(string) (float) $c['precio']] = true;
-            $f['fechas'][$fecha] = true;
+            $f['fecha']    = $fecha;
             $f['fincas'][$finca] = true;
             unset($f);
 
@@ -170,7 +173,7 @@ class LaboresCcostoFecha extends Informe
 
         $filas = array_values($filas);
 
-        usort($filas, static fn ($x, $y) => [$centros[$x['ccosto']]['sin'], $centros[$y['ccosto']]['valor'], $x['ccosto'], $y['valor']] <=> [$centros[$y['ccosto']]['sin'], $centros[$x['ccosto']]['valor'], $y['ccosto'], $x['valor']]);
+        usort($filas, static fn ($x, $y) => [$centros[$x['ccosto']]['sin'], $centros[$y['ccosto']]['valor'], $x['ccosto'], $porLabor[$y['claveLabor']], $x['claveLabor'], $x['fecha']] <=> [$centros[$y['ccosto']]['sin'], $centros[$x['ccosto']]['valor'], $y['ccosto'], $porLabor[$x['claveLabor']], $y['claveLabor'], $y['fecha']]);
 
         if (count($filas) > self::MAX_FILAS) {
             $filas    = array_slice($filas, 0, self::MAX_FILAS);
@@ -187,11 +190,11 @@ class LaboresCcostoFecha extends Informe
                 'finca'                  => implode(' · ', self::lista($f['fincas'])),
                 'grupo'                  => $f['grupo'],
                 'labor'                  => $f['labor'],
+                'fecha'                  => $f['fecha'],
                 'uMedida'                => $f['uMedida'],
                 'ejecucion'              => isset($f['hay'][1]) ? (isset($f['hay'][0]) ? 'Mixta' : 'Contratista') : 'Nómina',
                 'cantidad'               => round($f['cantidad'], 2),
                 'precio'                 => round($f['cantidad'], 2) == 0 ? null : round($f['valor'] / $f['cantidad'], 2),
-                'dias'                   => count($f['fechas']),
                 'valor'                  => round($f['valor'], 2),
                 'valorContratista'       => round($f['valorContratista'], 2),
                 'negativo'               => $f['valor'] < 0,
@@ -288,11 +291,11 @@ class LaboresCcostoFecha extends Informe
                 ['clave' => 'finca', 'titulo' => 'Finca', 'tipo' => 'texto', 'alineacion' => 'izquierda', 'total' => false],
                 ['clave' => 'grupo', 'titulo' => 'Grupo labor', 'tipo' => 'texto', 'alineacion' => 'izquierda', 'total' => false],
                 ['clave' => 'labor', 'titulo' => 'Labor', 'tipo' => 'texto', 'alineacion' => 'izquierda', 'total' => false],
+                ['clave' => 'fecha', 'titulo' => 'Fecha ejecución', 'tipo' => 'fecha', 'alineacion' => 'centro', 'total' => false],
                 ['clave' => 'uMedida', 'titulo' => 'U. medida', 'tipo' => 'texto', 'alineacion' => 'centro', 'total' => false],
                 ['clave' => 'ejecucion', 'titulo' => 'Ejecución', 'tipo' => 'texto', 'alineacion' => 'centro', 'total' => false, 'ayuda' => 'Nómina, Contratista o Mixta según los trabajadores de la labor.'],
-                ['clave' => 'cantidad', 'titulo' => 'Cantidad', 'tipo' => 'decimal', 'alineacion' => 'derecha', 'total' => false, 'ayuda' => 'Suma por labor; no se totaliza porque mezcla unidades.'],
+                ['clave' => 'cantidad', 'titulo' => 'Cantidad', 'tipo' => 'decimal', 'alineacion' => 'derecha', 'total' => false, 'ayuda' => 'Suma por labor y fecha; no se totaliza porque mezcla unidades.'],
                 ['clave' => 'precio', 'titulo' => 'Precio prom.', 'tipo' => 'moneda', 'alineacion' => 'derecha', 'total' => false, 'ayuda' => 'Valor / cantidad.'],
-                ['clave' => 'dias', 'titulo' => 'Días', 'tipo' => 'entero', 'alineacion' => 'derecha', 'total' => false, 'ayuda' => 'Fechas distintas con esta labor en el centro de costo.'],
                 ['clave' => 'valor', 'titulo' => 'Valor', 'tipo' => 'moneda', 'alineacion' => 'derecha', 'total' => true, 'ayuda' => 'Los ajustes con signo negativo restan.'],
                 ['clave' => 'valorContratista', 'titulo' => 'Valor contratista', 'tipo' => 'moneda', 'alineacion' => 'derecha', 'total' => false],
             ],

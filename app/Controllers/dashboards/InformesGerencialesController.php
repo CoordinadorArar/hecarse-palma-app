@@ -4,6 +4,7 @@ namespace App\Controllers\Dashboards;
 
 use App\Controllers\BaseController;
 use App\Models\InformesGerencialesModel;
+use App\Models\MapeoPalmasModel;
 use App\Models\ReportesModel;
 use CodeIgniter\HTTP\RedirectResponse;
 use CodeIgniter\HTTP\ResponseInterface;
@@ -16,15 +17,19 @@ class InformesGerencialesController extends BaseController
 
     private const MESES_NOMBRE = [1 => 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
+    private const MAPAS = [1 => ['002' => 'cruceiro', '003' => 'canaguate']];
+
     private $session;
     private InformesGerencialesModel $model;
     private ReportesModel $reportesModel;
+    private MapeoPalmasModel $mapeoModel;
 
     public function __construct()
     {
         $this->session       = session();
         $this->model         = new InformesGerencialesModel();
         $this->reportesModel = new ReportesModel();
+        $this->mapeoModel    = new MapeoPalmasModel();
     }
 
     public function index($id_loseta): string|RedirectResponse
@@ -53,6 +58,16 @@ class InformesGerencialesController extends BaseController
             'nombre'      => 'Presupuesto vs Ejecutado',
             'icono'       => 'bi bi-clipboard-data',
             'descripcion' => 'Producción en kg: presupuesto vs báscula y labores de cosecha',
+        ], [
+            'clave'       => 'ciclos-cosecha',
+            'nombre'      => 'Ciclos de cosecha',
+            'icono'       => 'bi bi-map',
+            'descripcion' => 'Días desde el último pase de cosecha por lote sobre el mapa de la finca',
+        ], [
+            'clave'       => 'ciclos-poda',
+            'nombre'      => 'Ciclos de poda',
+            'icono'       => 'bi bi-scissors',
+            'descripcion' => 'Días para el próximo ingreso de poda por lote sobre el mapa de la finca',
         ]];
         $data['empresas']    = $empresas;
         $data['anios']       = $anios;
@@ -60,6 +75,7 @@ class InformesGerencialesController extends BaseController
         $data['empresa_sel'] = $empresaSel;
         $data['anio_sel']    = $anioSel;
         $data['mes_sel']     = $mesSel > 0 ? $mesSel : (int) date('n');
+        $data['mapas']       = self::MAPAS;
 
         return view('dashboards/informesGerenciales', $data);
     }
@@ -89,12 +105,18 @@ class InformesGerencialesController extends BaseController
             return $acceso;
         }
 
-        if (trim((string) $this->request->getPost('informe')) !== 'presupuesto-ejecutado') {
-            return $this->error('El informe solicitado no existe.', 404);
-        }
+        return match (trim((string) $this->request->getPost('informe'))) {
+            'presupuesto-ejecutado' => $this->presupuestoEjecutado(),
+            'ciclos-cosecha'        => $this->ciclos('ciclos-cosecha'),
+            'ciclos-poda'           => $this->ciclos('ciclos-poda'),
+            default                 => $this->error('El informe solicitado no existe.', 404),
+        };
+    }
 
+    private function presupuestoEjecutado(): ResponseInterface
+    {
         $empresa = (int) $this->request->getPost('empresa');
-        $anio    = (int) $this->request->getPost('anio');
+        $anio   = (int) $this->request->getPost('anio');
         $mes     = (int) $this->request->getPost('mes');
         $finca   = trim((string) $this->request->getPost('finca'));
 
@@ -221,6 +243,210 @@ class InformesGerencialesController extends BaseController
             'meses'   => $raiz['meses'],
             'arbol'   => $hijosE === [] ? [] : [$raiz],
         ]);
+    }
+
+    private function ciclos(string $informe): ResponseInterface
+    {
+        $empresa = (int) $this->request->getPost('empresa');
+        $finca   = trim((string) $this->request->getPost('finca'));
+        $corte   = $this->request->getPost('corte') ?? '';
+        $corte   = is_string($corte) ? trim($corte) : '-';
+        $corte   = $corte === '' ? date('Y-m-d') : $corte;
+        $fecha   = \DateTime::createFromFormat('!Y-m-d', $corte);
+
+        if ($empresa <= 0 || ! $this->model->empresaExiste($empresa)) {
+            return $this->error('Debe seleccionar una empresa válida.');
+        }
+
+        if ($fecha === false || $fecha->format('Y-m-d') !== $corte) {
+            return $this->error('Debe indicar una fecha de corte válida.');
+        }
+
+        if ($corte > date('Y-m-d')) {
+            return $this->error('La fecha de corte no puede ser futura.');
+        }
+
+        $fincas = array_column($this->model->getFincas($empresa), 'nombre', 'codigo');
+
+        if ($finca === '' || ! array_key_exists($finca, $fincas)) {
+            return $this->error('Debe seleccionar una finca válida.');
+        }
+
+        try {
+            return $this->response->setJSON($this->datosCiclos($informe, $empresa, $finca, (string) $fincas[$finca], $corte));
+        } catch (\Throwable $e) {
+            log_message('error', 'Error consultando el informe ' . $informe . ': ' . $e->getMessage());
+
+            return $this->error('No se pudo consultar el informe.', 500);
+        }
+    }
+
+    private function datosCiclos(string $informe, int $empresa, string $finca, string $nombre, string $corte): array
+    {
+        $poda   = $informe === 'ciclos-poda';
+        $dia    = static fn (string $f) => intdiv(strtotime($f . ' 00:00:00 UTC'), 86400);
+        $fechaD = static fn (int $d) => gmdate('Y-m-d', $d * 86400);
+        $hoy    = $dia($corte);
+        $brecha = $poda ? 7 : 1;
+        $rangos = $poda ? [
+            ['clave' => 'vencido', 'etiqueta' => 'Vencido', 'desde' => null, 'hasta' => -1, 'color' => '#FF0000'],
+            ['clave' => 'proximo', 'etiqueta' => 'Próximo (0 a 45 días)', 'desde' => 0, 'hasta' => 45, 'color' => '#FF9900'],
+            ['clave' => 'intermedio', 'etiqueta' => 'Intermedio (46 a 90 días)', 'desde' => 46, 'hasta' => 90, 'color' => '#FFD600'],
+            ['clave' => 'al-dia', 'etiqueta' => 'Al día (más de 90 días)', 'desde' => 91, 'hasta' => null, 'color' => '#00B050'],
+        ] : [
+            ['clave' => 'seguimiento', 'etiqueta' => 'En seguimiento (menos de 10 días)', 'desde' => 0, 'hasta' => 9, 'color' => '#0d6efd'],
+            ['clave' => 'normal', 'etiqueta' => 'Próximo a cosechar (10 a 12 días)', 'desde' => 10, 'hasta' => 12, 'color' => '#00B050'],
+            ['clave' => 'alerta', 'etiqueta' => 'Listo para cosechar (13 a 15 días)', 'desde' => 13, 'hasta' => 15, 'color' => '#FF9900'],
+            ['clave' => 'sobremaduracion', 'etiqueta' => 'Sobremaduración (más de 15 días)', 'desde' => 16, 'hasta' => null, 'color' => '#FF0000'],
+        ];
+        $rangos[] = ['clave' => 'sin-dato', 'etiqueta' => 'Sin registro', 'desde' => null, 'hasta' => null, 'color' => '#ADB5BD'];
+
+        $fechas = [];
+
+        foreach ($this->model->getFechasLabor($empresa, $finca, $poda ? 'TLA' : 'TLC', $fechaD($hoy - ($poda ? 730 : 400)), $corte) as $r) {
+            $actual = $fechas[$r['lote']][$r['fecha']] ?? null;
+
+            if ($actual === null || (int) $r['ciclos'] > (int) $actual['ciclos']) {
+                $fechas[$r['lote']][$r['fecha']] = $r;
+            }
+        }
+
+        $porEstado = array_fill_keys(array_column($rangos, 'clave'), 0);
+        $lotes     = [];
+        $hectareas = 0;
+
+        foreach ($this->model->getLotesCiclo($empresa, $finca) as $l) {
+            $dias   = array_keys($fechas[$l['codigo']] ?? []);
+            $ciclo  = $poda ? 180 : 10;
+            $item   = ['codigo' => $l['codigo'], 'descripcion' => $l['descripcion'], 'hectareas' => round((float) $l['hectareas'], 2), 'inicio' => '', 'fin' => '', 'diasLabor' => null,
+                'ciclo' => $ciclo, 'proximo' => '', 'diasTranscurridos' => null, 'diasParaIngreso' => null, 'estado' => 'sin-dato', 'labor' => ''];
+
+            if ($dias !== []) {
+                $fin    = $dia(end($dias));
+                $inicio = $fin;
+
+                for ($i = count($dias) - 2; $i >= 0 && $inicio - $dia($dias[$i]) <= $brecha; $i--) {
+                    $inicio = $dia($dias[$i]);
+                }
+
+                $ultima = $fechas[$l['codigo']][$fechaD($fin)];
+                $ciclo  = $poda && (int) $ultima['ciclos'] > 0 ? (int) $ultima['ciclos'] : $ciclo;
+                $trans  = $hoy - $fin;
+                $para   = $fin + $ciclo - $hoy;
+
+                $item = array_merge($item, [
+                    'inicio'            => $fechaD($inicio),
+                    'fin'               => $fechaD($fin),
+                    'diasLabor'         => $fin - $inicio + 1,
+                    'ciclo'             => $ciclo,
+                    'proximo'           => $fechaD($fin + $ciclo),
+                    'diasTranscurridos' => $trans,
+                    'diasParaIngreso'   => $para,
+                    'estado'            => $poda
+                        ? ($para < 0 ? 'vencido' : ($para <= 45 ? 'proximo' : ($para <= 90 ? 'intermedio' : 'al-dia')))
+                        : ($trans < 10 ? 'seguimiento' : ($trans <= 12 ? 'normal' : ($trans <= 15 ? 'alerta' : 'sobremaduracion'))),
+                    'labor'             => $ultima['labor'] . ' — ' . $ultima['laborNombre'],
+                ]);
+            }
+
+            $porEstado[$item['estado']]++;
+            $hectareas += $item['hectareas'];
+            $lotes[]    = $item;
+        }
+
+        $mapa    = self::MAPAS[$empresa][$finca] ?? null;
+        $sinLote = [];
+
+        if ($mapa !== null) {
+            preg_match_all('/ name="([^"]+)"/', (string) file_get_contents(FCPATH . 'public/assets/mapas/' . $mapa . '.svg'), $m);
+            $sinLote = array_values(array_diff($m[1], array_column($lotes, 'codigo')));
+        }
+
+        return [
+            'success' => true,
+            'message' => '',
+            'informe' => $informe,
+            'corte'   => $corte,
+            'finca'   => ['codigo' => $finca, 'descripcion' => $nombre],
+            'mapa'    => $mapa,
+            'mapaUrl' => $mapa === null ? null : base_url('public/assets/mapas/' . $mapa . '.svg'),
+            'rangos'  => $rangos,
+            'kpis'    => ['lotes' => count($lotes), 'hectareas' => round($hectareas, 2), 'porEstado' => $porEstado],
+            'lotes'   => $lotes,
+            'sinLote' => $sinLote,
+            'geo'     => $this->geoFinca($empresa, $finca),
+        ];
+    }
+
+    public function palmas(): ResponseInterface
+    {
+        $acceso = $this->acceso();
+
+        if ($acceso !== null) {
+            return $acceso;
+        }
+
+        if (! $this->mapeoModel->tablasExisten()) {
+            return $this->error('Las tablas del mapeo de palmas no existen. Ejecute crear_mapeo_palmas.sql.', 503);
+        }
+
+        $empresa = (int) $this->request->getPost('empresa');
+        $finca   = trim((string) $this->request->getPost('finca'));
+        $lote    = trim((string) $this->request->getPost('lote'));
+
+        if ($empresa <= 0 || ! $this->model->empresaExiste($empresa)) {
+            return $this->error('Debe seleccionar una empresa válida.');
+        }
+
+        try {
+            if ($this->mapeoModel->lote($empresa, $finca, $lote) === null) {
+                return $this->error('El lote no existe en la finca seleccionada.');
+            }
+
+            $datos = $this->mapeoModel->palmasCompactas($empresa, $finca, $lote);
+        } catch (\Throwable $e) {
+            log_message('error', 'Error consultando palmas del informe: ' . $e->getMessage());
+
+            return $this->error('No se pudieron consultar las palmas.', 500);
+        }
+
+        return $this->response->setJSON(['success' => true, 'message' => '', 'lote' => $lote, 'total' => count($datos['palmas'])] + $datos);
+    }
+
+    private function geoFinca(int $empresa, string $finca): ?array
+    {
+        $filas = $this->mapeoModel->tablasExisten() ? $this->mapeoModel->geometrias($empresa, $finca) : [];
+
+        if ($filas === []) {
+            return null;
+        }
+
+        $features = [];
+        $area     = 0.0;
+        $lat      = 0.0;
+        $lon      = 0.0;
+
+        foreach ($filas as $g) {
+            $peso       = max((float) $g['areaHa'], 0.0001);
+            $area      += $peso;
+            $lat       += (float) $g['centroLat'] * $peso;
+            $lon       += (float) $g['centroLon'] * $peso;
+            $features[] = [
+                'type'       => 'Feature',
+                'properties' => [
+                    'codigo'      => $g['codigo'],
+                    'descripcion' => $g['descripcion'],
+                    'areaHa'      => (float) $g['areaHa'],
+                    'centro'      => [(float) $g['centroLat'], (float) $g['centroLon']],
+                ],
+                'geometry'   => json_decode($g['geojson'], true),
+            ];
+        }
+
+        return [
+            'lotes'  => ['type' => 'FeatureCollection', 'features' => $features],
+            'centro' => [round($lat / $area, 7), round($lon / $area, 7)],
+        ];
     }
 
     private function sumar(array $tot, ?array $p, array $f, array $l): array

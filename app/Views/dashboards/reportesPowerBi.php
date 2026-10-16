@@ -31,7 +31,7 @@
         <div class="tab-pane fade show active" id="reportesList" role="tabpanel" aria-labelledby="reportesList-tab">
             <div class="card mt-3">
                 <div class="card-body">
-                    <div class="table-responsive" id="contenedor_table">
+                    <div id="contenedor_table">
                         <?= $tabla_reportes ?>
                     </div>
                     <div class="modal fade" id="ModalEditarReporte" tabindex="-1" aria-labelledby="exampleModalLabel"
@@ -116,7 +116,7 @@
                                         <!-- Tab Asignar Usuarios -->
                                         <div class="tab-pane fade" id="asginarUsuariosReporte" role="tabpanel"
                                             aria-labelledby="asginarUsuariosReporte-tab">
-                                            <div class="table-responsive mt-3">
+                                            <div class="mt-3">
                                                 <table class="table table-sm" id="tabla_usuarios_asignados">
                                                     <thead>
                                                         <tr>
@@ -278,27 +278,7 @@
             $('#tabla_reportes').DataTable().destroy();
         }
 
-        $('#tabla_reportes').DataTable({
-            responsive: true,
-            language: {
-                "lengthMenu": "Mostrar _MENU_ registros por página",
-                "zeroRecords": "No se encontraron resultados",
-                "info": "Mostrando página _PAGE_ de _PAGES_",
-                "infoEmpty": "No hay registros disponibles",
-                "infoFiltered": "(filtrado de _MAX_ registros totales)",
-                "search": "Buscar:",
-                "loadingRecords": "Cargando...",
-                "processing": "Procesando...",
-                "emptyTable": "No hay datos disponibles en la tabla",
-                "thousands": ",",
-                "decimal": ".",
-                "infoPostFix": "",
-                "aria": {
-                    "sortAscending": ": activar para ordenar la columna ascendente",
-                    "sortDescending": ": activar para ordenar la columna descendente"
-                }
-            }
-        });
+        $('#tabla_reportes').DataTable();
     }
 
     const renderizarTablaUsuarios = () => {
@@ -306,28 +286,12 @@
             $('#tabla_usuarios_asignados').DataTable().destroy();
         }
 
-        $('#tabla_usuarios_asignados').DataTable({
-            responsive: true,
-            language: {
-                "lengthMenu": "Mostrar _MENU_ registros por página",
-                "zeroRecords": "No se encontraron resultados",
-                "info": "Mostrando página _PAGE_ de _PAGES_",
-                "infoEmpty": "No hay registros disponibles",
-                "infoFiltered": "(filtrado de _MAX_ registros totales)",
-                "search": "Buscar:",
-                "loadingRecords": "Cargando...",
-                "processing": "Procesando...",
-                "emptyTable": "No hay datos disponibles en la tabla",
-                "thousands": ",",
-                "decimal": ".",
-                "infoPostFix": "",
-                "aria": {
-                    "sortAscending": ": activar para ordenar la columna ascendente",
-                    "sortDescending": ": activar para ordenar la columna descendente"
-                }
-            }
-        });
+        $('#tabla_usuarios_asignados').DataTable();
     }
+
+    $('#ModalEditarReporte, #asginarUsuariosReporte-tab').on('shown.bs.modal shown.bs.tab', () => {
+        $('#tabla_usuarios_asignados').DataTable().columns.adjust();
+    });
 
     const createReporte = async () => {
         $('#btn_crear_reporte').prop('disabled', true);
@@ -385,15 +349,11 @@
                 //$('#invalidCheck').prop('checked', result.reporte.FechaFinalizacion === null);
 
                 let usuarios = JSON.parse(result.reporte.Usuarios);
-                let checks = document.getElementsByClassName('check-usuario');
+                let checks = $('#tabla_usuarios_asignados').DataTable().$('.check-usuario').prop('checked', false);
 
                 if (Array.isArray(usuarios)) {
                     usuarios.forEach(usuario => {
-                        Array.from(checks).forEach(check => {
-                            if (check.getAttribute('data-id') == usuario.id) {
-                                check.checked = true;
-                            }
-                        });
+                        checks.filter((i, check) => check.getAttribute('data-id') == usuario.id).prop('checked', true);
                     });
                 } else {
                     console.error('El JSON no contiene un array válido');

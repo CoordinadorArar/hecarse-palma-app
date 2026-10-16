@@ -64,14 +64,15 @@ const renderizarTabla = () => {
     }
     $('#tabla_anios').DataTable({
         paging: false,
-        info: false,
-        searching: false,
-        lengthChange: false,
+        dom: "<'gp-dt-barra'if><'table-responsive't>",
         columnDefs: [{ targets: [5], orderable: false }],
         order: [[0, 'desc']],
         language: {
-            zeroRecords: 'No se encontraron resultados',
-            emptyTable: 'No hay datos disponibles'
+            info: '_TOTAL_ registros',
+            infoEmpty: '0 registros',
+            infoFiltered: '(de _MAX_)',
+            search: 'Buscar en resultados:',
+            searchPlaceholder: 'Filtrar lo listado…'
         }
     });
 };

@@ -95,7 +95,7 @@ $meses = [
             </div>
             <div class="card-body p-0">
 
-                <div class="table-responsive" id="gp_contenedor_tabla">
+                <div id="gp_contenedor_tabla">
                     <table id="tabla_periodos_nomina" class="table table-striped table-hover align-middle mb-0 gp-tabla gp-tabla-ancha" style="width:100%">
                         <thead class="gp-thead">
                             <tr>
@@ -198,7 +198,7 @@ $meses = [
                             </div>
 
                             <div class="col-12 d-none" id="periodo_aviso_llave">
-                                <div class="form-text text-muted mt-0">
+                                <div class="form-text mt-0">
                                     <i class="bi bi-info-circle me-1"></i>La empresa, el año, el mes y el número del periodo no se pueden modificar.
                                 </div>
                             </div>
@@ -235,7 +235,7 @@ $meses = [
                                     <span class="input-group-text bg-light"><i class="bi bi-card-text"></i></span>
                                     <input type="text" class="form-control" id="periodo_nombre" maxlength="250">
                                 </div>
-                                <div class="form-text">Opcional. Si se deja vacío se identifica por año, mes y número.</div>
+                                <div class="form-text">Si se deja vacío, se identifica por año, mes y número.</div>
                             </div>
 
                             <div class="col-md-3">

@@ -340,6 +340,12 @@ const filaTrabajador = (linea, trabajador) => `
         </td>
     </tr>`;
 
+const chipCuadrilla = (linea) => {
+    const grupo = estado.lineas.filter((item) => item.finca === linea.finca && item.lote === linea.lote && item.fecha === linea.fecha);
+
+    return grupo.length > 1 ? `<span class="gp-chip-fila tx-chip-neutro text-nowrap" title="Cuadrilla ${fmt(grupo.indexOf(linea) + 1)} de ${fmt(grupo.length)} en este lote y fecha"><i class="bi bi-people me-1" aria-hidden="true"></i>Cuadrilla ${fmt(grupo.indexOf(linea) + 1)} de ${fmt(grupo.length)}</span>` : '';
+};
+
 const tarjeta = (linea, indice) => {
     const vacia = sinLabores();
     const posicion = fmt(indice + 1);
@@ -369,6 +375,7 @@ const tarjeta = (linea, indice) => {
             <i class="bi bi-chevron-right gp-ruta-sep" aria-hidden="true"></i>
             <span class="font-monospace fw-semibold">${escaparHtml(linea.lote)}</span>
             ${chipFecha(linea.fecha, fechaFuera(linea.fecha))}
+            ${chipCuadrilla(linea)}
             ${linea.pesoRacimo > 0 || !hayPesos() ? '' : '<span class="gp-chip-fila ambar">Sin peso</span>'}
             <button type="button" class="btn btn-sm btn-outline-danger ms-auto" data-accion="eliminar-linea" data-linea="${linea.id}" title="Quitar el registro ${posicion}" aria-label="Quitar el registro ${posicion}">
                 <i class="bi bi-trash" aria-hidden="true"></i>
@@ -454,7 +461,7 @@ const renderizar = () => {
     mostrar($id('lista_lineas'), estado.lineas.length > 0);
     mostrar($id('pie_estimado'), estado.lineas.length > 0);
     mostrar($id('nota_sin_pesos'), estado.lineas.length > 0 && !hayPesos());
-    $id('texto_sin_lineas').textContent = `Elija finca, lote y racimos y pulse Agregar para repartir los ${fmt(racimosTiquete())} racimos del tiquete.`;
+    $id('texto_sin_lineas').textContent = `Agregue líneas para repartir los ${fmt(racimosTiquete())} racimos del tiquete.`;
     pintarMedidor();
     pintarTotales();
 };
@@ -664,7 +671,7 @@ const limpiarCaptura = () => {
     $id('cap_racimos').value = '';
     $id('cap_sacos').value = '0';
     estado.fechaLineaTocada = false;
-    marcarDuplicado(false);
+    $id('cap_fecha_linea').classList.remove('is-invalid');
     errorCaptura('error_fecha_linea', false);
     $id('ayuda_peso').className = 'gp-subtexto';
     $id('ayuda_peso').textContent = '';
@@ -903,14 +910,9 @@ const destacar = (id) => {
 
 const errorCaptura = (id, visible) => mostrar($id(id), visible);
 
-const marcarDuplicado = (activo) => {
-    $id('cap_lote').closest('.tx-select-ancho').classList.toggle('is-invalid', activo);
-    $id('cap_fecha_linea').classList.toggle('is-invalid', activo);
-};
-
 const agregarLinea = async () => {
     ['error_finca', 'error_lote', 'error_fecha_linea', 'error_racimos'].forEach((id) => errorCaptura(id, false));
-    marcarDuplicado(false);
+    $id('cap_fecha_linea').classList.remove('is-invalid');
 
     const finca = $id('cap_finca').value;
     const lote = $id('cap_lote').value;
@@ -943,19 +945,6 @@ const agregarLinea = async () => {
     if (racimos <= 0) {
         errorCaptura('error_racimos', true);
         $id('cap_racimos').focus();
-
-        return;
-    }
-
-    const repetida = estado.lineas.find((linea) => linea.finca === finca && linea.lote === lote && linea.fecha === fecha);
-
-    if (repetida) {
-        marcarDuplicado(true);
-        destacar(repetida.id);
-        Toast.fire({
-            icon: 'warning',
-            title: `Ya existe el Registro ${fmt(estado.lineas.indexOf(repetida) + 1)} para el lote ${escaparHtml(lote)} el ${escaparHtml(fechaCorta(fecha))}. Cambie la fecha o ajuste los racimos de ese registro.`
-        });
 
         return;
     }
@@ -1827,10 +1816,7 @@ document.addEventListener('DOMContentLoaded', () => {
     $id('sacos').addEventListener('input', previsualizar);
 
     $('#cap_finca').on('change', () => cargarLotes($id('cap_finca').value));
-    $('#cap_lote').on('change', () => {
-        marcarDuplicado(false);
-        consultarPeso($id('cap_finca').value, $id('cap_lote').value);
-    });
+    $('#cap_lote').on('change', () => consultarPeso($id('cap_finca').value, $id('cap_lote').value));
 
     $id('btn_agregar_linea').addEventListener('click', agregarLinea);
     ['cap_fecha_linea', 'cap_racimos', 'cap_sacos'].forEach((id) => $id(id).addEventListener('keydown', (evento) => {
@@ -1890,7 +1876,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     $id('cap_fecha_linea').addEventListener('input', () => {
         estado.fechaLineaTocada = true;
-        marcarDuplicado(false);
+        $id('cap_fecha_linea').classList.remove('is-invalid');
         errorCaptura('error_fecha_linea', false);
     });
 

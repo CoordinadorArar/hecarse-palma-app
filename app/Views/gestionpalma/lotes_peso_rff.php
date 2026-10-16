@@ -115,7 +115,7 @@ foreach ($lotes as $l) {
             </div>
             <div class="card-body p-0">
 
-                <div class="table-responsive" id="gp_contenedor_tabla">
+                <div id="gp_contenedor_tabla">
                     <table id="tabla_pesos" class="table table-striped table-hover align-middle mb-0 gp-tabla" style="width:100%">
                         <thead class="gp-thead">
                             <tr>
@@ -250,7 +250,7 @@ foreach ($lotes as $l) {
 
                             <div class="col-12">
                                 <div class="gp-nota">
-                                    <i class="bi bi-info-circle me-1"></i>Corresponden al rango de cosecha que sustenta este peso promedio. Se precargan con el primer y último día del periodo seleccionado; ajústelas solo si el rango real fue distinto.
+                                    <i class="bi bi-info-circle me-1"></i>Rango de cosecha del peso promedio. Se precarga con el periodo; ajústelo si el rango real fue distinto.
                                 </div>
                             </div>
 

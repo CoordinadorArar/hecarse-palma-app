@@ -5,6 +5,7 @@ $anios        = $anios ?: [$anio_sel];
 ?>
 
 <?php echo $this->section('css'); ?>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous">
 <link rel="stylesheet" href="<?= base_url() ?>public/assets/css/gestionpalma.css">
 <link rel="stylesheet" href="<?= base_url() ?>public/assets/css/informes.css">
 <link rel="stylesheet" href="<?= base_url() ?>public/assets/css/informesGerenciales.css">
@@ -54,7 +55,7 @@ $anios        = $anios ?: [$anio_sel];
                         </select>
                     </div>
                 </div>
-                <div class="col-6 col-md-3 col-lg-2">
+                <div class="col-6 col-md-3 col-lg-2 ig-filtro-ppto">
                     <label class="form-label mb-1 small fw-semibold text-muted" for="filtro_anio">Año</label>
                     <div class="input-group">
                         <span class="input-group-text"><i class="bi bi-calendar3" aria-hidden="true"></i></span>
@@ -65,7 +66,7 @@ $anios        = $anios ?: [$anio_sel];
                         </select>
                     </div>
                 </div>
-                <div class="col-6 col-md-3 col-lg-2">
+                <div class="col-6 col-md-3 col-lg-2 ig-filtro-ppto">
                     <label class="form-label mb-1 small fw-semibold text-muted" for="filtro_mes">Mes de corte</label>
                     <div class="input-group">
                         <span class="input-group-text"><i class="bi bi-calendar-check" aria-hidden="true"></i></span>
@@ -76,9 +77,16 @@ $anios        = $anios ?: [$anio_sel];
                         </select>
                     </div>
                 </div>
+                <div class="col-12 col-sm-6 col-md-3 ig-filtro-ciclo d-none">
+                    <label class="form-label mb-1 small fw-semibold text-muted" for="filtro_fecha">Fecha de corte</label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-calendar-event" aria-hidden="true"></i></span>
+                        <input type="date" class="form-control" id="filtro_fecha" value="<?= date('Y-m-d') ?>" max="<?= date('Y-m-d') ?>">
+                    </div>
+                </div>
                 <div class="col-12 col-md-6 col-lg-3">
                     <label class="form-label mb-1 small fw-semibold text-muted" for="filtro_finca">Finca</label>
-                    <div class="input-group flex-nowrap">
+                    <div class="input-group flex-nowrap inf-select2">
                         <span class="input-group-text"><i class="bi bi-geo-alt" aria-hidden="true"></i></span>
                         <div class="flex-grow-1 inf-selector">
                             <select class="form-select" id="filtro_finca">
@@ -89,8 +97,9 @@ $anios        = $anios ?: [$anio_sel];
                             </select>
                         </div>
                     </div>
+                    <div class="invalid-feedback">Seleccione una finca</div>
                 </div>
-                <div class="col-12 col-md-3 col-lg-auto">
+                <div class="col-12 col-md-3 col-lg-auto ig-filtro-ppto">
                     <span class="form-label mb-1 small fw-semibold text-muted d-block">Unidad</span>
                     <div class="btn-group w-100" role="group" aria-label="Unidad">
                         <input type="radio" class="btn-check" name="unidad" id="unidad_kg" value="kg" checked>
@@ -120,7 +129,9 @@ $anios        = $anios ?: [$anio_sel];
 <?php echo $this->section('scripts'); ?>
 <script>
     const BASE_URL = "<?= base_url() ?>";
-    const INFORMES_GERENCIALES = <?= json_encode(['informes' => $informes], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>;
+    const INFORMES_GERENCIALES = <?= json_encode(['informes' => $informes, 'mapas' => $mapas ?? []], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>;
 </script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
+<script src="<?= base_url('public/assets/js/comun/palmas_mapa.js') ?>"></script>
 <script src="<?= base_url('public/assets/js/dashboards/informesGerenciales.js') ?>"></script>
 <?php echo $this->endSection(); ?>

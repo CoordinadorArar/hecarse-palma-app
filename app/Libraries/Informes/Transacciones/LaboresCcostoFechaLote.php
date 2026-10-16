@@ -123,6 +123,7 @@ class LaboresCcostoFechaLote extends Informe
         $deLote   = 0;
         $sinLReg  = 0;
         $sinLVal  = 0.0;
+        $porLabor = [];
 
         while (($c = $query->getUnbufferedRow('array')) !== null) {
             $nombre = (int) $c['existe'] === 1 ? trim($c['ccostoNombre']) : 'Centro de costo no encontrado';
@@ -135,7 +136,9 @@ class LaboresCcostoFechaLote extends Informe
             $mes    = $mensual ? substr($fecha, 0, 7) : '';
             $finca  = trim($c['finca']);
             $contr  = (int) $c['contratista'] === 1 ? $valor : 0;
-            $f      = &$filas[$clave . '|' . $lt . '|' . $mes . '|' . $c['labor'] . '|' . $c['uMedida']];
+            $f      = &$filas[$clave . '|' . $lt . '|' . $mes . '|' . $c['labor'] . '|' . $c['uMedida'] . '|' . $fecha];
+            $porLabor[$clave . '|' . $lt . '|' . $mes . '|' . $c['labor'] . '|' . $c['uMedida']] = ($porLabor[$clave . '|' . $lt . '|' . $mes . '|' . $c['labor'] . '|' . $c['uMedida']] ?? 0) + $valor;
+            $f['claveLabor']  = $clave . '|' . $lt . '|' . $mes . '|' . $c['labor'] . '|' . $c['uMedida'];
             $f['ccosto']      = $clave;
             $f['lote']        = $lt;
             $f['sinLote']     = $c['lote'] === '';
@@ -150,7 +153,7 @@ class LaboresCcostoFechaLote extends Informe
             $f['valorContratista'] = ($f['valorContratista'] ?? 0) + $contr;
             $f['hay'][(int) $c['contratista']] = true;
             $f['precios'][(string) (float) $c['precio']] = true;
-            $f['fechas'][$fecha] = true;
+            $f['fecha']       = $fecha;
             $f['fincas'][$finca] = true;
             unset($f);
 
@@ -201,8 +204,8 @@ class LaboresCcostoFechaLote extends Informe
 
         $filas = array_values($filas);
 
-        usort($filas, static fn ($x, $y) => [$centros[$x['ccosto']]['sin'], $centros[$y['ccosto']]['valor'], $x['ccosto'], $x['sinLote'], $cl[$y['ccosto']][$y['lote']], $x['lote'], $x['mes'], $y['valor']]
-            <=> [$centros[$y['ccosto']]['sin'], $centros[$x['ccosto']]['valor'], $y['ccosto'], $y['sinLote'], $cl[$x['ccosto']][$x['lote']], $y['lote'], $y['mes'], $x['valor']]);
+        usort($filas, static fn ($x, $y) => [$centros[$x['ccosto']]['sin'], $centros[$y['ccosto']]['valor'], $x['ccosto'], $x['sinLote'], $cl[$y['ccosto']][$y['lote']], $x['lote'], $x['mes'], $porLabor[$y['claveLabor']], $x['claveLabor'], $x['fecha']]
+            <=> [$centros[$y['ccosto']]['sin'], $centros[$x['ccosto']]['valor'], $y['ccosto'], $y['sinLote'], $cl[$x['ccosto']][$x['lote']], $y['lote'], $y['mes'], $porLabor[$x['claveLabor']], $y['claveLabor'], $y['fecha']]);
 
         if (count($filas) > self::MAX_FILAS) {
             $filas    = array_slice($filas, 0, self::MAX_FILAS);
@@ -227,12 +230,12 @@ class LaboresCcostoFechaLote extends Informe
             ], $mensual ? ['mes' => self::MESES[(int) substr($f['mes'], 5, 2) - 1] . ' ' . substr($f['mes'], 0, 4)] : [], [
                 'grupo'                  => $f['grupo'],
                 'labor'                  => $f['labor'],
+                'fecha'                  => $f['fecha'],
                 'uMedida'                => $f['uMedida'],
                 'ejecucion'              => isset($f['hay'][1]) ? (isset($f['hay'][0]) ? 'Mixta' : 'Contratista') : 'Nómina',
                 'palmas'                 => $p,
                 'cantidad'               => round($f['cantidad'], 2),
                 'precio'                 => round($f['cantidad'], 2) == 0 ? null : round($f['valor'] / $f['cantidad'], 2),
-                'dias'                   => count($f['fechas']),
                 'valor'                  => round($f['valor'], 2),
                 'costoPalma'             => $p > 0 ? round($f['valor'] / $p, 2) : null,
                 'palmasPeso'             => $p > 0 ? $p / $porLote[$f['ccosto'] . '|' . $f['lote']] : 0,
@@ -375,12 +378,12 @@ class LaboresCcostoFechaLote extends Informe
             ['clave' => 'mes', 'titulo' => 'Mes', 'tipo' => 'texto', 'alineacion' => 'centro', 'total' => false],
             ['clave' => 'grupo', 'titulo' => 'Grupo labor', 'tipo' => 'texto', 'alineacion' => 'izquierda', 'total' => false],
             ['clave' => 'labor', 'titulo' => 'Labor', 'tipo' => 'texto', 'alineacion' => 'izquierda', 'total' => false],
+            ['clave' => 'fecha', 'titulo' => 'Fecha ejecución', 'tipo' => 'fecha', 'alineacion' => 'centro', 'total' => false],
             ['clave' => 'uMedida', 'titulo' => 'U. medida', 'tipo' => 'texto', 'alineacion' => 'centro', 'total' => false],
             ['clave' => 'ejecucion', 'titulo' => 'Ejecución', 'tipo' => 'texto', 'alineacion' => 'centro', 'total' => false, 'ayuda' => 'Nómina, Contratista o Mixta según los trabajadores de la labor.'],
             ['clave' => 'palmas', 'titulo' => 'Palmas prod.', 'tipo' => 'entero', 'alineacion' => 'derecha', 'total' => false],
-            ['clave' => 'cantidad', 'titulo' => 'Cantidad', 'tipo' => 'decimal', 'alineacion' => 'derecha', 'total' => false, 'ayuda' => 'Suma por labor; no se totaliza porque mezcla unidades.'],
+            ['clave' => 'cantidad', 'titulo' => 'Cantidad', 'tipo' => 'decimal', 'alineacion' => 'derecha', 'total' => false, 'ayuda' => 'Suma por labor y fecha; no se totaliza porque mezcla unidades.'],
             ['clave' => 'precio', 'titulo' => 'Precio prom.', 'tipo' => 'moneda', 'alineacion' => 'derecha', 'total' => false, 'ayuda' => 'Valor / cantidad.'],
-            ['clave' => 'dias', 'titulo' => 'Días', 'tipo' => 'entero', 'alineacion' => 'derecha', 'total' => false, 'ayuda' => 'Fechas distintas con esta labor en el lote.'],
             ['clave' => 'valor', 'titulo' => 'Valor', 'tipo' => 'moneda', 'alineacion' => 'derecha', 'total' => true, 'ayuda' => 'Los ajustes con signo negativo restan.'],
             ['clave' => 'costoPalma', 'titulo' => 'Costo/palma', 'tipo' => 'moneda', 'alineacion' => 'derecha', 'total' => 'ponderado', 'numerador' => 'valorConPalmas', 'denominador' => 'palmasPeso', 'pie' => false,
                 'ayuda' => 'Valor / palmas en producción del lote. Subtotal por centro ponderado; el promedio global está en el indicador.'],

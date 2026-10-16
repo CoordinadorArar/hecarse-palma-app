@@ -95,7 +95,7 @@ foreach ($secciones as $s) {
             </div>
             <div class="card-body p-0">
 
-                <div class="table-responsive" id="gp_contenedor_tabla">
+                <div id="gp_contenedor_tabla">
                     <table id="tabla_lotes" class="table table-striped table-hover align-middle mb-0 gp-tabla gp-tabla-ancha" style="width:100%">
                         <thead class="gp-thead">
                             <tr>
@@ -272,7 +272,7 @@ foreach ($secciones as $s) {
                                     </select>
                                 </div>
                                 <div class="form-text d-none" id="lote_seccion_vacio">
-                                    <i class="bi bi-info-circle me-1"></i>Esta finca aún no tiene secciones registradas. Puede crearlas en Gestión Palma &rsaquo; Secciones.
+                                    <i class="bi bi-info-circle me-1"></i>Esta finca no tiene secciones. Créelas en Gestión Palma &rsaquo; Secciones.
                                 </div>
                             </div>
 
@@ -365,8 +365,7 @@ foreach ($secciones as $s) {
                             </div>
 
                             <div class="col-12">
-                                <div class="gp-panel-opcion mb-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
-                                    <span class="gp-subtexto mb-0">Canales de riego o drenaje asociados al lote.</span>
+                                <div class="gp-panel-opcion mb-2 d-flex justify-content-end align-items-center flex-wrap gap-2">
                                     <button type="button" class="btn btn-sm btn-outline-success" id="btn_agregar_canal">
                                         <i class="bi bi-plus-lg me-1"></i>Agregar canal
                                     </button>
@@ -464,7 +463,7 @@ foreach ($secciones as $s) {
                         </button>
                     </div>
 
-                    <div class="table-responsive" id="lineas_contenedor_tabla">
+                    <div id="lineas_contenedor_tabla">
                         <table id="tabla_lote_lineas" class="table table-striped table-hover align-middle mb-0 gp-tabla" style="width:100%">
                             <thead class="gp-thead">
                                 <tr>

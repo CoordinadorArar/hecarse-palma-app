@@ -546,9 +546,7 @@
                     render: $.fn.dataTable.render.number('.', ',', 0, '$')
                 },
             ],
-            responsive: true,
-            pageLength: 10,
-            language: idiomaDataTable
+            pageLength: 10
         });
     }
 
@@ -574,9 +572,7 @@
                     render: $.fn.dataTable.render.number('.', ',', 0, '$')
                 },
             ],
-            responsive: true,
-            pageLength: 10,
-            language: idiomaDataTable
+            pageLength: 10
         });
     }
 
@@ -630,7 +626,8 @@
         tablaDetallado = $('#tabla-detallado').DataTable({
             data: dataPreparada,
             paging: false,
-            info: false,
+            dom: "<'gp-dt-barra'if><'table-responsive't>",
+            language: { info: '_TOTAL_ registros', infoEmpty: '0 registros', infoFiltered: '(de _MAX_)' },
 
             columns: [
                 { data: 'nombreTercero', visible: false },
@@ -646,7 +643,6 @@
             ],
 
             order: [[0, 'asc'], [1, 'asc']],
-            language: idiomaDataTable,
 
             rowGroup: {
                 dataSrc: 'nombreTercero',
@@ -743,24 +739,6 @@
     });
 
 
-    const idiomaDataTable = {
-        lengthMenu: "Mostrar _MENU_ registros",
-        zeroRecords: "No se encontraron registros",
-        info: "Mostrando _START_ a _END_ de _TOTAL_",
-        infoEmpty: "No hay registros disponibles",
-        infoFiltered: "(filtrado de _MAX_ registros totales)",
-        search: "Buscar:",
-        loadingRecords: "Cargando...",
-        processing: "Procesando...",
-        emptyTable: "No hay datos disponibles",
-        paginate: {
-            first: "Primero",
-            last: "Último",
-            next: "›",
-            previous: "‹"
-        }
-    };
-
     function crearTabla(id, columnas) {
         if ($.fn.DataTable.isDataTable(id)) {
             $(id).DataTable().destroy();
@@ -769,9 +747,7 @@
         $(id).DataTable({
             data: dataGlobal,
             columns: columnas,
-            responsive: true,
-            pageLength: 10,
-            language: idiomaDataTable
+            pageLength: 10
         });
     }
 
@@ -792,9 +768,7 @@
             columns: [
                 { data: 'cedula', title: 'Documento' },
                 { data: 'nombreTercero', title: 'Empleado' }
-            ],
-            responsive: true,
-            language: idiomaDataTable
+            ]
         });
     }
 
@@ -974,8 +948,7 @@
     $('a[data-bs-toggle="tab"]').on('shown.bs.tab', function () {
         $.fn.dataTable
             .tables({ visible: true, api: true })
-            .columns.adjust()
-            .responsive.recalc();
+            .columns.adjust();
     });
 
 

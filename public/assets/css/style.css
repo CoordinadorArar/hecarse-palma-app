@@ -718,6 +718,10 @@ h6 {
     margin-left: 325px;
     zoom: 95%;
   }
+
+  #main:has(.leaflet-container) {
+    zoom: 1;
+  }
 }
 
 @media (max-width: 1199px) {
@@ -1395,3 +1399,24 @@ form textarea::placeholder {
   transform: scale(1.03);
 }
 
+.dataTables_wrapper .gp-dt-barra { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:.5rem 1rem; padding:.75rem 1rem; }
+.gp-dt-pie { border-top:1px solid #e4e8ee; }
+.dataTables_wrapper .gp-dt-barra .dataTables_length, .dataTables_wrapper .gp-dt-barra .dataTables_filter, .dataTables_wrapper .gp-dt-barra .dataTables_info, .dataTables_wrapper .gp-dt-barra .dataTables_paginate { margin:0; padding:0; }
+.dataTables_wrapper .gp-dt-barra .dataTables_filter { margin-left:auto; }
+.dataTables_wrapper .gp-dt-barra label { margin:0; font-size:.85rem; color:#5c6b7a; }
+.dataTables_wrapper .gp-dt-barra .dataTables_info { font-size:.85rem; color:#5c6b7a; }
+.dataTables_wrapper .gp-dt-barra .dataTables_length select { width:auto; display:inline-block; margin:0 .35rem; }
+.dataTables_wrapper .gp-dt-barra .dataTables_filter input { width:260px; margin-left:.5rem; padding-left:2rem; background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='%238795a4' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398l3.85 3.85a1 1 0 0 0 1.415-1.414zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0'/%3E%3C/svg%3E") no-repeat .65rem center; }
+.dataTables_wrapper .gp-dt-barra .dataTables_filter input:focus, .dataTables_wrapper .gp-dt-barra .dataTables_length select:focus { border-color:#41a867; box-shadow:0 0 0 .2rem rgba(65,168,103,.15); }
+.dataTables_wrapper .gp-dt-barra .dataTables_paginate ul.pagination { margin:0; flex-wrap:wrap; }
+.dataTables_wrapper .gp-dt-barra .page-link { padding:.25rem .6rem; font-size:.85rem; color:#2f7a4b; }
+.dataTables_wrapper .gp-dt-barra .page-item.active .page-link { background-color:#1dab4d; border-color:#1dab4d; color:#fff; }
+.dataTables_wrapper .gp-dt-barra .page-link:focus { box-shadow:0 0 0 .2rem rgba(65,168,103,.15); }
+@media (max-width:575.98px) {
+  .dataTables_wrapper .gp-dt-barra { flex-direction:column; align-items:stretch; }
+  .dataTables_wrapper .gp-dt-barra .dataTables_filter { margin-left:0; }
+  .dataTables_wrapper .gp-dt-barra .dataTables_filter label { display:block; }
+  .dataTables_wrapper .gp-dt-barra .dataTables_filter input { display:block; width:100%; margin-left:0; margin-top:.25rem; }
+  .dataTables_wrapper .gp-dt-barra .dataTables_info { text-align:center; }
+  .dataTables_wrapper .gp-dt-barra .dataTables_paginate .pagination { justify-content:center; }
+}

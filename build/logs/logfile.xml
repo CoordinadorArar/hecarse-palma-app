@@ -1,15 +1,128 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <testsuites>
-  <testsuite name="CLI Arguments" tests="2" assertions="3" errors="0" failures="1" skipped="0" time="1.826728">
-    <testsuite name="HealthTest" file="E:\xampp\htdocs\AppPalma\tests\unit\HealthTest.php" tests="2" assertions="3" errors="0" failures="1" skipped="0" time="1.826728">
-      <testcase name="testIsDefinedAppPath" file="E:\xampp\htdocs\AppPalma\tests\unit\HealthTest.php" line="13" class="HealthTest" classname="HealthTest" assertions="1" time="0.760734"/>
-      <testcase name="testBaseUrlHasBeenSet" file="E:\xampp\htdocs\AppPalma\tests\unit\HealthTest.php" line="18" class="HealthTest" classname="HealthTest" assertions="2" time="1.065994">
-        <failure type="PHPUnit\Framework\ExpectationFailedException">HealthTest::testBaseUrlHasBeenSet&#13;
+  <testsuite name="E:\xampp\htdocs\AppPalma\phpunit.xml.dist" tests="11" assertions="10" errors="8" failures="1" skipped="0" time="0.119506">
+    <testsuite name="App" tests="11" assertions="10" errors="8" failures="1" skipped="0" time="0.119506">
+      <testsuite name="ExampleDatabaseTest" file="E:\xampp\htdocs\AppPalma\tests\database\ExampleDatabaseTest.php" tests="2" assertions="0" errors="2" failures="0" skipped="0" time="0.000000">
+        <testcase name="testModelFindAll" file="E:\xampp\htdocs\AppPalma\tests\database\ExampleDatabaseTest.php" line="17" class="ExampleDatabaseTest" classname="ExampleDatabaseTest" assertions="0" time="0.000000">
+          <error type="CodeIgniter\Database\Exceptions\DatabaseException">ExampleDatabaseTest::testModelFindAll&#13;
+CodeIgniter\Database\Exceptions\DatabaseException: Unable to connect to the database.&#13;
+Main connection [SQLite3]: Class "SQLite3" not found
+&#13;
+E:\xampp\htdocs\AppPalma\system\Database\BaseConnection.php:467
+E:\xampp\htdocs\AppPalma\system\Database\SQLite3\Connection.php:63
+E:\xampp\htdocs\AppPalma\system\Test\DatabaseTestTrait.php:83
+E:\xampp\htdocs\AppPalma\system\Test\DatabaseTestTrait.php:59
+E:\xampp\htdocs\AppPalma\system\Test\CIUnitTestCase.php:251</error>
+        </testcase>
+        <testcase name="testSoftDeleteLeavesRow" file="E:\xampp\htdocs\AppPalma\tests\database\ExampleDatabaseTest.php" line="28" class="ExampleDatabaseTest" classname="ExampleDatabaseTest" assertions="0" time="0.000000">
+          <error type="CodeIgniter\Database\Exceptions\DatabaseException">ExampleDatabaseTest::testSoftDeleteLeavesRow&#13;
+CodeIgniter\Database\Exceptions\DatabaseException: Unable to connect to the database.&#13;
+Main connection [SQLite3]: Class "SQLite3" not found
+&#13;
+E:\xampp\htdocs\AppPalma\system\Database\BaseConnection.php:467
+E:\xampp\htdocs\AppPalma\system\Database\SQLite3\Connection.php:63
+E:\xampp\htdocs\AppPalma\system\Test\DatabaseTestTrait.php:83
+E:\xampp\htdocs\AppPalma\system\Test\DatabaseTestTrait.php:59
+E:\xampp\htdocs\AppPalma\system\Test\CIUnitTestCase.php:251</error>
+        </testcase>
+      </testsuite>
+      <testsuite name="Tests\Feature\PeriodosNominaTest" file="E:\xampp\htdocs\AppPalma\tests\feature\PeriodosNominaTest.php" tests="6" assertions="6" errors="6" failures="0" skipped="0" time="0.104265">
+        <testcase name="testEstadoInicialLimpio" file="E:\xampp\htdocs\AppPalma\tests\feature\PeriodosNominaTest.php" line="107" class="Tests\Feature\PeriodosNominaTest" classname="Tests.Feature.PeriodosNominaTest" assertions="0" time="0.002556">
+          <error type="CodeIgniter\Database\Exceptions\DatabaseException">Tests\Feature\PeriodosNominaTest::testEstadoInicialLimpio&#13;
+CodeIgniter\Database\Exceptions\DatabaseException: Unable to connect to the database.&#13;
+Main connection [SQLite3]: Class "SQLite3" not found
+&#13;
+E:\xampp\htdocs\AppPalma\system\Database\BaseConnection.php:467
+E:\xampp\htdocs\AppPalma\system\Database\SQLite3\Connection.php:63
+E:\xampp\htdocs\AppPalma\system\Database\BaseConnection.php:616
+E:\xampp\htdocs\AppPalma\tests\feature\PeriodosNominaTest.php:92
+E:\xampp\htdocs\AppPalma\tests\feature\PeriodosNominaTest.php:109</error>
+        </testcase>
+        <testcase name="testRenderAutenticado" file="E:\xampp\htdocs\AppPalma\tests\feature\PeriodosNominaTest.php" line="116" class="Tests\Feature\PeriodosNominaTest" classname="Tests.Feature.PeriodosNominaTest" assertions="0" time="0.049348">
+          <error type="CodeIgniter\Database\Exceptions\DatabaseException">Tests\Feature\PeriodosNominaTest::testRenderAutenticado&#13;
+CodeIgniter\Database\Exceptions\DatabaseException: Unable to connect to the database.&#13;
+Main connection [SQLite3]: Class "SQLite3" not found
+&#13;
+E:\xampp\htdocs\AppPalma\system\Database\BaseConnection.php:467
+E:\xampp\htdocs\AppPalma\system\Database\SQLite3\Connection.php:63
+E:\xampp\htdocs\AppPalma\system\Database\BaseConnection.php:616
+E:\xampp\htdocs\AppPalma\system\Database\BaseBuilder.php:1644
+E:\xampp\htdocs\AppPalma\app\Models\LosetasModel.php:127
+E:\xampp\htdocs\AppPalma\app\Libraries\InformacionMenus.php:20
+E:\xampp\htdocs\AppPalma\app\Helpers\ConstruirDataVista_helper.php:17
+E:\xampp\htdocs\AppPalma\app\Controllers\gestionpalma\NominaController.php:63
+E:\xampp\htdocs\AppPalma\system\CodeIgniter.php:933
+E:\xampp\htdocs\AppPalma\system\CodeIgniter.php:509
+E:\xampp\htdocs\AppPalma\system\CodeIgniter.php:355
+E:\xampp\htdocs\AppPalma\system\Test\FeatureTestTrait.php:211
+E:\xampp\htdocs\AppPalma\tests\feature\PeriodosNominaTest.php:118</error>
+        </testcase>
+        <testcase name="testSinSesionDevuelve401" file="E:\xampp\htdocs\AppPalma\tests\feature\PeriodosNominaTest.php" line="137" class="Tests\Feature\PeriodosNominaTest" classname="Tests.Feature.PeriodosNominaTest" assertions="6" time="0.038770">
+          <error type="CodeIgniter\Database\Exceptions\DatabaseException">Tests\Feature\PeriodosNominaTest::testSinSesionDevuelve401&#13;
+CodeIgniter\Database\Exceptions\DatabaseException: Unable to connect to the database.&#13;
+Main connection [SQLite3]: Class "SQLite3" not found
+&#13;
+E:\xampp\htdocs\AppPalma\system\Database\BaseConnection.php:467
+E:\xampp\htdocs\AppPalma\system\Database\SQLite3\Connection.php:63
+E:\xampp\htdocs\AppPalma\system\Database\BaseConnection.php:616
+E:\xampp\htdocs\AppPalma\tests\feature\PeriodosNominaTest.php:84
+E:\xampp\htdocs\AppPalma\tests\feature\PeriodosNominaTest.php:143</error>
+        </testcase>
+        <testcase name="testCicloCrud" file="E:\xampp\htdocs\AppPalma\tests\feature\PeriodosNominaTest.php" line="146" class="Tests\Feature\PeriodosNominaTest" classname="Tests.Feature.PeriodosNominaTest" assertions="0" time="0.002585">
+          <error type="CodeIgniter\Database\Exceptions\DatabaseException">Tests\Feature\PeriodosNominaTest::testCicloCrud&#13;
+CodeIgniter\Database\Exceptions\DatabaseException: Unable to connect to the database.&#13;
+Main connection [SQLite3]: Class "SQLite3" not found
+&#13;
+E:\xampp\htdocs\AppPalma\system\Database\BaseConnection.php:467
+E:\xampp\htdocs\AppPalma\system\Database\SQLite3\Connection.php:63
+E:\xampp\htdocs\AppPalma\system\Database\BaseConnection.php:616
+E:\xampp\htdocs\AppPalma\tests\feature\PeriodosNominaTest.php:97
+E:\xampp\htdocs\AppPalma\tests\feature\PeriodosNominaTest.php:148</error>
+        </testcase>
+        <testcase name="testValidacionesRechazadas" file="E:\xampp\htdocs\AppPalma\tests\feature\PeriodosNominaTest.php" line="223" class="Tests\Feature\PeriodosNominaTest" classname="Tests.Feature.PeriodosNominaTest" assertions="0" time="0.008415">
+          <error type="CodeIgniter\Database\Exceptions\DatabaseException">Tests\Feature\PeriodosNominaTest::testValidacionesRechazadas&#13;
+CodeIgniter\Database\Exceptions\DatabaseException: Unable to connect to the database.&#13;
+Main connection [SQLite3]: Class "SQLite3" not found
+&#13;
+E:\xampp\htdocs\AppPalma\system\Database\BaseConnection.php:467
+E:\xampp\htdocs\AppPalma\system\Database\SQLite3\Connection.php:63
+E:\xampp\htdocs\AppPalma\system\Database\BaseConnection.php:616
+E:\xampp\htdocs\AppPalma\system\Database\BaseBuilder.php:1728
+E:\xampp\htdocs\AppPalma\app\Models\PeriodosNominaModel.php:36
+E:\xampp\htdocs\AppPalma\app\Controllers\gestionpalma\NominaController.php:589
+E:\xampp\htdocs\AppPalma\app\Controllers\gestionpalma\NominaController.php:204
+E:\xampp\htdocs\AppPalma\system\CodeIgniter.php:933
+E:\xampp\htdocs\AppPalma\system\CodeIgniter.php:509
+E:\xampp\htdocs\AppPalma\system\CodeIgniter.php:355
+E:\xampp\htdocs\AppPalma\system\Test\FeatureTestTrait.php:211
+E:\xampp\htdocs\AppPalma\tests\feature\PeriodosNominaTest.php:51
+E:\xampp\htdocs\AppPalma\tests\feature\PeriodosNominaTest.php:238</error>
+        </testcase>
+        <testcase name="testEstadoFinalLimpio" file="E:\xampp\htdocs\AppPalma\tests\feature\PeriodosNominaTest.php" line="246" class="Tests\Feature\PeriodosNominaTest" classname="Tests.Feature.PeriodosNominaTest" assertions="0" time="0.002591">
+          <error type="CodeIgniter\Database\Exceptions\DatabaseException">Tests\Feature\PeriodosNominaTest::testEstadoFinalLimpio&#13;
+CodeIgniter\Database\Exceptions\DatabaseException: Unable to connect to the database.&#13;
+Main connection [SQLite3]: Class "SQLite3" not found
+&#13;
+E:\xampp\htdocs\AppPalma\system\Database\BaseConnection.php:467
+E:\xampp\htdocs\AppPalma\system\Database\SQLite3\Connection.php:63
+E:\xampp\htdocs\AppPalma\system\Database\BaseConnection.php:616
+E:\xampp\htdocs\AppPalma\tests\feature\PeriodosNominaTest.php:92
+E:\xampp\htdocs\AppPalma\tests\feature\PeriodosNominaTest.php:248</error>
+        </testcase>
+      </testsuite>
+      <testsuite name="ExampleSessionTest" file="E:\xampp\htdocs\AppPalma\tests\session\ExampleSessionTest.php" tests="1" assertions="1" errors="0" failures="0" skipped="0" time="0.003293">
+        <testcase name="testSessionSimple" file="E:\xampp\htdocs\AppPalma\tests\session\ExampleSessionTest.php" line="11" class="ExampleSessionTest" classname="ExampleSessionTest" assertions="1" time="0.003293"/>
+      </testsuite>
+      <testsuite name="HealthTest" file="E:\xampp\htdocs\AppPalma\tests\unit\HealthTest.php" tests="2" assertions="3" errors="0" failures="1" skipped="0" time="0.011948">
+        <testcase name="testIsDefinedAppPath" file="E:\xampp\htdocs\AppPalma\tests\unit\HealthTest.php" line="13" class="HealthTest" classname="HealthTest" assertions="1" time="0.001937"/>
+        <testcase name="testBaseUrlHasBeenSet" file="E:\xampp\htdocs\AppPalma\tests\unit\HealthTest.php" line="18" class="HealthTest" classname="HealthTest" assertions="2" time="0.010011">
+          <failure type="PHPUnit\Framework\ExpectationFailedException">HealthTest::testBaseUrlHasBeenSet&#13;
 baseURL "" in app/Config/App.php is not valid URL
 Failed asserting that false is true.
 &#13;
 E:\xampp\htdocs\AppPalma\tests\unit\HealthTest.php:45</failure>
-      </testcase>
+        </testcase>
+      </testsuite>
     </testsuite>
   </testsuite>
 </testsuites>

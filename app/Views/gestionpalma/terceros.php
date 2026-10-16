@@ -107,7 +107,7 @@
             </div>
             <div class="card-body p-0">
 
-                <div class="table-responsive" id="gp_contenedor_tabla">
+                <div id="gp_contenedor_tabla">
                     <table id="tabla_terceros" class="table table-striped table-hover align-middle mb-0 gp-tabla" style="width:100%">
                         <thead class="gp-thead">
                             <tr>
@@ -181,7 +181,7 @@
                                     <span class="input-group-text bg-light"><i class="bi bi-hash"></i></span>
                                     <input type="number" class="form-control bg-light" id="tercero_id" readonly>
                                 </div>
-                                <div class="form-text">Consecutivo asignado automáticamente.</div>
+                                <div class="form-text">Asignado por el sistema.</div>
                             </div>
 
                             <div class="col-md-3">
@@ -232,11 +232,11 @@
                                     <span class="input-group-text bg-light"><i class="bi bi-upc-scan"></i></span>
                                     <input type="text" class="form-control" id="tercero_codigo" maxlength="20">
                                 </div>
-                                <div class="form-text">Se autocompleta con el Nit. Puede cambiarlo si el tercero maneja otro código.</div>
+                                <div class="form-text">Se autocompleta con el Nit; puede cambiarlo.</div>
                             </div>
 
                             <div class="col-12 d-none" id="tercero_aviso_llave">
-                                <div class="form-text text-muted mt-0">
+                                <div class="gp-nota">
                                     <i class="bi bi-info-circle me-1"></i>La empresa y el consecutivo del tercero no se pueden modificar.
                                 </div>
                             </div>
@@ -287,16 +287,12 @@
                             </div>
 
                             <div class="col-12">
-                                <span class="gp-subtexto" id="tercero_nombre_completo"></span>
-                            </div>
-
-                            <div class="col-12">
                                 <label class="form-label mb-1 small fw-semibold text-muted" for="tercero_descripcion">Descripción <span class="text-danger">*</span></label>
                                 <div class="input-group">
                                     <span class="input-group-text bg-light"><i class="bi bi-card-list"></i></span>
                                     <input type="text" class="form-control" id="tercero_descripcion" maxlength="950" required>
                                 </div>
-                                <div class="form-text">Se autocompleta con el nombre o la razón social. Si no diligencia nombres, escríbala manualmente.</div>
+                                <div class="form-text">Se autocompleta con el nombre o la razón social; puede editarla.</div>
                             </div>
 
                             <div class="col-12">

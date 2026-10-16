@@ -37,24 +37,13 @@ const renderizarTabla = () => {
     }
     $('#tabla_lotes').DataTable({
         paging: false,
-        info: false,
-        searching: false,
-        lengthChange: false,
+        dom: "<'gp-dt-barra'if><'table-responsive't>",
         columnDefs: [{ targets: [9], orderable: false }],
         order: [[0, 'asc']],
         language: {
-            lengthMenu: 'Mostrar _MENU_ registros por página',
-            zeroRecords: 'No se encontraron resultados',
-            info: 'Mostrando _START_ a _END_ de _TOTAL_ registros',
-            infoEmpty: 'No hay registros disponibles',
-            infoFiltered: '(filtrado de _MAX_ registros totales)',
-            emptyTable: 'No hay datos disponibles',
-            paginate: {
-                first: 'Primero',
-                last: 'Último',
-                next: 'Siguiente',
-                previous: 'Anterior'
-            }
+            info: '_TOTAL_ registros',
+            infoEmpty: '0 registros',
+            infoFiltered: '(de _MAX_)'
         }
     });
 };
@@ -489,24 +478,8 @@ const destruirTablaLineas = () => {
 const renderizarTablaLineas = () => {
     if (!$id('cuerpo_tabla_lineas').querySelectorAll('tr').length) return;
     $('#tabla_lote_lineas').DataTable({
-        searching: true,
         columnDefs: [{ targets: [3], orderable: false }],
-        order: [[0, 'asc']],
-        language: {
-            lengthMenu: 'Mostrar _MENU_ registros por página',
-            zeroRecords: 'No se encontraron resultados',
-            info: 'Mostrando _START_ a _END_ de _TOTAL_ registros',
-            infoEmpty: 'No hay registros disponibles',
-            infoFiltered: '(filtrado de _MAX_ registros totales)',
-            emptyTable: 'No hay datos disponibles',
-            search: 'Buscar:',
-            paginate: {
-                first: 'Primero',
-                last: 'Último',
-                next: 'Siguiente',
-                previous: 'Anterior'
-            }
-        }
+        order: [[0, 'asc']]
     });
 };
 
@@ -586,7 +559,10 @@ window.lineasLote = async (empresa, codigo, finca) => {
 
 $id('btn_cancelar_linea').addEventListener('click', prepararFormularioLinea);
 $id('btn_lineas_vacio_agregar').addEventListener('click', prepararFormularioLinea);
-$id('modalLoteLineas').addEventListener('shown.bs.modal', () => $id('lineas_palmas').focus());
+$id('modalLoteLineas').addEventListener('shown.bs.modal', () => {
+    if ($.fn.DataTable.isDataTable('#tabla_lote_lineas')) $('#tabla_lote_lineas').DataTable().columns.adjust();
+    $id('lineas_palmas').focus();
+});
 
 $id('cuerpo_tabla_lineas').addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-accion]');

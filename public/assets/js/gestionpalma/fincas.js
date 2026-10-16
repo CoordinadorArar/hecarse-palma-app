@@ -31,24 +31,13 @@ const renderizarTabla = () => {
     }
     $('#tabla_fincas').DataTable({
         paging: false,
-        info: false,
-        searching: false,
-        lengthChange: false,
+        dom: "<'gp-dt-barra'if><'table-responsive't>",
         columnDefs: [{ targets: [7, 9], orderable: false }],
         order: [[0, 'asc']],
         language: {
-            lengthMenu: 'Mostrar _MENU_ registros por página',
-            zeroRecords: 'No se encontraron resultados',
-            info: 'Mostrando _START_ a _END_ de _TOTAL_ registros',
-            infoEmpty: 'No hay registros disponibles',
-            infoFiltered: '(filtrado de _MAX_ registros totales)',
-            emptyTable: 'No hay datos disponibles',
-            paginate: {
-                first: 'Primero',
-                last: 'Último',
-                next: 'Siguiente',
-                previous: 'Anterior'
-            }
+            info: '_TOTAL_ registros',
+            infoEmpty: '0 registros',
+            infoFiltered: '(de _MAX_)'
         }
     });
 };

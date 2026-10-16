@@ -94,7 +94,7 @@
             </div>
             <div class="card-body p-0">
 
-                <div class="table-responsive" id="gp_contenedor_tabla">
+                <div id="gp_contenedor_tabla">
                     <table id="tabla_empleados" class="table table-striped table-hover align-middle mb-0 gp-tabla gp-tabla-ancha" style="width:100%">
                         <thead class="gp-thead">
                             <tr>
@@ -157,7 +157,7 @@
                                         <input class="form-check-input" type="checkbox" id="empleado_crea_tercero">
                                         <label class="form-check-label" for="empleado_crea_tercero">Crear un tercero nuevo</label>
                                     </div>
-                                    <span class="gp-subtexto" id="empleado_ayuda_opcion">Se vinculará un tercero ya existente. Escoja el tercero y la identificación y la descripción se completan solas.</span>
+                                    <span class="gp-subtexto" id="empleado_ayuda_opcion">La identificación y la descripción se toman del tercero escogido.</span>
                                 </div>
                             </div>
 
@@ -193,7 +193,7 @@
 
                             <div class="col-md-8 align-self-end d-none" id="empleado_aviso_nuevo">
                                 <div class="gp-nota">
-                                    <i class="bi bi-info-circle me-1"></i>Se creará un tercero nuevo en esta empresa; el consecutivo se asigna automáticamente al guardar.
+                                    <i class="bi bi-info-circle me-1"></i>El consecutivo del tercero se asigna al guardar.
                                 </div>
                             </div>
                             <div class="col-md-4 gp-campo-condicionado" id="col_empleado_identificacion">
@@ -282,7 +282,7 @@
                                                 <span class="input-group-text bg-light"><i class="bi bi-card-list"></i></span>
                                                 <input type="text" class="form-control" id="empleado_nt_descripcion" maxlength="950" autocomplete="off">
                                             </div>
-                                            <div class="form-text">Se completa sola con los apellidos y nombres. Escríbala solo si necesita un texto distinto.</div>
+                                            <div class="form-text">Se completa con apellidos y nombres; edítela solo si requiere otro texto.</div>
                                         </div>
 
                                         <div class="col-md-6">
@@ -372,7 +372,6 @@
                                         <label class="form-check-label" for="empleado_otros">Ocasional</label>
                                     </div>
                                 </div>
-                                <span class="gp-subtexto mt-2">No son excluyentes; puede marcar varias.</span>
                             </div>
 
                         </div>

@@ -325,6 +325,12 @@ class LaboresTransaccionModel extends ProduccionModel
                 return ['success' => false, 'message' => $detalle];
             }
 
+            if (! $this->vincularPlaneacion($empresa, (int) ($datos['planeacionLinea'] ?? 0), $numero)) {
+                $this->db->transRollback();
+
+                return ['success' => false, 'message' => 'La actividad de la planeación ya fue registrada, no está cerrada como completada o parcial, o no corresponde a este tipo de transacción.'];
+            }
+
             $auditoria = $this->insertarAuditoria('INSERT', [
                 'empresa' => $empresa,
                 'tipo'    => static::TIPO,

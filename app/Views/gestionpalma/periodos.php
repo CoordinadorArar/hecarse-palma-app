@@ -106,7 +106,7 @@ $meses = [
             </div>
             <div class="card-body p-0">
 
-                <div class="table-responsive" id="gp_contenedor_tabla">
+                <div id="gp_contenedor_tabla">
                     <table id="tabla_periodos" class="table table-striped table-hover align-middle mb-0 gp-tabla" style="width:100%">
                         <thead class="gp-thead">
                             <tr>
@@ -195,8 +195,8 @@ $meses = [
                             </div>
 
                             <div class="col-12 d-none" id="periodo_aviso_llave">
-                                <div class="form-text text-muted mt-0">
-                                    <i class="bi bi-info-circle me-1"></i>La llave del periodo no se puede modificar.
+                                <div class="form-text mt-0">
+                                    <i class="bi bi-info-circle me-1"></i>Empresa, año y mes no se pueden modificar.
                                 </div>
                             </div>
 
@@ -215,7 +215,6 @@ $meses = [
                                     <span class="input-group-text bg-light"><i class="bi bi-hash"></i></span>
                                     <input type="text" class="form-control font-monospace bg-light" id="periodo_codigo" readonly>
                                 </div>
-                                <div class="form-text">Se genera automáticamente.</div>
                             </div>
 
                             <div class="col-md-4">

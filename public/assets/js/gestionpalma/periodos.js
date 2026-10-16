@@ -35,22 +35,11 @@ const renderizarTabla = () => {
         return;
     }
     $('#tabla_periodos').DataTable({
-        searching: false,
         columnDefs: [{ targets: [6, 7], orderable: false }],
         order: [[0, 'desc'], [1, 'asc']],
         language: {
-            lengthMenu: 'Mostrar _MENU_ registros por página',
-            zeroRecords: 'No se encontraron resultados',
-            info: 'Mostrando _START_ a _END_ de _TOTAL_ registros',
-            infoEmpty: 'No hay registros disponibles',
-            infoFiltered: '(filtrado de _MAX_ registros totales)',
-            emptyTable: 'No hay datos disponibles',
-            paginate: {
-                first: 'Primero',
-                last: 'Último',
-                next: 'Siguiente',
-                previous: 'Anterior'
-            }
+            search: 'Buscar en resultados:',
+            searchPlaceholder: 'Filtrar lo listado…'
         }
     });
 };

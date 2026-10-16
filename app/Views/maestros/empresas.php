@@ -41,7 +41,7 @@
                     <div id="aviso_sin_representantes" class="maestros-nota mb-3 d-none">
                         <i class="bi bi-info-circle me-1" aria-hidden="true"></i>Ninguna empresa tiene representante legal vinculado todavía. Se asocia desde el botón Editar, campo Tercero vinculado.
                     </div>
-                    <div class="table-responsive" id="contenedor_tabla">
+                    <div id="contenedor_tabla">
                         <table id="tabla_empresas" class="table table-striped table-hover align-middle mb-0 maestros-tabla maestros-tabla-ancha" style="width:100%">
                             <thead class="maestros-thead">
                                 <tr>
@@ -84,7 +84,7 @@
                                         value="<?= esc($siguiente_codigo ?? '') ?>" readonly tabindex="-1" aria-readonly="true">
                                     <span class="input-group-text bg-light"><i class="bi bi-lock-fill" aria-hidden="true"></i></span>
                                 </div>
-                                <div class="form-text">Consecutivo asignado por el sistema. No se puede modificar.</div>
+                                <div class="form-text">Asignado por el sistema.</div>
                             </div>
 
                             <div class="col-md-5">
@@ -99,7 +99,7 @@
                                         maxlength="1" placeholder="DV" readonly tabindex="-1" aria-label="Dígito de verificación">
                                     <div class="invalid-feedback"></div>
                                 </div>
-                                <div class="form-text">El dígito de verificación se calcula solo a partir del Nit.</div>
+                                <div class="form-text">El DV se calcula automáticamente.</div>
                             </div>
 
                             <div class="col-md-4 d-none d-md-block"></div>
@@ -117,7 +117,7 @@
 
                             <div class="col-12">
                                 <h6 class="maestros-seccion"><i class="bi bi-person-badge" aria-hidden="true"></i>Representante legal</h6>
-                                <div class="form-text">Con estos datos se crea el tercero que queda vinculado a la empresa.</div>
+                                <div class="form-text">Con estos datos se crea el tercero vinculado.</div>
                             </div>
 
                             <div class="col-md-4">
@@ -129,7 +129,7 @@
                                         onkeypress="return soloNumeros(event)" onpaste="return sanitizePaste(event)">
                                     <div class="invalid-feedback"></div>
                                 </div>
-                                <div class="form-text">Se usa como número de documento y como código del tercero.</div>
+                                <div class="form-text">Se usa como documento y código del tercero.</div>
                             </div>
 
                             <div class="col-md-8">
@@ -178,7 +178,7 @@
                             <div class="col-12 campo-pendiente">
                                 <div class="aviso">
                                     <i class="bi bi-info-circle" aria-hidden="true"></i>
-                                    Actividad económica y Notas y observaciones todavía no se guardan: la base de datos aún no tiene esas dos columnas. Se muestran aquí para dejar el formulario completo y quedarán habilitados cuando se ejecute el script de actualización de la base de datos.
+                                    Actividad económica y Notas aún no se guardan; se habilitarán al actualizar la base de datos.
                                 </div>
                                 <div class="row g-3">
                                     <div class="col-12">
@@ -188,8 +188,7 @@
                                         <div class="input-group">
                                             <span class="input-group-text"><i class="bi bi-briefcase" aria-hidden="true"></i></span>
                                             <input type="text" class="form-control" id="actividadEconomica_crear" placeholder="Actividad económica principal"
-                                                maxlength="250" autocomplete="off" disabled
-                                                title="Campo pendiente de habilitar. Todavía no se guarda.">
+                                                maxlength="250" autocomplete="off" disabled>
                                         </div>
                                     </div>
                                     <div class="col-12">
@@ -197,8 +196,7 @@
                                             <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle ms-1">Pendiente</span>
                                         </label>
                                         <textarea class="form-control" id="notas_crear" rows="3" maxlength="1000"
-                                            placeholder="Notas y observaciones..." disabled
-                                            title="Campo pendiente de habilitar. Todavía no se guarda."></textarea>
+                                            placeholder="Notas y observaciones..." disabled></textarea>
                                     </div>
                                 </div>
                             </div>

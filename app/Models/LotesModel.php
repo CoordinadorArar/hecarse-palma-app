@@ -45,7 +45,7 @@ class LotesModel extends Model
     {
         $partes = [];
 
-        foreach (self::TABLAS_USO as $tabla) {
+        foreach ($this->tablasUso() as $tabla) {
             $partes[] = "SELECT empresa, lote, COUNT(*) AS n FROM {$tabla}"
                 . ' WHERE empresa = ? AND lote IS NOT NULL AND LTRIM(RTRIM(lote)) <> \'\''
                 . ' GROUP BY empresa, lote';
@@ -57,7 +57,20 @@ class LotesModel extends Model
     /** Binds de sqlUsosAgregados(), en el mismo orden en que aparecen sus placeholders. */
     private function usosBinds(int $empresa): array
     {
-        return array_fill(0, count(self::TABLAS_USO), $empresa);
+        return array_fill(0, count($this->tablasUso()), $empresa);
+    }
+
+    private ?array $tablasUso = null;
+
+    private function tablasUso(): array
+    {
+        if ($this->tablasUso === null) {
+            $fila = $this->db->query("SELECT OBJECT_ID('dbo.aPalma', 'U') AS aPalma, OBJECT_ID('dbo.aLotesGeometria', 'U') AS aLotesGeometria")->getRowArray();
+
+            $this->tablasUso = array_merge(self::TABLAS_USO, array_keys(array_filter($fila, static fn ($id) => $id !== null)));
+        }
+
+        return $this->tablasUso;
     }
 
     /**

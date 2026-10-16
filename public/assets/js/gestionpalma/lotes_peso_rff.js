@@ -42,14 +42,13 @@ const renderizarTabla = () => {
     }
     $('#tabla_pesos').DataTable({
         paging: false,
-        info: false,
-        searching: false,
-        lengthChange: false,
+        dom: "<'gp-dt-barra'if><'table-responsive't>",
         columnDefs: [{ targets: [6], orderable: false }],
         order: [[1, 'asc'], [2, 'asc']],
         language: {
-            zeroRecords: 'No se encontraron resultados',
-            emptyTable: 'No hay datos disponibles'
+            info: '_TOTAL_ registros',
+            infoEmpty: '0 registros',
+            infoFiltered: '(de _MAX_)'
         }
     });
 };

@@ -41,22 +41,7 @@ const renderizarTabla = () => {
 
     $('#tabla_empresas').DataTable({
         order: [[0, 'asc']],
-        columnDefs: [{ targets: [8], orderable: false }],
-        language: {
-            lengthMenu: 'Mostrar _MENU_ registros por página',
-            zeroRecords: 'No se encontraron resultados',
-            info: 'Mostrando _START_ a _END_ de _TOTAL_ registros',
-            infoEmpty: 'No hay registros disponibles',
-            infoFiltered: '(filtrado de _MAX_ registros totales)',
-            search: 'Buscar:',
-            emptyTable: 'No hay datos disponibles',
-            paginate: {
-                first: 'Primero',
-                last: 'Último',
-                next: 'Siguiente',
-                previous: 'Anterior'
-            }
-        }
+        columnDefs: [{ targets: [8], orderable: false }]
     });
 };
 

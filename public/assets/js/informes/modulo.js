@@ -230,10 +230,10 @@ const ESPECIFICOS = {
     },
     'labores-tercero-fecha': {
         ocultas: ['trabajador', 'codigo', 'cargo'],
-        unidad: ['labor', 'labores'],
+        unidad: ['registro', 'registros'],
         ordenServidor: true,
         pageLength: 100,
-        anchos: { labor: 'min-width:240px', uMedida: 'width:90px', cantidad: 'width:110px', jornales: 'width:100px', dias: 'width:80px', valor: 'width:140px' },
+        anchos: { labor: 'min-width:240px', fecha: 'width:110px', uMedida: 'width:90px', cantidad: 'width:110px', jornales: 'width:100px', valor: 'width:140px' },
         alerta: (fila) => Boolean(fila.conNegativo),
         alertaTitulo: 'Tiene labores con valor negativo por ajustes',
         marca: { valor: (fila) => Boolean(fila.negativo) },
@@ -376,10 +376,10 @@ const ESPECIFICOS = {
     },
     'labores-lote-fecha': {
         ocultas: ['lote', 'finca', 'anioSiembra', 'palmas', 'palmasPeso', 'valorConPalmas', 'valorContratista', 'diasLote'],
-        unidad: ['labor', 'labores'],
+        unidad: ['registro', 'registros'],
         ordenServidor: true,
         pageLength: 100,
-        anchos: { grupo: 'min-width:150px', labor: 'min-width:240px', uMedida: 'width:90px', ejecucion: 'width:110px', cantidad: 'width:110px', precio: 'width:120px', dias: 'width:80px', valor: 'width:140px', costoPalma: 'width:110px' },
+        anchos: { grupo: 'min-width:150px', labor: 'min-width:240px', fecha: 'width:110px', uMedida: 'width:90px', ejecucion: 'width:110px', cantidad: 'width:110px', precio: 'width:120px', valor: 'width:140px', costoPalma: 'width:110px' },
         alerta: (fila) => Boolean(fila.sinCosto),
         alertaTitulo: 'Costo por palma no calculable (sin lote o sin palmas en producción)',
         marca: { valor: (fila) => Boolean(fila.negativo), precio: (fila) => Boolean(fila.variosPrecios) },
@@ -477,10 +477,10 @@ const ESPECIFICOS = {
     },
     'labores-ccosto-fecha': {
         ocultas: ['ccosto', 'finca', 'valorContratista'],
-        unidad: ['labor', 'labores'],
+        unidad: ['registro', 'registros'],
         ordenServidor: true,
         pageLength: 100,
-        anchos: { grupo: 'min-width:150px', labor: 'min-width:240px', uMedida: 'width:90px', ejecucion: 'width:110px', cantidad: 'width:110px', precio: 'width:120px', dias: 'width:80px', valor: 'width:140px' },
+        anchos: { grupo: 'min-width:150px', labor: 'min-width:240px', fecha: 'width:110px', uMedida: 'width:90px', ejecucion: 'width:110px', cantidad: 'width:110px', precio: 'width:120px', valor: 'width:140px' },
         marca: { valor: (fila) => Boolean(fila.negativo), precio: (fila) => Boolean(fila.variosPrecios) },
         marcaTitulo: (fila, clave) => ({
             valor: 'Valor negativo por ajuste de signo',
@@ -501,11 +501,11 @@ const ESPECIFICOS = {
         detalle: { pct: ['% del total', 'porcentaje'], labores: ['Labores', 'entero'], dias: ['Días con labor', 'entero'], fincas: ['Fincas', 'texto'], centros: ['Centros de costo', 'entero'], contratista: ['Contratistas', 'moneda'] }
     },
     'labores-ccosto-fecha-lote': {
-        ocultas: ['ccosto', 'finca', 'grupo', 'ejecucion', 'dias', 'palmasPeso', 'valorConPalmas', 'valorContratista', 'valorLote', 'pctLote'],
-        unidad: ['labor', 'labores'],
+        ocultas: ['ccosto', 'finca', 'grupo', 'ejecucion', 'palmasPeso', 'valorConPalmas', 'valorContratista', 'valorLote', 'pctLote'],
+        unidad: ['registro', 'registros'],
         ordenServidor: true,
         pageLength: 100,
-        anchos: { lote: 'min-width:200px', anioSiembra: 'width:90px', mes: 'width:90px', labor: 'min-width:240px', uMedida: 'width:90px', palmas: 'width:100px', cantidad: 'width:110px', precio: 'width:120px', valor: 'width:140px', costoPalma: 'width:110px' },
+        anchos: { lote: 'min-width:200px', anioSiembra: 'width:90px', mes: 'width:90px', labor: 'min-width:240px', fecha: 'width:110px', uMedida: 'width:90px', palmas: 'width:100px', cantidad: 'width:110px', precio: 'width:120px', valor: 'width:140px', costoPalma: 'width:110px' },
         alerta: (fila) => Boolean(fila.sinCcosto) || Number(fila.palmasCcosto) === 0,
         alertaTitulo: 'Centro sin costo por palma (sin centro de costo o sin palmas en producción)',
         marca: { valor: (fila) => Boolean(fila.negativo), precio: (fila) => Boolean(fila.variosPrecios) },
@@ -607,7 +607,7 @@ const ESPECIFICOS = {
         unidad: ['fila', 'filas'],
         ordenServidor: true,
         pageLength: 100,
-        anchos: { trabajador: 'min-width:240px', finca: 'min-width:150px', lote: 'min-width:180px', labor: 'min-width:220px', uMedida: 'width:90px', cantidad: 'width:110px', jornales: 'width:100px', precio: 'width:120px', valor: 'width:140px' },
+        anchos: { trabajador: 'min-width:240px', finca: 'min-width:150px', lote: 'min-width:180px', labor: 'min-width:220px', fecha: 'width:110px', uMedida: 'width:90px', cantidad: 'width:110px', jornales: 'width:100px', precio: 'width:120px', valor: 'width:140px' },
         subtexto: {
             trabajador: (fila) => (fila.finTrabajador ? `Subtotal ${formatear(fila.valorTrabajador, 'moneda')} · ${formatear(fila.jornalesTrabajador, 'decimal')} jornales` : ''),
             finca: (fila) => (texto(fila.seccion) ? `Sección ${texto(fila.seccion)}` : ''),
@@ -1402,17 +1402,9 @@ const pintarTabla = (respuesta) => {
         pageLength: espec.pageLength || 25,
         lengthMenu: [[...largos, -1], [...largos, 'Todos']],
         autoWidth: false,
-        dom: "<'d-flex flex-wrap justify-content-between align-items-center gap-2 px-3 py-2'lf><'table-responsive't><'d-flex flex-wrap justify-content-between align-items-center gap-2 px-3 py-2'ip>",
         language: {
-            lengthMenu: 'Mostrar _MENU_ registros',
-            zeroRecords: 'Ningún registro coincide con la búsqueda',
-            info: 'Mostrando _START_ a _END_ de _TOTAL_ registros',
-            infoEmpty: 'No hay registros disponibles',
-            infoFiltered: '(filtrado de _MAX_ registros totales)',
-            emptyTable: 'No hay datos disponibles',
             search: 'Buscar:',
-            searchPlaceholder: 'Buscar en el detalle…',
-            paginate: { first: 'Primero', last: 'Último', next: 'Siguiente', previous: 'Anterior' }
+            searchPlaceholder: 'Buscar en el detalle…'
         }
     });
 };

@@ -35,7 +35,6 @@
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    <div class="form-text">Los tipos de documento se guardan por empresa.</div>
                 </div>
 
                 <div class="col-md-4">
@@ -48,7 +47,6 @@
                             <i class="bi bi-x-lg" aria-hidden="true"></i>
                         </button>
                     </div>
-                    <div class="form-text">Filtra la lista mientras escribe.</div>
                 </div>
 
             </div>
@@ -66,19 +64,9 @@
 
         <div class="card-body p-0">
 
-            <div class="maestros-nota m-3 mb-0">
-                <i class="bi bi-info-circle" aria-hidden="true"></i>
-                <span>El código identifica el registro: no se puede modificar después de crearlo y admite máximo 3 caracteres, porque así lo guarda el maestro de Terceros.</span>
-            </div>
-
-            <div class="maestros-nota m-3 mb-0 d-none" id="aviso_sin_equivalencia">
-                <i class="bi bi-info-circle" aria-hidden="true"></i>
-                <span>Ningún tipo de documento de esta empresa tiene equivalencia registrada. Es un campo opcional.</span>
-            </div>
-
             <div class="maestros-grilla-relativa" id="zona_grilla">
 
-                <div class="table-responsive d-none" id="contenedor_tabla">
+                <div class="d-none" id="contenedor_tabla">
                     <table id="tabla_tipos_documentos" class="table table-striped table-hover align-middle mb-0 maestros-tabla maestros-tabla-media" style="width:100%">
                         <thead class="maestros-thead">
                             <tr>
@@ -127,7 +115,6 @@
 
         </div>
 
-        <div class="card-footer bg-white py-2 d-none" id="pie_tabla"></div>
     </div>
 
     <div class="modal fade" id="modalTipoDocumento" tabindex="-1" aria-hidden="true">
@@ -156,7 +143,7 @@
                                     <span class="input-group-text bg-light d-none" id="candado_codigo"><i class="bi bi-lock-fill" aria-hidden="true"></i></span>
                                     <div class="invalid-feedback"></div>
                                 </div>
-                                <div class="form-text" id="ayuda_codigo">Máximo 3 caracteres. Es el valor que queda guardado en cada tercero.</div>
+                                <div class="form-text" id="ayuda_codigo">Máximo 3 caracteres.</div>
                             </div>
 
                             <div class="col-md-4">
@@ -166,7 +153,6 @@
                                     <input type="text" class="form-control maestros-campo-corto" id="descripcionCorta" maxlength="50" autocomplete="off" placeholder="CC">
                                     <div class="invalid-feedback"></div>
                                 </div>
-                                <div class="form-text">Texto corto que se muestra en listados y documentos.</div>
                             </div>
 
                             <div class="col-12">
@@ -189,7 +175,7 @@
                                     <input type="text" class="form-control maestros-campo-mini" id="codigoTD" value="0" maxlength="10" inputmode="numeric" autocomplete="off">
                                     <div class="invalid-feedback"></div>
                                 </div>
-                                <div class="form-text">Valor numérico heredado del sistema anterior. Si no aplica, déjelo en 0.</div>
+                                <div class="form-text">Si no aplica, déjelo en 0.</div>
                             </div>
 
                             <div class="col-md-4">
@@ -199,7 +185,7 @@
                                     <input type="text" class="form-control font-monospace" id="equivalencia" maxlength="50" autocomplete="off">
                                     <div class="invalid-feedback"></div>
                                 </div>
-                                <div class="form-text">Opcional. Código equivalente en otro sistema.</div>
+                                <div class="form-text">Código equivalente en otro sistema.</div>
                             </div>
 
                             <div class="col-12">
@@ -208,7 +194,6 @@
                                         <input class="form-check-input" type="checkbox" id="mNit">
                                         <label class="form-check-label" for="mNit">Maneja NIT</label>
                                     </div>
-                                    <div class="form-text mb-0">Actívelo cuando el documento sea un NIT.</div>
                                 </div>
                             </div>
 

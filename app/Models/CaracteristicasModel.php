@@ -30,8 +30,10 @@ class CaracteristicasModel extends Model
     private const CAMPOS = 'c.empresa, c.codigo, c.descripcion, c.manejaCaractistica, c.grupoCaracteristica,
         c.activo, g.descripcion AS grupoDescripcion, ISNULL(u.usos, 0) AS usos';
 
-    private const SQL_USOS = '(SELECT empresa, caracteristica, COUNT(*) AS usos FROM aSanidadDetalle
-        WHERE empresa = ? AND caracteristica IS NOT NULL GROUP BY empresa, caracteristica)';
+    private const SQL_USOS = '(SELECT empresa, caracteristica, SUM(usos) AS usos FROM (SELECT empresa, caracteristica, COUNT(*) AS usos FROM aSanidadDetalle
+        WHERE empresa = ? AND caracteristica IS NOT NULL GROUP BY empresa, caracteristica{censo}) x GROUP BY empresa, caracteristica)';
+
+    private const SQL_USOS_CENSO = ' UNION ALL SELECT empresa, caracteristica, COUNT(*) FROM dbo.aCensoPalma GROUP BY empresa, caracteristica';
 
     private const JOINS = ' FROM aCaracteristica c
         LEFT JOIN aGrupoCaracteristica g ON g.empresa = c.empresa AND g.codigo = c.grupoCaracteristica
@@ -103,7 +105,7 @@ class CaracteristicasModel extends Model
         $grupo    = trim($grupo);
         $busqueda = trim($busqueda);
 
-        $sql   = 'SELECT ' . self::CAMPOS . self::JOINS . ' WHERE c.empresa = ?';
+        $sql   = 'SELECT ' . self::CAMPOS . $this->joins() . ' WHERE c.empresa = ?';
         $binds = [$empresa, $empresa];
 
         if ($grupo !== '' && ctype_digit($grupo)) {
@@ -133,7 +135,7 @@ class CaracteristicasModel extends Model
     public function obtener(int $empresa, int $codigo): ?array
     {
         $res = $this->db->query(
-            'SELECT ' . self::CAMPOS . self::JOINS . ' WHERE c.empresa = ? AND c.codigo = ?',
+            'SELECT ' . self::CAMPOS . $this->joins() . ' WHERE c.empresa = ? AND c.codigo = ?',
             [$empresa, $empresa, $codigo]
         );
 
@@ -232,11 +234,23 @@ class CaracteristicasModel extends Model
         return mb_strtoupper(trim((string) preg_replace('/\s+/u', ' ', $descripcion)));
     }
 
+    private function censoExiste(): bool
+    {
+        return $this->db->query("SELECT OBJECT_ID('dbo.aCensoPalma', 'U') AS id")->getRow()->id !== null;
+    }
+
+    private function joins(): string
+    {
+        return str_replace('{censo}', $this->censoExiste() ? self::SQL_USOS_CENSO : '', self::JOINS);
+    }
+
     public function enUso(int $empresa, int $codigo): int
     {
-        $res  = $this->db->query(
-            'SELECT COUNT(*) AS total FROM aSanidadDetalle WHERE empresa = ? AND caracteristica = ?',
-            [$empresa, $codigo]
+        $censo = $this->censoExiste();
+        $res   = $this->db->query(
+            'SELECT (SELECT COUNT(*) FROM aSanidadDetalle WHERE empresa = ? AND caracteristica = ?)'
+                . ($censo ? ' + (SELECT COUNT(*) FROM dbo.aCensoPalma WHERE empresa = ? AND caracteristica = ?)' : '') . ' AS total',
+            $censo ? [$empresa, $codigo, $empresa, $codigo] : [$empresa, $codigo]
         );
         $fila = $res === false ? null : $res->getRowArray();
 

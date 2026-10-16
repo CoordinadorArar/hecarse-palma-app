@@ -230,8 +230,8 @@ const aplicarSecciones = () => {
     $id('nota_seccion').classList.toggle('d-none', hay);
 
     $id('nota_seccion_texto').textContent = (fincaSel() !== '' && estado.hayAlgunaSeccion)
-        ? `La finca ${fincaNombre()} no tiene secciones registradas. El precio quedará a nivel de finca o de lote.`
-        : 'Esta empresa aún no tiene secciones registradas. El precio quedará a nivel de finca o de lote. Puede crearlas en Gestión Palma › Secciones y esta opción se habilitará automáticamente.';
+        ? `La finca ${fincaNombre()} no tiene secciones.`
+        : 'La empresa no tiene secciones. Créelas en Gestión Palma › Secciones.';
 
     $id('form_seccion').innerHTML = '<option value="">Seleccione&hellip;</option>'
         + estado.secciones.map((s) => `<option value="${escapar(s.codigo)}">${escapar(s.codigo)} &mdash; ${escapar(s.descripcion)}</option>`).join('');
@@ -504,19 +504,14 @@ const destruirTabla = () => {
 const renderizarTabla = () => {
     if ($id('cuerpo_tabla_precios').querySelectorAll('tr').length === 0) return;
     $('#tabla_precios').DataTable({
-        paging: true,
         pageLength: 25,
-        lengthChange: false,
-        info: true,
-        searching: false,
         columnDefs: [{ targets: [8], orderable: false }],
         order: [[0, 'desc'], [2, 'asc']],
         language: {
             info: 'Mostrando _START_ a _END_ de _TOTAL_ precios',
             infoEmpty: 'Sin precios para mostrar',
-            paginate: { first: 'Primero', last: 'Último', next: 'Siguiente', previous: 'Anterior' },
-            zeroRecords: 'No se encontraron resultados',
-            emptyTable: 'No hay datos disponibles'
+            search: 'Buscar en resultados:',
+            searchPlaceholder: 'Filtrar lo listado…'
         }
     });
 };
@@ -551,7 +546,6 @@ const refrescarCatalogos = (result) => {
     $('#form_labor').trigger('change.select2');
 
     const sinAnios = result.anios.length === 0;
-    $id('ayuda_anio').classList.toggle('d-none', sinAnios);
     $id('nota_anio').classList.toggle('d-none', !sinAnios);
 };
 
@@ -613,7 +607,8 @@ const resaltarFila = (clave) => {
 
     const dt = tablaDT();
     if (dt) {
-        const posicion = dt.rows({ order: 'applied' }).indexes().indexOf(dt.row(fila).index());
+        if (dt.rows({ search: 'applied' }).indexes().indexOf(dt.row(fila).index()) < 0) dt.search('').draw();
+        const posicion = dt.rows({ order: 'applied', search: 'applied' }).indexes().indexOf(dt.row(fila).index());
         if (posicion >= 0) dt.page(Math.floor(posicion / dt.page.info().length)).draw(false);
     }
 
