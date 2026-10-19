@@ -12,8 +12,8 @@ $informes      = array_map(static function ($informe) use ($modulo) {
 ?>
 
 <?php echo $this->section('css'); ?>
-<link rel="stylesheet" href="<?= base_url() ?>public/assets/css/gestionpalma.css">
-<link rel="stylesheet" href="<?= base_url() ?>public/assets/css/informes.css">
+<link rel="stylesheet" href="<?= asset_url('public/assets/css/gestionpalma.css') ?>">
+<link rel="stylesheet" href="<?= asset_url('public/assets/css/informes.css') ?>">
 <?php echo $this->endSection(); ?>
 
 <?php echo $this->section('contenido'); ?>
@@ -96,5 +96,5 @@ $informes      = array_map(static function ($informe) use ($modulo) {
     const BASE_URL = "<?= base_url() ?>";
     const INFORMES = <?= json_encode(['modulo' => $modulo['clave'], 'nombre' => $modulo_nombre, 'seleccionado' => $informe_sel ?? '', 'informes' => $informes], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>;
 </script>
-<script src="<?= base_url('public/assets/js/informes/modulo.js') ?>"></script>
+<script src="<?= asset_url('public/assets/js/informes/modulo.js') ?>"></script>
 <?php echo $this->endSection(); ?>

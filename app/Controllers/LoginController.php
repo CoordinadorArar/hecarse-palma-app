@@ -104,6 +104,9 @@ class LoginController extends BaseController
                     $session->set('usu_telefono', $user['Telefono']);
                     $session->set('usu_email', $user['Email']);
                     $session->set('ultimo_acceso', time());
+                    $session->set('alerta_labores', true);
+                    $session->remove('alerta_labores_permitida');
+                    alerta_labores_permitida();
 
                     // Registrar Auditoria de sesiones 
                     $auditoria = [

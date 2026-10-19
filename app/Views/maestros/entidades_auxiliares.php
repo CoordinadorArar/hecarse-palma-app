@@ -1,7 +1,7 @@
 <?php echo $this->extend('template/layout'); ?>
 
 <?php echo $this->section('css'); ?>
-<link rel="stylesheet" href="<?= base_url() ?>public/assets/css/maestros.css">
+<link rel="stylesheet" href="<?= asset_url('public/assets/css/maestros.css') ?>">
 <?php echo $this->endSection(); ?>
 
 <?php echo $this->section('contenido'); ?>
@@ -242,5 +242,5 @@ foreach ($entidades as $entidad) {
     const BASE_URL = "<?= base_url() ?>";
     const POR_PAGINA = <?= (int) $por_pagina ?>;
 </script>
-<script src="<?= base_url('public/assets/js/maestros/entidades_auxiliares.js') ?>"></script>
+<script src="<?= asset_url('public/assets/js/maestros/entidades_auxiliares.js') ?>"></script>
 <?php echo $this->endSection(); ?>

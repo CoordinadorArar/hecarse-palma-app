@@ -1,7 +1,7 @@
 <?php echo $this->extend('template/layout'); ?>
 
 <?php echo $this->section('css'); ?>
-<link rel="stylesheet" href="<?= base_url() ?>public/assets/css/maestros.css">
+<link rel="stylesheet" href="<?= asset_url('public/assets/css/maestros.css') ?>">
 <?php echo $this->endSection(); ?>
 
 <?php echo $this->section('contenido'); ?>
@@ -222,5 +222,5 @@
 <script>
     const BASE_URL = "<?= base_url() ?>";
 </script>
-<script src="<?= base_url('public/assets/js/maestros/tipos_documentos.js') ?>"></script>
+<script src="<?= asset_url('public/assets/js/maestros/tipos_documentos.js') ?>"></script>
 <?php echo $this->endSection(); ?>

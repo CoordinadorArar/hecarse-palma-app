@@ -1122,7 +1122,7 @@ const precargarPlaneacion = async () => {
     }
 
     if (texto(datos.destino) !== CFG.ruta) {
-        fallar('Formulario incorrecto', `La actividad se registra en ${texto(datos.destino) === 'fertilizacion' ? 'Fertilización' : 'Registro de labores'}.`);
+        fallar('Formulario incorrecto', `La actividad se registra en ${{ fertilizacion: 'Fertilización', produccion: 'Producción' }[texto(datos.destino)] || 'Registro de labores'}.`);
 
         return;
     }

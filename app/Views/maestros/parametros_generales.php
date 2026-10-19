@@ -1,7 +1,7 @@
 <?php echo $this->extend('template/layout'); ?>
 
 <?php echo $this->section('css'); ?>
-<link rel="stylesheet" href="<?= base_url() ?>public/assets/css/maestros.css">
+<link rel="stylesheet" href="<?= asset_url('public/assets/css/maestros.css') ?>">
 <?php echo $this->endSection(); ?>
 
 <?php echo $this->section('contenido'); ?>
@@ -258,5 +258,5 @@ $camposParametro = function (string $suf) use ($tipos_dato) {
 
 <?php echo $this->section('scripts'); ?>
 <script> const BASE_URL = "<?= base_url() ?>"; </script>
-<script src="<?= base_url('public/assets/js/maestros/parametros_generales.js') ?>"></script>
+<script src="<?= asset_url('public/assets/js/maestros/parametros_generales.js') ?>"></script>
 <?php echo $this->endSection(); ?>

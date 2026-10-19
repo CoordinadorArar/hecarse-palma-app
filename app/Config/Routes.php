@@ -31,6 +31,7 @@ $routes->post('contacto/enviar', 'IndexController::enviar');
  * Rutas de la loseta
  */
 $routes->get('losetas/', 'LosetasController::index');
+$routes->post('losetas/alerta-labores', 'LosetasController::alertaLabores');
 
 /** Rutas de la loseta "Administracion"*/
 $routes->get('admin/onboarding/(:num)', 'admin\AdminController::index/$1');
@@ -342,6 +343,7 @@ $routes->post('transacciones/planeacion/lotes', 'transacciones\PlaneacionControl
 $routes->post('transacciones/planeacion/secciones', 'transacciones\PlaneacionController::secciones');
 $routes->post('transacciones/planeacion/planesFertilizacion', 'transacciones\PlaneacionController::planesFertilizacion');
 $routes->post('transacciones/planeacion/guardar', 'transacciones\PlaneacionController::guardar');
+$routes->post('transacciones/planeacion/agregar', 'transacciones\PlaneacionController::agregar');
 $routes->post('transacciones/planeacion/trasladar', 'transacciones\PlaneacionController::trasladar');
 $routes->post('transacciones/planeacion/ausencia', 'transacciones\PlaneacionController::ausencia');
 $routes->post('transacciones/planeacion/quitarAusencia', 'transacciones\PlaneacionController::quitarAusencia');
@@ -351,6 +353,10 @@ $routes->post('transacciones/planeacion/cerrarPlan', 'transacciones\PlaneacionCo
 $routes->post('transacciones/planeacion/reabrirPlan', 'transacciones\PlaneacionController::reabrirPlan');
 $routes->post('transacciones/planeacion/eliminar', 'transacciones\PlaneacionController::eliminar');
 $routes->post('transacciones/planeacion/precarga', 'transacciones\PlaneacionController::precarga');
+$routes->post('transacciones/planeacion/sugerencias', 'transacciones\PlaneacionController::sugerencias');
+$routes->post('transacciones/planeacion/sugerencias/aprobar', 'transacciones\PlaneacionController::aprobarSugerencia');
+$routes->post('transacciones/planeacion/sugerencias/rechazar', 'transacciones\PlaneacionController::rechazarSugerencia');
+$routes->post('transacciones/planeacion/sugerencias/historial', 'transacciones\PlaneacionController::historialSugerencias');
 
 /** Rutas de la loseta de  "Dashboards".*/
 $routes->get('dashboards/onboarding/(:num)', 'dashboards\DashboardsController::index/$1');
@@ -358,6 +364,11 @@ $routes->get('dashboards/admin/(:num)', 'dashboards\InformesGerencialesControlle
 $routes->post('dashboards/informes-gerenciales/fincas', 'dashboards\InformesGerencialesController::fincas');
 $routes->post('dashboards/informes-gerenciales/consultar', 'dashboards\InformesGerencialesController::consultar');
 $routes->post('dashboards/informes-gerenciales/palmas', 'dashboards\InformesGerencialesController::palmas');
+$routes->get('dashboards/produccion/(:num)', 'dashboards\TablerosController::produccion/$1');
+$routes->get('dashboards/fertilizacion/(:num)', 'dashboards\TablerosController::fertilizacion/$1');
+$routes->post('dashboards/produccion/datos', 'dashboards\TablerosController::datosProduccion');
+$routes->post('dashboards/fertilizacion/datos', 'dashboards\TablerosController::datosFertilizacion');
+$routes->post('dashboards/tableros/fincas', 'dashboards\TablerosController::fincas');
 
 /** Rutas de la loseta de  "Reportes".*/
 $routes->get('informes/onboarding/(:num)', 'informes\InformeController::index/$1');

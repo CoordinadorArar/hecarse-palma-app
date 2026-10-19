@@ -5,7 +5,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@geoman-io/leaflet-geoman-free@2.17.0/dist/leaflet-geoman.css" integrity="sha384-nfYqa/3Xh7kCl9/bO8fCcmqGuhuVWAle+CQgdE/LdgaQiO6fSkKh8C0fLdCVrrQJ" crossorigin="anonymous">
 <?php endif; ?>
-<link rel="stylesheet" href="<?= base_url() ?>public/assets/css/gestionpalma.css?v=<?= filemtime(FCPATH . 'public/assets/css/gestionpalma.css') ?>">
+<link rel="stylesheet" href="<?= asset_url('public/assets/css/gestionpalma.css') ?>">
 <?php echo $this->endSection(); ?>
 
 <?php echo $this->section('contenido'); ?>
@@ -134,7 +134,7 @@
 <?php if ($tablas_existen): ?>
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@geoman-io/leaflet-geoman-free@2.17.0/dist/leaflet-geoman.js" integrity="sha384-7CTDkMmRSjHvjl8ftuwzLq/ogrEnsuNoi3825eH06KuMNWWwcfaNIHol5+I3EAzO" crossorigin="anonymous"></script>
-<script src="<?= base_url('public/assets/js/comun/palmas_mapa.js') ?>?v=<?= filemtime(FCPATH . 'public/assets/js/comun/palmas_mapa.js') ?>"></script>
-<script src="<?= base_url('public/assets/js/gestionpalma/lotes_mapa.js') ?>?v=<?= filemtime(FCPATH . 'public/assets/js/gestionpalma/lotes_mapa.js') ?>"></script>
+<script src="<?= asset_url('public/assets/js/comun/palmas_mapa.js') ?>"></script>
+<script src="<?= asset_url('public/assets/js/gestionpalma/lotes_mapa.js') ?>"></script>
 <?php endif; ?>
 <?php echo $this->endSection(); ?>

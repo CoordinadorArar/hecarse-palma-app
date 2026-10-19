@@ -31,15 +31,18 @@
     <link href="<?= base_url() ?>public/assets/vendor/quill/quill.snow.css" rel="stylesheet">
     <link href="<?= base_url() ?>public/assets/vendor/quill/quill.bubble.css" rel="stylesheet">
     <link href="<?= base_url() ?>public/assets/vendor/remixicon/remixicon.css" rel="stylesheet">
-    <link href="<?= base_url() ?>public/assets/css/preloader.css" rel="stylesheet">
+    <link href="<?= asset_url('public/assets/css/preloader.css') ?>" rel="stylesheet">
 
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 
     <!-- <link href="<?= base_url() ?>public/assets/vendor/simple-datatables/style.css" rel="stylesheet"> -->
 
     <!-- Template Main CSS File -->
-    <link href="<?= base_url() ?>public/assets/css/style.css" rel="stylesheet">
-    <link href="<?= base_url() ?>public/assets/css/sidebar.css" rel="stylesheet">
+    <link href="<?= asset_url('public/assets/css/style.css') ?>" rel="stylesheet">
+    <link href="<?= asset_url('public/assets/css/sidebar.css') ?>" rel="stylesheet">
+    <?php if (alerta_labores_permitida()): ?>
+    <link href="<?= asset_url('public/assets/css/alerta_labores.css') ?>" rel="stylesheet">
+    <?php endif; ?>
 
     <!-- RENDERIZAR CUSTOM CSS, SI EXISTEN -->
     <?php echo $this->renderSection("css"); ?>
@@ -73,6 +76,8 @@
     <!-- RENDERIZAR CONTENIDO PRINCIPAL -->
     <?php echo $this->renderSection("contenido"); ?>
 
+    <?php if (alerta_labores_permitida()) echo $this->include('template/alerta_labores'); ?>
+
     <!-- Vendor JS Files -->
     <script src="<?= base_url() ?>public/assets/vendor/apexcharts/apexcharts.min.js"></script>
     <script src="<?= base_url() ?>public/assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
@@ -92,7 +97,7 @@
 
     <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
-    <script src="<?= base_url() ?>public/assets/js/datatables-defaults.js"></script>
+    <script src="<?= asset_url('public/assets/js/datatables-defaults.js') ?>"></script>
 
     <script src="https://cdn.datatables.net/rowgroup/1.4.1/js/dataTables.rowGroup.min.js"></script>
 
@@ -109,10 +114,14 @@
     <script> const logoutUrl = "<?= site_url('logout') ?>"; </script>
 
     <!-- Template Main JS File -->
-    <script src="<?= base_url() ?>public/assets/js/main.js"></script>
+    <script src="<?= asset_url('public/assets/js/main.js') ?>"></script>
 
     <!-- RENDERIZAR CUSTOM SCRIPTS, SI EXISTEN -->
     <?php echo $this->renderSection("scripts"); ?>
+
+    <?php if (alerta_labores_permitida()): ?>
+    <script src="<?= asset_url('public/assets/js/alerta_labores.js') ?>"></script>
+    <?php endif; ?>
 
 </body>
 

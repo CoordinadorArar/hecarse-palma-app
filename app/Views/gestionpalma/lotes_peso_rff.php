@@ -3,7 +3,7 @@
 
 <!-- SECCION DE CSS -->
 <?php echo $this->section('css'); ?>
-<link rel="stylesheet" href="<?= base_url() ?>public/assets/css/gestionpalma.css">
+<link rel="stylesheet" href="<?= asset_url('public/assets/css/gestionpalma.css') ?>">
 <?php echo $this->endSection(); ?>
 <!-- FIN SECCION DE CSS -->
 
@@ -281,5 +281,5 @@ foreach ($lotes as $l) {
     const ANIO_SEL = <?= (int) $anio_sel ?>;
     const MES_SEL = <?= (int) $mes_sel ?>;
 </script>
-<script src="<?= base_url('public/assets/js/gestionpalma/lotes_peso_rff.js') ?>"></script>
+<script src="<?= asset_url('public/assets/js/gestionpalma/lotes_peso_rff.js') ?>"></script>
 <?php echo $this->endSection(); ?>

@@ -3,7 +3,7 @@
 
 <!-- SECCION DE CSS -->
 <?php echo $this->section('css'); ?>
-<link rel="stylesheet" href="<?= base_url() ?>public/assets/css/gestionpalma.css">
+<link rel="stylesheet" href="<?= asset_url('public/assets/css/gestionpalma.css') ?>">
 <?php echo $this->endSection(); ?>
 <!-- FIN SECCION DE CSS -->
 
@@ -313,5 +313,5 @@ $meses = [
 
 <?php echo $this->section('scripts'); ?>
 <script> const BASE_URL = "<?= base_url() ?>"; const TIPOS_NOMINA = <?= json_encode($tipos_nomina) ?>; </script>
-<script src="<?= base_url('public/assets/js/gestionpalma/nomina_periodos.js') ?>"></script>
+<script src="<?= asset_url('public/assets/js/gestionpalma/nomina_periodos.js') ?>"></script>
 <?php echo $this->endSection(); ?>

@@ -3,7 +3,7 @@
 
 <!-- SECCION DE CSS -->
 <?php echo $this->section('css'); ?>
-<link rel="stylesheet" href="<?= base_url() ?>public/assets/css/gestionpalma.css">
+<link rel="stylesheet" href="<?= asset_url('public/assets/css/gestionpalma.css') ?>">
 <?php echo $this->endSection(); ?>
 <!-- FIN SECCION DE CSS -->
 
@@ -319,5 +319,5 @@
 
 <?php echo $this->section('scripts'); ?>
 <script> const BASE_URL = "<?= base_url() ?>"; const LABORES_ACTIVAS = <?= (int) $labores_activas ?>; const ANIOS_INICIALES = <?= json_encode(array_map('intval', $anios)) ?>; </script>
-<script src="<?= base_url('public/assets/js/gestionpalma/precios_por_labor.js') ?>"></script>
+<script src="<?= asset_url('public/assets/js/gestionpalma/precios_por_labor.js') ?>"></script>
 <?php echo $this->endSection(); ?>

@@ -1,0 +1,75 @@
+.tb-variacion {
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  font-size: .78rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.tb-gauge {
+  height: 320px;
+}
+
+.tb-gauge-texto {
+  margin-top: -.5rem;
+  text-align: center;
+}
+
+.tb-sparkline {
+  height: 40px;
+  margin-top: .25rem;
+}
+
+.tb-grafica-vacia {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: .35rem;
+  min-height: 320px;
+  font-size: .85rem;
+  color: var(--bs-secondary-color, #6c757d);
+  text-align: center;
+}
+
+.tb-grafica-vacia i {
+  font-size: 1.5rem;
+  color: #b6c0cb;
+}
+
+.tb-chip-quitar {
+  padding: 0 0 0 .35rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.tb-chip-quitar:hover,
+.tb-chip-quitar:focus-visible {
+  color: #a62c2c;
+}
+
+.tb-tabla-lotes {
+  max-height: 560px;
+}
+
+@media (max-width: 767.98px) {
+  .tb-gauge {
+    height: 260px;
+  }
+
+  .tb-grafica-vacia {
+    min-height: 260px;
+  }
+}
+
+.tb-muestra {
+  display: inline-block;
+  width: .65rem;
+  height: .65rem;
+  border-radius: 2px;
+}

@@ -473,6 +473,11 @@
   max-width: 180px;
 }
 
+.ig-labor-urgente {
+  max-width: 130px;
+  margin-inline: auto;
+}
+
 .ig-esqueleto-mapa {
   display: block;
   height: 420px;
@@ -507,6 +512,10 @@
   }
 
   .ig-geo-tabla .ig-lote-desc {
+    max-width: 88px;
+  }
+
+  .ig-geo-tabla .ig-labor-urgente {
     max-width: 88px;
   }
 
@@ -559,5 +568,17 @@
 
   .ig-geo-mapa {
     height: 360px;
+  }
+}
+
+.ig-act-reparto .tx-input-num {
+  min-width: 6rem;
+}
+
+@media (max-width: 575.98px) {
+  #ig_act_contexto > div {
+    row-gap: .25rem !important;
+    max-height: 3.4rem;
+    overflow: hidden;
   }
 }

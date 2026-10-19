@@ -1371,6 +1371,7 @@ const limpiarTodo = () => {
     congelar(false);
     estado.sellado = false;
     estado.lineas = [];
+    quitarPlaneacion();
     estado.externo = false;
     estado.encontrado = false;
     estado.tiqueteCargado = false;
@@ -1388,6 +1389,130 @@ const limpiarTodo = () => {
     calcularNeto();
     activarDetalle();
     $id('tiquete').focus();
+};
+
+const notaPlaneacion = () => {
+    if (!$id('nota_planeacion')) {
+        $id('card_tiquete').insertAdjacentHTML('beforebegin', '<div class="gp-nota d-flex align-items-center gap-2 mb-3 d-none" role="status" id="nota_planeacion"><i class="bi bi-calendar-check text-success" aria-hidden="true"></i><span id="nota_planeacion_texto"></span></div>');
+    }
+
+    return $id('nota_planeacion');
+};
+
+const quitarPlaneacion = () => {
+    const url = new URL(window.location.href);
+
+    estado.planeacionLinea = null;
+    $id('nota_planeacion')?.classList.add('d-none');
+
+    if (!url.searchParams.has('planeacion')) return;
+
+    url.searchParams.delete('planeacion');
+    history.replaceState(null, '', url.toString());
+};
+
+const precargarPlaneacion = async () => {
+    const parametros = new URLSearchParams(window.location.search);
+    const linea = parametros.get('planeacion');
+    const fallar = (titulo, mensaje) => Swal.fire({ icon: 'warning', title: titulo, html: escaparHtml(mensaje), confirmButtonText: 'Entendido' });
+
+    if (!/^\d+$/.test(texto(linea)) || Number(linea) <= 0) return;
+
+    let datos;
+
+    try {
+        datos = await pedir('../planeacion/precarga', { linea });
+    } catch (error) {
+        fallar('No se pudo precargar la actividad', error.message);
+
+        return;
+    }
+
+    if (texto(datos.destino) !== 'produccion') {
+        fallar('Formulario incorrecto', `La actividad se registra en ${{ fertilizacion: 'Fertilización', produccion: 'Producción' }[texto(datos.destino)] || 'Registro de labores'}.`);
+
+        return;
+    }
+
+    const empresa = texto(datos.empresa);
+
+    if (empresa !== empresaId()) {
+        if (parametros.get('empresa') === empresa) {
+            fallar('Empresa no disponible', 'No tiene acceso a la empresa de la actividad planeada.');
+
+            return;
+        }
+
+        const url = new URL(window.location.href);
+
+        url.searchParams.set('empresa', empresa);
+        estado.saliendo = true;
+        window.location.href = url.toString();
+
+        return;
+    }
+
+    const fecha = texto(datos.fecha).substring(0, 10);
+    const anio = fecha.substring(0, 4);
+    const anios = Array.from($id('anio').options);
+    const finca = texto(datos.finca);
+    const lote = texto(datos.lote);
+    const novedad = texto(datos.novedad);
+    const novedadNombre = texto(datos.novedadNombre);
+    const porRacimos = /RAC/i.test(texto(datos.uMedida));
+
+    if (!anios.some((opcion) => opcion.value === anio)) {
+        $id('anio').add(new Option(anio, anio), anios.find((opcion) => Number(opcion.value) < Number(anio)) || null);
+    }
+
+    $id('anio').value = anio;
+    $id('fecha').value = fecha;
+    await cargarPeriodos(anio);
+
+    const periodo = estado.periodos.find((item) => {
+        const inicio = texto(item.fechaInicial).substring(0, 10);
+        const fin = texto(item.fechaFinal).substring(0, 10);
+
+        return Number(item.cerrado) !== 1 && (inicio && fin ? fecha >= inicio && fecha <= fin : Number(item.mes) === Number(fecha.substring(5, 7)));
+    });
+
+    if (periodo) $id('periodo').value = String(Number(periodo.mes));
+
+    revisarPeriodo();
+
+    const peso = await consultarPeso(finca, lote);
+
+    $id('ayuda_peso').className = 'gp-subtexto';
+    $id('ayuda_peso').textContent = '';
+
+    const trabajadores = await Promise.all((datos.trabajadores || []).map((trabajador) => pedir('precioLabor', {
+        empresa: empresaId(), novedad, fecha, finca, lote, tercero: texto(trabajador.tercero)
+    }).then((resultado) => (Number(resultado.existe) === 1 ? Number(resultado.precio || 0) : 0)).catch(() => 0).then((precio) => ({
+        id: estado.secuenciaTrabajador++,
+        tercero: texto(trabajador.tercero), terceroNombre: texto(trabajador.nombre), terceroCodigo: texto(trabajador.codigo),
+        novedad, novedadNombre, cantidad: porRacimos ? 0 : Number(trabajador.cantidad || 0), precio, jornales: 0, fecha, contratista: 0, bloque: 'cosecha'
+    }))));
+    const opcion = Array.from($id('cap_finca').options).find((item) => item.value === finca);
+    const nueva = {
+        id: estado.secuencia++,
+        finca,
+        fincaNombre: texto(opcion?.text).split('—').slice(1).join('—').trim() || finca,
+        lote,
+        fecha,
+        racimos: porRacimos ? Math.round(Number(datos.cantidad || 0)) : 0,
+        sacos: 0,
+        pesoRacimo: peso || 0,
+        kg: 0,
+        trabajadores
+    };
+
+    estado.lineas.push(nueva);
+    estado.planeacionLinea = Number(linea);
+    notaPlaneacion();
+    $id('nota_planeacion_texto').textContent = `Precargado desde la planeación del ${fechaCorta(fecha)} · ${novedad} — ${novedadNombre} · Lote ${lote}. Cargue el tiquete, ${porRacimos ? 'asigne los kilos por trabajador, ' : ''}revise y guarde.`;
+    mostrar($id('nota_planeacion'), true);
+    renderizar();
+    previsualizar();
 };
 
 const modoEdicion = (numero) => {
@@ -1617,7 +1742,7 @@ const enviarGuardar = async (confirmaciones) => {
     try {
         resultado = estado.edicion
             ? await pedir('actualizar', { ...cuerpoBase(), ...confirmaciones, numero: estado.edicion })
-            : await pedir('guardar', { ...cuerpoBase(), ...confirmaciones });
+            : await pedir('guardar', { ...cuerpoBase(), ...confirmaciones, ...(estado.planeacionLinea ? { planeacionLinea: estado.planeacionLinea } : {}) });
     } catch (error) {
         estado.guardando = false;
         ocupar(boton, false);
@@ -1921,4 +2046,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     $id('tiquete').focus();
+
+    if (PERMISOS.registrar) precargarPlaneacion();
 });
