@@ -9,6 +9,23 @@ class LosetasModel extends Model
     protected $useAutoIncrement = false;
     protected $returnType = 'array';
 
+    public const ROLES_ALERTA_LABORES = ['ids' => [1, 3], 'abreviaturas' => ['GER', 'AGR']];
+
+    public function alertaLaboresPermitida(int $usuario): bool
+    {
+        $ids  = self::ROLES_ALERTA_LABORES['ids'];
+        $abrs = self::ROLES_ALERTA_LABORES['abreviaturas'];
+
+        return $this->db->query(
+            'SELECT TOP 1 ur.IdRol
+               FROM UsuariosRoles ur
+               JOIN Roles r ON r.Id = ur.IdRol AND r.FechaFinalizacion IS NULL
+              WHERE ur.IdUsuario = ? AND ur.FechaFinalizacion IS NULL
+                AND (ur.IdRol IN (' . implode(', ', array_fill(0, count($ids), '?')) . ') OR r.Abreviatura IN (' . implode(', ', array_fill(0, count($abrs), '?')) . '))',
+            array_merge([$usuario], $ids, $abrs)
+        )->getRowArray() !== null;
+    }
+
     /**
      * Método para obtener todos los módulos
      */

@@ -10,6 +10,21 @@ class PlaneacionModel extends LaboresTransaccionModel
 
     private ?bool $horas = null;
 
+    protected int $ultimaLinea = 0;
+
+    public function idLoseta(int $modulo): int
+    {
+        $fila = $this->db->query(
+            'SELECT TOP 1 l.Id
+               FROM Modulos m
+               LEFT JOIN Modulos p ON p.Id = m.IdModulo
+               JOIN Modulos l ON l.Id = COALESCE(m.IdLoseta, p.IdLoseta) AND l.FechaFinalizacion IS NULL
+              WHERE m.Id = ?', [$modulo]
+        )->getRowArray();
+
+        return $fila === null ? 0 : (int) $fila['Id'];
+    }
+
     public function columnasHoras(): bool
     {
         if ($this->horas === null) {
@@ -80,8 +95,16 @@ class PlaneacionModel extends LaboresTransaccionModel
     {
         return $this->lineas(
             "p.empresa = ? AND p.fecha < ? AND p.fecha >= DATEADD(day, -15, CAST(? AS date)) AND l.estado IN ('PARCIAL', 'NO_EJECUTADA')
-             AND l.cantidad - ISNULL(l.cantidadEjecutada, 0) > 0 AND NOT EXISTS (SELECT 1 FROM pPlaneacionLinea x WHERE x.origen = l.id)",
+             AND (l.cantidad - ISNULL(l.cantidadEjecutada, 0) > 0 OR l.cantidad = 0) AND NOT EXISTS (SELECT 1 FROM pPlaneacionLinea x WHERE x.origen = l.id)",
             [$empresa, $fecha, $fecha]
+        );
+    }
+
+    public function proximasPendientes(string $desde, string $hasta): array
+    {
+        return $this->lineas(
+            "p.fecha BETWEEN ? AND ? AND l.estado = 'PENDIENTE' AND EXISTS (SELECT 1 FROM gEmpresa g WHERE g.id = p.empresa AND g.activo = 1)",
+            [$desde, $hasta]
         );
     }
 
@@ -207,13 +230,13 @@ class PlaneacionModel extends LaboresTransaccionModel
             $linea['cantidad']          = (float) $linea['cantidad'];
             $linea['cantidadEjecutada'] = $linea['cantidadEjecutada'] === null ? null : (float) $linea['cantidadEjecutada'];
             $linea['saldo']             = in_array($linea['estado'], ['PARCIAL', 'NO_EJECUTADA'], true)
-                ? round($linea['cantidad'] - (float) $linea['cantidadEjecutada'], 2) : 0.0;
+                ? max(0.0, round($linea['cantidad'] - (float) $linea['cantidadEjecutada'], 2)) : 0.0;
             $linea['esCosecha']         = $linea['claseLabor'] === 2 ? 1 : 0;
-            $linea['tipoDestino']       = $linea['esCosecha'] === 1 ? null : ($linea['grupo'] === FertilizacionTransaccionModel::GRUPO ? 'RLF' : 'TLA');
-            $linea['destino']           = $linea['tipoDestino'] === null ? null : ($linea['tipoDestino'] === 'RLF' ? 'fertilizacion' : 'labores');
+            $linea['tipoDestino']       = $linea['esCosecha'] === 1 ? 'TLC' : ($linea['grupo'] === FertilizacionTransaccionModel::GRUPO ? 'RLF' : 'TLA');
+            $linea['destino']           = ['TLC' => 'produccion', 'RLF' => 'fertilizacion', 'TLA' => 'labores'][$linea['tipoDestino']];
             $linea['vinculada']         = $linea['numeroTransaccion'] === '' ? 0 : 1;
-            $linea['registrable']       = $linea['tipoDestino'] !== null && $linea['vinculada'] === 0
-                && in_array($linea['estado'], ['COMPLETADA', 'PARCIAL'], true) && (float) $linea['cantidadEjecutada'] > 0 ? 1 : 0;
+            $linea['registrable']       = $linea['vinculada'] === 0
+                && in_array($linea['estado'], ['COMPLETADA', 'PARCIAL'], true) && ((float) $linea['cantidadEjecutada'] > 0 || $linea['cantidad'] == 0) ? 1 : 0;
             $linea['trabajadores']      = $porLinea[$linea['id']] ?? [];
         }
 
@@ -429,6 +452,41 @@ class PlaneacionModel extends LaboresTransaccionModel
         }, 'DELETE', ['accion' => 'eliminar', 'antes' => $plan], $usu_id, $usuario, 'Plan del ' . $plan['fecha'] . ' eliminado.');
     }
 
+    public function agregarActividad(int $empresa, string $fecha, array $actividad, ?array $plan, string $usuario, ?int $usu_id): array
+    {
+        $resultado = $this->transaccion(fn () => $this->lineaNueva($empresa, $fecha, $actividad, $plan, $usuario),
+            $plan === null ? 'INSERT' : 'UPDATE', ['accion' => 'agregarDesdeInforme', 'actividad' => $actividad], $usu_id, $usuario,
+            'Actividad agregada al plan del ' . $fecha . '.');
+
+        return $resultado['success'] ? $resultado + ['linea' => $this->ultimaLinea] : $resultado;
+    }
+
+    protected function lineaNueva(int $empresa, string $fecha, array $actividad, ?array $plan, string $usuario): int|string
+    {
+        if ($plan === null) {
+            $id = $this->insertarId('pPlaneacion', [
+                'empresa'         => $empresa,
+                'fecha'           => $fecha,
+                'estado'          => 'ABIERTA',
+                'observacion'     => null,
+                'usuarioRegistro' => $usuario,
+                'fechaRegistro'   => date('Y-m-d\TH:i:s'),
+            ]);
+
+            if ($id === 0) {
+                return 'No se pudo registrar el plan.';
+            }
+        } else {
+            $id = $plan['id'];
+
+            if ($this->db->query('SELECT estado FROM pPlaneacion WITH (UPDLOCK) WHERE id = ?', [$id])->getRow()->estado !== 'ABIERTA') {
+                return 'El plan del ' . $fecha . ' está cerrado; reábralo para agregar la actividad.';
+            }
+        }
+
+        return $this->insertarLinea($id, $actividad, null) ?? $id;
+    }
+
     public function insertarAuditoria(string $accion, array $cambios, ?int $usu_id): bool
     {
         return (bool) $this->db->table('Auditoria')->insert([
@@ -440,12 +498,12 @@ class PlaneacionModel extends LaboresTransaccionModel
         ]);
     }
 
-    private function insertarId(string $tabla, array $fila): int
+    protected function insertarId(string $tabla, array $fila): int
     {
         return $this->db->table($tabla)->insert($fila) ? (int) $this->db->insertID() : 0;
     }
 
-    private function insertarLinea(int $plan, array $actividad, ?int $origen): ?string
+    protected function insertarLinea(int $plan, array $actividad, ?int $origen): ?string
     {
         $orden = $actividad['orden'] ?? null;
 
@@ -479,6 +537,8 @@ class PlaneacionModel extends LaboresTransaccionModel
             return 'No se pudo registrar la actividad ' . $orden . '.';
         }
 
+        $this->ultimaLinea = $linea;
+
         return $this->insertarTrabajadores($linea, $actividad['trabajadores']);
     }
 
@@ -498,7 +558,7 @@ class PlaneacionModel extends LaboresTransaccionModel
         return null;
     }
 
-    private function transaccion(callable $pasos, string $accion, array $cambios, ?int $usu_id, string $usuario, string $mensaje): array
+    protected function transaccion(callable $pasos, string $accion, array $cambios, ?int $usu_id, string $usuario, string $mensaje): array
     {
         $this->db->transBegin();
 

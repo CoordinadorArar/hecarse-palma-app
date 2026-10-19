@@ -42,6 +42,8 @@ const aNumero = (valor) => {
 
 const valorInput = (numero) => (Number.isFinite(numero) ? String(numero).replace('.', ',') : '');
 const centavos = (valor) => Math.round(Number(valor || 0) * 100);
+const valorCant = (numero) => (numero > 0 ? valorInput(numero) : '');
+const cantUm = (valor, um = '') => (Number(valor) > 0 ? `${cant(valor)}${um ? ` ${escaparHtml(um)}` : ''}` : '<span class="text-muted">—</span>');
 
 const repartir = (total, partes) => {
     const centesimas = Math.round(total * 100);
@@ -268,6 +270,9 @@ const cargar = async (silencioso = false) => {
     estado.cargado = true;
     mostrar($id('cargando_plan'), false);
     pintar();
+    contarSug();
+
+    if (sug.abierto && sug.fecha !== fechaPlan()) cargarSug();
 };
 
 const aplicarPlan = (plan, destacar = null) => {
@@ -429,7 +434,7 @@ const filaTrabajador = (a, t, acciones, unico) => {
 
     return `<tr class="${fuera ? 'pl-fila-ausente' : ''}">
         <td><span class="font-monospace fw-semibold me-1">${escaparHtml(t.codigo)}</span><span class="gp-truncar d-inline-block align-bottom pl-nombre" title="${nombre}">${nombre}</span>${fuera ? ` ${CHIP_AUSENTE}` : recibe}<span class="gp-subtexto font-monospace">${escaparHtml(t.tercero)}</span></td>
-        <td class="text-end tx-num">${fuera && !Number(t.cantidad) ? '0<span class="gp-subtexto">reasignada</span>' : cant(t.cantidad)}</td>
+        <td class="text-end tx-num">${fuera && !Number(t.cantidad) ? '0<span class="gp-subtexto">reasignada</span>' : cantUm(t.cantidad)}</td>
         ${acciones ? `<td class="text-center gp-col-sticky">${fuera ? '' : accionesTrabajador(a, t, unico)}</td>` : ''}
     </tr>`;
 };
@@ -450,12 +455,10 @@ const pieActividad = (a) => {
     const destino = DESTINOS[a.destino] || null;
     let integracion = '';
 
-    if (Number(a.esCosecha) === 1) {
-        integracion = '<span class="gp-chip-fila tx-chip-neutro"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Se registra en Producción</span>';
-    } else if (Number(a.vinculada) === 1) {
+    if (Number(a.vinculada) === 1) {
         const numero = `${escaparHtml(a.tipoTransaccion)}-${escaparHtml(a.numeroTransaccion)}`;
 
-        integracion = `<span class="pl-chip pl-e-registrada" title="Registrada en ${a.destino === 'fertilizacion' ? 'Fertilización' : 'Registro de labores'}"><i class="bi bi-journal-check" aria-hidden="true"></i>${numero}</span>`;
+        integracion = `<span class="pl-chip pl-e-registrada" title="Registrada en ${{ fertilizacion: 'Fertilización', produccion: 'Producción' }[a.destino] || 'Registro de labores'}"><i class="bi bi-journal-check" aria-hidden="true"></i>${numero}</span>`;
     } else if (Number(a.registrable) === 1 && destino?.puede) {
         integracion = `<button type="button" class="btn btn-sm btn-primary" data-accion="registrar" data-act="${a.id}"><i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Registrar</button>`;
     }
@@ -467,7 +470,7 @@ const pieActividad = (a) => {
     return `<div class="pl-cierre d-flex flex-wrap align-items-center gap-2">
         <div class="d-flex flex-wrap align-items-center gap-3 min-w-0">
             ${chipEstado(a.estado)}
-            ${a.estado === 'PARCIAL' ? `<span class="tx-dato"><span class="gp-etiqueta-mini">Ejecutado</span><span class="tx-dato-valor">${cant(a.cantidadEjecutada)} / ${cant(a.cantidad)} ${escaparHtml(a.uMedida)}</span></span>` : ''}
+            ${a.estado === 'PARCIAL' ? `<span class="tx-dato"><span class="gp-etiqueta-mini">Ejecutado</span><span class="tx-dato-valor">${Number(a.cantidad) > 0 ? `${cant(a.cantidadEjecutada)} / ${cant(a.cantidad)} ${escaparHtml(a.uMedida)}` : cantUm(a.cantidadEjecutada, a.uMedida)}</span></span>` : ''}
             ${a.estado !== 'COMPLETADA' && texto(a.observacionCierre) ? `<span class="gp-subtexto fst-italic">${escaparHtml(a.observacionCierre)}</span>` : ''}
         </div>
         <div class="d-flex flex-wrap align-items-center gap-2 ms-auto">${trasladado}${integracion}${reabrir}</div>
@@ -489,7 +492,7 @@ const tarjetaActividad = (a) => {
                 ${texto(a.referencia) ? `<span class="gp-chip-ambito seccion font-monospace">PFA-${escaparHtml(a.referencia)}</span>` : ''}
             </span>
             <span class="pl-cab-datos ms-auto d-flex align-items-end gap-3">
-                <span class="tx-dato text-end"><span class="gp-etiqueta-mini">Meta</span><span class="tx-dato-valor">${cant(a.cantidad)} ${um}</span></span>
+                <span class="tx-dato text-end"><span class="gp-etiqueta-mini">Total</span><span class="tx-dato-valor">${cantUm(a.cantidad, a.uMedida)}</span></span>
                 <span class="tx-dato text-end"><span class="gp-etiqueta-mini">Horario</span><span class="tx-dato-valor"><i class="bi bi-clock me-1" aria-hidden="true"></i>${escaparHtml(formatoHorario(a))}</span></span>
             </span>
             ${kebabActividad(a)}
@@ -561,7 +564,7 @@ const pintarVistaLote = () => {
     }).join('');
 };
 
-const lineaActividad = (a, t) => `${escaparHtml(a.lote)} · ${escaparHtml(a.novedadNombre || a.novedad)} · ${cant(t.cantidad)} ${escaparHtml(a.uMedida)}${texto(a.horaInicio) ? ` · ${escaparHtml(formatoHorario(a))}` : ''}`;
+const lineaActividad = (a, t) => `${escaparHtml(a.lote)} · ${escaparHtml(a.novedadNombre || a.novedad)} · ${cantUm(t.cantidad, a.uMedida)}${texto(a.horaInicio) ? ` · ${escaparHtml(formatoHorario(a))}` : ''}`;
 
 const pintarVistaTrabajador = () => {
     const busca = texto($id('buscar_trabajador').value).toLowerCase();
@@ -592,7 +595,7 @@ const pintarVistaTrabajador = () => {
         ${i === 0 ? `<td rowspan="${p.filas.length}" class="font-monospace fw-semibold">${escaparHtml(p.codigo || '—')}</td><td rowspan="${p.filas.length}">${escaparHtml(p.nombre)}<span class="gp-subtexto font-monospace">${escaparHtml(p.tercero)}</span></td>` : ''}
         <td class="font-monospace">${escaparHtml(a.finca)} / ${escaparHtml(a.lote)}</td>
         <td><span class="font-monospace fw-semibold">${escaparHtml(a.novedad)}</span> <span class="gp-truncar d-inline-block align-bottom" title="${escaparHtml(a.novedadNombre)}">${escaparHtml(a.novedadNombre)}</span></td>
-        <td class="text-end tx-num text-nowrap">${cant(t.cantidad)} <span class="gp-chip-fila tx-chip-neutro">${escaparHtml(a.uMedida)}</span></td>
+        <td class="text-end tx-num text-nowrap">${Number(t.cantidad) > 0 ? `${cant(t.cantidad)} <span class="gp-chip-fila tx-chip-neutro">${escaparHtml(a.uMedida)}</span>` : '<span class="text-muted">—</span>'}</td>
         <td class="text-nowrap">${escaparHtml(formatoHorario(a))}</td>
         <td>${texto(a.observacion) ? escaparHtml(a.observacion) : '<span class="text-muted">—</span>'}</td>
         <td>${chipEstado(a.estado)}</td>
@@ -736,6 +739,7 @@ const guardarLista = async (lista, mensaje, destacar = null, eliminadas = [], pr
 
         aplicarPlan(respuesta.plan, destacar || nueva?.id || null);
         Toast.fire({ icon: 'success', title: escaparHtml(mensaje) });
+        invalidarSug();
 
         return true;
     } catch (error) {
@@ -761,6 +765,7 @@ const ejecutar = async (ruta, datos, mensaje, destacar = null, titulo = 'No se p
 
         aplicarPlan(respuesta.plan, destacar);
         Toast.fire({ icon: 'success', title: escaparHtml(mensaje) });
+        invalidarSug();
 
         return true;
     } catch (error) {
@@ -802,6 +807,7 @@ const eliminarActividad = async (id) => {
         estado.plan = null;
         pintar();
         Toast.fire({ icon: 'success', title: 'Plan eliminado' });
+        invalidarSug();
     } catch (error) {
         errorSwal(error, 'No se pudo eliminar el plan');
     }
@@ -811,7 +817,7 @@ const quitarTrabajador = async (id, tercero) => {
     const a = actividad(id);
     const t = a?.trabajadores.find((x) => x.tercero === tercero);
 
-    if (!t || !await confirmar(`¿Quitar a ${texto(t.codigo) || tercero}?`, `Se quitará de ${a.novedad} en el lote ${a.lote}; la meta baja ${cant(t.cantidad)} ${a.uMedida}.`, 'Sí, quitar', true)) return;
+    if (!t || !await confirmar(`¿Quitar a ${texto(t.codigo) || tercero}?`, `Se quitará de ${a.novedad} en el lote ${a.lote}.${Number(t.cantidad) > 0 ? ` El total de la actividad baja ${cant(t.cantidad)} ${a.uMedida}.` : ''}`, 'Sí, quitar', true)) return;
 
     const lista = pendientesPlan().map((x) => {
         const envio = aEnvio(x);
@@ -847,7 +853,9 @@ const opcionTercero = (t) => {
     return opcion;
 };
 
-const form = { id: null, trabajadores: [], manual: false };
+const form = { id: null, trabajadores: [], sug: null };
+
+const fechaActividad = () => (form.sug ? $id('act_fecha').value || fechaPlan() : fechaPlan());
 
 const laborOpcion = () => $id('act_labor').selectedOptions[0] || null;
 const umFormulario = () => $id('act_um').value;
@@ -871,15 +879,23 @@ const pintarIndicador = (elemento, asignado, meta, um, motivo = '') => {
     elemento.querySelector('.tx-reparto-barra span').style.width = `${m > 0 && !Number.isNaN(c) ? Math.min(100, Math.round(c * 100 / m)) : 0}%`;
 };
 
-const sumaFormulario = () => form.trabajadores.reduce((suma, t) => suma + t.cantidad, 0);
+const pintarTotal = (elemento, lista, um) => {
+    const invalida = lista.some((t) => Number.isNaN(t.cantidad) || t.cantidad < 0);
+    const suma = lista.reduce((total, t) => total + t.cantidad, 0);
 
-const indicadorActividad = () => pintarIndicador($id('act_indicador'), sumaFormulario(), aNumero($id('act_meta').value), umFormulario() || '');
+    elemento.className = `tx-reparto tx-reparto--${invalida ? 'pendiente' : 'inactivo'} pl-indicador`;
+    elemento.innerHTML = `<span class="tx-estado">${invalida
+        ? '<i class="bi bi-exclamation-octagon" aria-hidden="true"></i>Hay cantidades inválidas'
+        : `<i class="bi bi-calculator" aria-hidden="true"></i>${suma > 0 ? `Total <span class="tx-estado-num">${cant(suma)}</span> ${escaparHtml(um)}` : 'Sin cantidades asignadas'}`}</span>`;
+};
+
+const indicadorActividad = () => pintarTotal($id('act_indicador'), form.trabajadores, umFormulario() || '');
 
 const duplicadoFormulario = (t) => {
     const novedad = $id('act_labor').value;
     const finca = $id('act_finca').value;
     const lote = $id('act_lote').value;
-    const otra = novedad && finca && lote ? duplicado(t.tercero, novedad, finca, lote, form.id) : null;
+    const otra = novedad && finca && lote && fechaActividad() === fechaPlan() ? duplicado(t.tercero, novedad, finca, lote, form.id) : null;
 
     return otra ? `${texto(t.codigo) || t.tercero} ya tiene esta labor en ${otra.lote}` : '';
 };
@@ -892,19 +908,16 @@ const pintarReparto = () => {
 
         return `<tr class="${error ? 'pl-fila-dup' : ''}">
             <td><span class="font-monospace fw-semibold me-1">${escaparHtml(t.codigo)}</span><span class="gp-truncar d-inline-block align-bottom" title="${nombre}">${nombre}</span>${t.reasignadoDe ? `<span class="gp-chip-fila ambar ms-1">recibe de ${escaparHtml(codigoDe(t.reasignadoDe))}</span>` : ''}${error ? `<div class="invalid-feedback d-block">${escaparHtml(error)}</div>` : ''}</td>
-            <td class="text-end"><input type="text" class="form-control form-control-sm tx-input-num font-monospace ms-auto" data-reparto="${i}" value="${valorInput(t.cantidad)}" inputmode="decimal" maxlength="14" autocomplete="off" aria-label="Cantidad de ${nombre}"></td>
+            <td class="text-end"><input type="text" class="form-control form-control-sm tx-input-num font-monospace ms-auto" data-reparto="${i}" value="${valorCant(t.cantidad)}" placeholder="Opcional" inputmode="decimal" maxlength="14" autocomplete="off" aria-label="Cantidad de ${nombre}"></td>
             <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger" data-quitar-reparto="${escaparHtml(t.tercero)}" title="Quitar a ${nombre}" aria-label="Quitar a ${nombre}"><i class="bi bi-x-lg" aria-hidden="true"></i></button></td>
         </tr>`;
     }).join('') : '<tr><td colspan="3" class="text-center text-muted py-3">Seleccione los trabajadores de la actividad.</td></tr>';
     indicadorActividad();
-};
 
-const repartirFormulario = () => {
-    const meta = aNumero($id('act_meta').value);
+    const fuera = form.sug && fechaActividad() === fechaPlan() ? form.trabajadores.filter((t) => nitsAusentes().has(t.tercero)) : [];
 
-    if (!form.trabajadores.length || !(meta >= 0)) return;
-
-    repartir(meta, form.trabajadores.length).forEach((valor, i) => { form.trabajadores[i].cantidad = valor; });
+    mostrar($id('act_aviso_ausentes'), fuera.length > 0);
+    $id('act_aviso_ausentes').innerHTML = fuera.length ? `<i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>${fuera.map((t) => escaparHtml(t.codigo || t.tercero)).join(', ')} ${fuera.length === 1 ? 'está ausente' : 'están ausentes'} en esa fecha; ${fuera.length === 1 ? 'quítelo o reemplácelo' : 'quítelos o reemplácelos'}.` : '';
 };
 
 const sincronizarTrabajadores = () => {
@@ -912,8 +925,6 @@ const sincronizarTrabajadores = () => {
 
     form.trabajadores = datos.map((opcion) => form.trabajadores.find((t) => t.tercero === opcion.id)
         || { tercero: opcion.id, codigo: codigoTercero(opcion), nombre: texto(opcion.text), cantidad: 0, reasignadoDe: '' });
-
-    if (!form.manual) repartirFormulario();
 
     errorCampo('error_act_terceros', false);
     $id('act_terceros').closest('.tx-select-ancho').classList.remove('is-invalid');
@@ -925,7 +936,6 @@ const actualizarLabor = () => {
     $id('act_codigo').classList.remove('is-invalid');
     errorCampo('error_act_labor', false);
     $id('act_labor').closest('.tx-select-ancho').classList.remove('is-invalid');
-    $id('act_meta_um').textContent = umFormulario() || '—';
     mostrar($id('col_pfa'), grupoFormulario() === '02');
 
     if (grupoFormulario() === '02') cargarPfa($id('act_pfa').dataset.previo || '');
@@ -978,7 +988,7 @@ const cargarPfa = async (referencia = '') => {
     if (!finca) return;
 
     try {
-        const filas = (await pedir('planesFertilizacion', { empresa: empresaId(), finca, fecha: fechaPlan() })).filas || [];
+        const filas = (await pedir('planesFertilizacion', { empresa: empresaId(), finca, fecha: fechaActividad() })).filas || [];
 
         selector.innerHTML += filas.map(opcionPfa).join('');
     } catch (error) {
@@ -992,31 +1002,61 @@ const contarObservacion = () => {
     $id('contador_act_observacion').textContent = `${$id('act_observacion').value.length} / 250`;
 };
 
-const abrirActividad = async (base = null, duplicar = false) => {
-    const editar = Boolean(base) && !duplicar;
+const botonActividad = () => {
+    const boton = $id('btn_guardar_actividad');
+
+    boton.disabled = estado.guardando;
+    boton.className = `btn ${form.sug ? 'btn-success' : 'btn-primary'}`;
+    boton.innerHTML = form.sug
+        ? (estado.guardando ? '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>Aprobando…' : '<i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Aprobar y planear')
+        : '<i class="bi bi-floppy me-1" aria-hidden="true"></i>Guardar';
+};
+
+const fechaDestino = () => {
+    const fecha = $id('act_fecha').value;
+    const otra = Boolean(fecha) && fecha !== fechaPlan();
+
+    $id('chip_fecha_actividad').textContent = fecha ? fechaLegible(fecha) : 'Sin fecha';
+    $id('act_fecha_ayuda').textContent = otra ? `Se creará en la planeación del ${fechaLegible(fecha)}.` : '';
+    mostrar($id('act_fecha_ayuda'), otra);
+};
+
+const abrirActividad = async (base = null, duplicar = false, sugerida = null) => {
+    const editar = Boolean(base) && !duplicar && !sugerida;
 
     form.id = editar ? base.id : null;
-    form.manual = Boolean(base);
+    form.sug = sugerida;
     form.trabajadores = base ? base.trabajadores.filter((t) => !ausente(t)).map((t) => ({
-        tercero: t.tercero, codigo: texto(t.codigo), nombre: texto(t.nombre), cantidad: Number(t.cantidad), reasignadoDe: editar ? texto(t.reasignadoDe) : ''
+        tercero: t.tercero, codigo: texto(t.codigo), nombre: texto(t.nombre), cantidad: Number(t.cantidad || 0), reasignadoDe: editar ? texto(t.reasignadoDe) : ''
     })) : [];
 
-    $id('icono_actividad').className = `bi ${editar ? 'bi-pencil-square' : 'bi-plus-square'} me-1`;
-    $id('texto_actividad').textContent = editar ? 'Editar actividad' : 'Agregar actividad';
+    $id('icono_actividad').className = `bi ${sugerida ? 'bi-lightbulb' : (editar ? 'bi-pencil-square' : 'bi-plus-square')} me-1`;
+    $id('texto_actividad').textContent = sugerida ? 'Revisar sugerencia' : (editar ? 'Editar actividad' : 'Agregar actividad');
     $id('chip_fecha_actividad').textContent = fechaLegible(fechaPlan());
     $id('chip_duplicada').textContent = duplicar ? `Duplicada de ${base.novedad} — ${base.novedadNombre}` : '';
     mostrar($id('chip_duplicada'), duplicar);
-    mostrar($id('btn_guardar_otra'), !editar);
+    mostrar($id('btn_guardar_otra'), !editar && !sugerida);
+    $id('chip_sug_actividad').innerHTML = sugerida ? chipUrgencia(sugerida) : '';
+    mostrar($id('chip_sug_actividad'), Boolean(sugerida));
+    $id('act_sugerencia').innerHTML = sugerida ? referenciaSug(sugerida) : '';
+    mostrar($id('act_sugerencia'), Boolean(sugerida));
+    mostrar($id('col_act_fecha'), Boolean(sugerida));
+    ['col_act_finca', 'col_act_lote'].forEach((id) => {
+        $id(id).classList.toggle('col-md-4', Boolean(sugerida));
+        $id(id).classList.toggle('col-md-6', !sugerida);
+    });
+    $id('act_fecha').value = fechaPlan();
+    fechaDestino();
+    botonActividad();
 
     document.querySelectorAll('#formulario_actividad .is-invalid').forEach((campo) => campo.classList.remove('is-invalid'));
-    ['error_act_finca', 'error_act_lote', 'error_act_labor', 'error_act_um', 'error_act_meta', 'error_act_horario', 'error_act_terceros'].forEach((id) => errorCampo(id, false));
+    ['error_act_fecha', 'error_act_finca', 'error_act_lote', 'error_act_labor', 'error_act_um', 'error_act_horario', 'error_act_terceros'].forEach((id) => errorCampo(id, false));
 
-    $id('act_pfa').dataset.previo = editar ? texto(base.referencia) : '';
+    $id('act_pfa').dataset.previo = editar || sugerida ? texto(base.referencia) : '';
     $('#act_finca').val(base?.finca || '').trigger('change.select2');
-    $('#act_labor').val(editar ? base.novedad : '').trigger('change.select2');
+    $('#act_labor').val(editar || sugerida ? base.novedad : '').trigger('change.select2');
     asegurarOpcion($id('act_um'), texto(base?.uMedida));
     $('#act_um').val(base?.uMedida || '').trigger('change.select2');
-    $id('act_meta').value = base ? valorInput(Number(base.cantidad)) : '';
     $id('act_hora_inicio').value = base ? texto(base.horaInicio) : '06:00';
     $id('act_hora_fin').value = base ? texto(base.horaFin) : '14:00';
     $id('act_observacion').value = base ? texto(base.observacion) : '';
@@ -1033,7 +1073,6 @@ const validarActividad = () => {
     const lote = $id('act_lote').value;
     const labor = $id('act_labor').value;
     const um = umFormulario();
-    const meta = aNumero($id('act_meta').value);
     const inicio = $id('act_hora_inicio').value;
     const fin = $id('act_hora_fin').value;
     const horaMal = Boolean(inicio) !== Boolean(fin) || (inicio && fin && fin <= inicio);
@@ -1050,18 +1089,32 @@ const validarActividad = () => {
     marcar('act_um', 'error_act_um', !um);
     errorCampo('error_act_horario', horaMal, inicio && fin ? 'La hora fin debe ser posterior a la de inicio.' : 'Indique la hora de inicio y la hora fin, o deje ambas vacías.');
     ['act_hora_inicio', 'act_hora_fin'].forEach((id) => $id(id).classList.toggle('is-invalid', Boolean(horaMal)));
-    errorCampo('error_act_meta', !(meta > 0));
-    $id('act_meta').classList.toggle('is-invalid', !(meta > 0));
     marcar('act_terceros', 'error_act_terceros', !form.trabajadores.length);
 
-    if (!finca || !lote || !labor || !um || !(meta > 0) || !form.trabajadores.length) return 'Complete los campos obligatorios.';
+    const sinFecha = Boolean(form.sug) && !$id('act_fecha').value;
+
+    errorCampo('error_act_fecha', sinFecha);
+    $id('act_fecha').classList.toggle('is-invalid', sinFecha);
+
+    if (sinFecha || !finca || !lote || !labor || !um || !form.trabajadores.length) return 'Complete los campos obligatorios.';
     if (horaMal) return $id('error_act_horario').textContent;
     if (invalidos) return 'Hay cantidades inválidas: use números mayores o iguales a cero con máximo 2 decimales.';
-    if (centavos(sumaFormulario()) !== centavos(meta)) return `La suma asignada (${cant(sumaFormulario())}) debe ser igual a la meta (${cant(meta)} ${um}).`;
     if (duplicados.length) return duplicados[0];
 
     return '';
 };
+
+const datosActividad = () => ({
+    finca: $id('act_finca').value,
+    lote: $id('act_lote').value,
+    novedad: $id('act_labor').value,
+    uMedida: umFormulario(),
+    horaInicio: $id('act_hora_inicio').value,
+    horaFin: $id('act_hora_fin').value,
+    observacion: texto($id('act_observacion').value),
+    referencia: grupoFormulario() === '02' ? $id('act_pfa').value : '',
+    trabajadores: form.trabajadores.map((t) => ({ tercero: t.tercero, cantidad: t.cantidad, reasignadoDe: t.reasignadoDe }))
+});
 
 const guardarActividad = async (otra = false) => {
     if (estado.guardando) return;
@@ -1082,18 +1135,13 @@ const guardarActividad = async (otra = false) => {
         return;
     }
 
-    const datos = {
-        id: form.id,
-        finca: $id('act_finca').value,
-        lote: $id('act_lote').value,
-        novedad: $id('act_labor').value,
-        uMedida: umFormulario(),
-        horaInicio: $id('act_hora_inicio').value,
-        horaFin: $id('act_hora_fin').value,
-        observacion: texto($id('act_observacion').value),
-        referencia: grupoFormulario() === '02' ? $id('act_pfa').value : '',
-        trabajadores: form.trabajadores.map((t) => ({ tercero: t.tercero, cantidad: t.cantidad, reasignadoDe: t.reasignadoDe }))
-    };
+    if (form.sug) {
+        aprobarSug();
+
+        return;
+    }
+
+    const datos = { id: form.id, ...datosActividad() };
     const lista = pendientesPlan().map((a) => (a.id === form.id ? datos : aEnvio(a)));
 
     if (!form.id) {
@@ -1112,12 +1160,10 @@ const guardarActividad = async (otra = false) => {
     }
 
     form.trabajadores = [];
-    form.manual = false;
     $id('act_pfa').dataset.previo = '';
     $('#act_labor').val('').trigger('change.select2');
     $('#act_um').val('').trigger('change.select2');
     $('#act_terceros').empty().trigger('change.select2');
-    $id('act_meta').value = '';
     $id('act_observacion').value = '';
     contarObservacion();
     $id('chip_duplicada').textContent = '';
@@ -1135,7 +1181,10 @@ const resumenEdicion = () => {
 
     if (!t) return;
 
-    $id('edit_resumen').textContent = `Meta de la actividad: ${cant(a.cantidad)} → ${cantidad >= 0 ? cant(a.cantidad - t.cantidad + cantidad) : '—'} ${a.uMedida}`;
+    const final = cantidad >= 0 ? a.cantidad - t.cantidad + cantidad : NaN;
+
+    $id('edit_resumen').textContent = !(Number(a.cantidad) > 0) && centavos(final) === 0 ? 'Total de la actividad: sin cantidades'
+        : `Total de la actividad: ${Number(a.cantidad) > 0 ? cant(a.cantidad) : '—'} → ${centavos(final) > 0 ? `${cant(final)} ${a.uMedida}` : '—'}`;
 };
 
 const abrirEdicionTrabajador = (id, tercero) => {
@@ -1149,7 +1198,7 @@ const abrirEdicionTrabajador = (id, tercero) => {
     $id('chip_editar_trabajador').textContent = `${a.lote} · ${a.novedad}`;
     $('#edit_tercero').empty().append(opcionTercero(t)).trigger('change');
     $id('edit_um').textContent = `(${a.uMedida})`;
-    $id('edit_cantidad').value = valorInput(Number(t.cantidad));
+    $id('edit_cantidad').value = valorCant(Number(t.cantidad));
     errorCampo('error_edit_tercero', false);
     errorCampo('error_edit_cantidad', false);
     $id('edit_tercero').closest('.tx-select-ancho').classList.remove('is-invalid');
@@ -1200,7 +1249,7 @@ const saldoCierre = () => {
     const a = actividad(cierre.id);
     const ejecutada = aNumero($id('cierre_cantidad').value);
 
-    $id('cierre_saldo').textContent = a && ejecutada > 0 && ejecutada < a.cantidad ? `Saldo: ${cant(a.cantidad - ejecutada)} ${a.uMedida}` : '';
+    $id('cierre_saldo').textContent = a && a.cantidad > 0 && ejecutada > 0 && ejecutada < a.cantidad ? `Saldo: ${cant(a.cantidad - ejecutada)} ${a.uMedida}` : '';
 };
 
 const abrirCierre = (id, clave) => {
@@ -1216,9 +1265,11 @@ const abrirCierre = (id, clave) => {
     $id('cierre_referencia').innerHTML = `<div class="d-flex flex-wrap gap-3">
         <div><span class="gp-etiqueta-mini d-block">Lote</span><span class="font-monospace fw-semibold">${escaparHtml(a.lote)}</span></div>
         <div class="min-w-0 flex-grow-1"><span class="gp-etiqueta-mini d-block">Labor</span><span class="font-monospace fw-semibold">${escaparHtml(a.novedad)}</span> ${escaparHtml(a.novedadNombre)}</div>
-        <div class="text-end"><span class="gp-etiqueta-mini d-block">Meta</span><span class="tx-num fw-semibold">${cant(a.cantidad)} ${escaparHtml(a.uMedida)}</span></div>
+        <div class="text-end"><span class="gp-etiqueta-mini d-block">Total planeado</span><span class="tx-num fw-semibold">${cantUm(a.cantidad, a.uMedida)}</span></div>
     </div>`;
     mostrar($id('cierre_col_cantidad'), parcial);
+    $id('cierre_marca').className = Number(a.cantidad) > 0 ? 'text-danger' : 'fw-normal text-muted';
+    $id('cierre_marca').textContent = Number(a.cantidad) > 0 ? '*' : '(opcional)';
     $id('cierre_um').textContent = a.uMedida;
     $id('cierre_cantidad').value = '';
     $id('cierre_observacion').value = '';
@@ -1244,9 +1295,12 @@ const guardarCierre = async (evento) => {
     const parcial = cierre.estado === 'PARCIAL';
     const ejecutada = aNumero($id('cierre_cantidad').value);
     const observacion = texto($id('cierre_observacion').value);
-    const errorCantidad = parcial && !(ejecutada > 0 && ejecutada < a.cantidad);
+    const planeada = Number(a.cantidad) > 0;
+    const errorCantidad = parcial && (planeada ? !(ejecutada > 0 && ejecutada < a.cantidad) : Number.isNaN(ejecutada));
 
-    errorCampo('error_cierre_cantidad', errorCantidad, `Indique una cantidad mayor que cero y menor que la meta (${cant(a.cantidad)}).`);
+    errorCampo('error_cierre_cantidad', errorCantidad, planeada
+        ? `Indique una cantidad mayor que cero y menor que el total planeado (${cant(a.cantidad)} ${a.uMedida}).`
+        : (texto($id('cierre_cantidad').value).startsWith('-') ? 'La cantidad ejecutada no puede ser negativa.' : 'Use números mayores o iguales a cero con máximo 2 decimales.'));
     $id('cierre_cantidad').classList.toggle('is-invalid', errorCantidad);
     errorCampo('error_cierre_observacion', observacion === '');
     $id('cierre_observacion').classList.toggle('is-invalid', observacion === '');
@@ -1316,7 +1370,7 @@ const pintarAusencia = () => {
     $id('aus_cuerpo').innerHTML = `<div class="gp-referencia mb-3 d-flex flex-wrap align-items-center gap-3">
             <div><span class="gp-etiqueta-mini d-block">Lote</span><span class="font-monospace fw-semibold">${escaparHtml(a.lote)}</span></div>
             <div class="min-w-0 flex-grow-1"><span class="gp-etiqueta-mini d-block">Labor</span><span class="font-monospace fw-semibold">${escaparHtml(a.novedad)}</span> ${escaparHtml(a.novedadNombre)}</div>
-            <div><span class="gp-etiqueta-mini d-block">Meta</span><span class="tx-num">${cant(a.cantidad)} ${escaparHtml(a.uMedida)}</span></div>
+            <div><span class="gp-etiqueta-mini d-block">Total</span><span class="tx-num">${cantUm(a.cantidad, a.uMedida)}</span></div>
             <div class="text-end"><span class="gp-etiqueta-mini d-block">A reasignar</span><span class="inf-kpi-valor">${cant(paso.cantidad)}</span></div>
         </div>
         ${companeros.length
@@ -1442,7 +1496,7 @@ const pintarPendientes = () => {
         return `<div class="pl-pendiente ${ESTADOS[p.estado]?.clase || ''}" data-pendiente="${p.id}">
             <div class="d-flex flex-wrap align-items-baseline gap-2"><span class="font-monospace fw-semibold">${escaparHtml(p.finca)} / ${escaparHtml(p.lote)}</span><span class="min-w-0"><span class="font-monospace">${escaparHtml(p.novedad)}</span> ${escaparHtml(p.novedadNombre)}</span></div>
             <div class="d-flex flex-wrap align-items-center gap-2 mt-1">
-                <span class="tx-dato"><span class="gp-etiqueta-mini">Saldo</span><span class="tx-dato-valor">${cant(p.saldo)} ${escaparHtml(p.uMedida)}</span></span>
+                <span class="tx-dato"><span class="gp-etiqueta-mini">Saldo</span><span class="tx-dato-valor">${Number(p.saldo) > 0 ? `${cant(p.saldo)} ${escaparHtml(p.uMedida)}` : '<span class="text-muted">Sin cantidad</span>'}</span></span>
                 <span class="tx-dato"><span class="gp-etiqueta-mini">Horario</span><span class="tx-dato-valor"><i class="bi bi-clock me-1" aria-hidden="true"></i>${escaparHtml(formatoHorario(p))}</span></span>
                 ${chipEstado(p.estado)}
             </div>
@@ -1471,6 +1525,7 @@ const trasladar = async (id) => {
         item?.classList.add('pl-saliendo');
         await new Promise((fin) => setTimeout(fin, reducido() ? 0 : 250));
         estado.pendientes = estado.pendientes.filter((p) => p.id !== Number(id));
+        invalidarSug();
         estado.plan = respuesta.plan || estado.plan;
         estado.destacar = nueva?.id || null;
         pintar();
@@ -1517,7 +1572,7 @@ const imprimir = () => {
             <td>${escaparHtml(a.lote)}</td>
             <td>${escaparHtml(a.novedad)} ${escaparHtml(a.novedadNombre)}</td>
             <td>${escaparHtml(a.uMedida)}</td>
-            <td class="text-end">${cant(t.cantidad)}</td>
+            <td class="text-end">${Number(t.cantidad) > 0 ? cant(t.cantidad) : ''}</td>
             <td class="text-nowrap">${escaparHtml(formatoHorario(a))}</td>
             <td>${escaparHtml(a.observacion)}</td>
             <td></td>
@@ -1558,7 +1613,7 @@ const selectTerceros = (padre) => ({
             return { abort: () => { } };
         },
         processResults: (datos) => {
-            const fuera = nitsAusentes();
+            const fuera = padre !== '#modalActividad' || fechaActividad() === fechaPlan() ? nitsAusentes() : new Set();
 
             return {
                 results: (datos.filas || []).filter((fila) => !fuera.has(texto(fila.nit)))
@@ -1570,7 +1625,7 @@ const selectTerceros = (padre) => ({
 
 const pla = { finca: '', filas: [], uid: 0, intento: false, abierta: null, lotes: '', pfa: null, mapa: [], turno: 0, visible: false, fijada: false };
 
-const ETIQUETAS_PLA = { codigo: 'Código de labor', lote: 'Lote', labor: 'Labor', um: 'Unidad de medida', meta: 'Meta', inicio: 'Hora inicio', fin: 'Hora fin', trab: 'Trabajadores', obs: 'Observación', pfa: 'Referencia PFA' };
+const ETIQUETAS_PLA = { codigo: 'Código de labor', lote: 'Lote', labor: 'Labor', um: 'Unidad de medida', inicio: 'Hora inicio', fin: 'Hora fin', trab: 'Trabajadores', obs: 'Observación', pfa: 'Referencia PFA' };
 
 const MARCAS_PLA = {
     nueva: { icono: 'bi-plus-circle', titulo: 'Nueva', chip: 'pl-e-completada' },
@@ -1597,7 +1652,6 @@ const datosPla = (f) => {
         lote: campoPla(f, 'lote').value,
         novedad: campoPla(f, 'labor').value,
         uMedida: campoPla(f, 'um').value,
-        meta: aNumero(campoPla(f, 'meta').value),
         horaInicio: campoPla(f, 'inicio').value,
         horaFin: campoPla(f, 'fin').value,
         observacion: texto(campoPla(f, 'obs').value),
@@ -1622,23 +1676,14 @@ const envioPla = (f) => {
     };
 };
 
-const firmaPla = (f) => JSON.stringify({ ...envioPla(f), meta: datosPla(f).meta });
-const vaciaPla = (f) => !f.id && !campoPla(f, 'labor').value && !texto(campoPla(f, 'meta').value) && !f.trabajadores.length && !texto(campoPla(f, 'obs').value);
+const firmaPla = (f) => JSON.stringify(envioPla(f));
+const vaciaPla = (f) => !f.id && !campoPla(f, 'labor').value && !f.trabajadores.length && !texto(campoPla(f, 'obs').value);
 const tipoPla = (f) => (f.eliminada ? 'eliminada' : (!f.id ? 'nueva' : (firmaPla(f) !== f.original ? 'editada' : '')));
 const suciaPla = () => pla.filas.some((f) => (f.id ? f.eliminada || firmaPla(f) !== f.original : !vaciaPla(f)));
-const igualPla = (f, meta) => f.trabajadores.length > 0 && repartir(meta, f.trabajadores.length).every((valor, i) => centavos(valor) === centavos(f.trabajadores[i].cantidad));
-
-const repartirPla = (f) => {
-    const meta = aNumero(campoPla(f, 'meta').value);
-
-    if (!f.trabajadores.length || !(meta >= 0)) return;
-
-    repartir(meta, f.trabajadores.length).forEach((valor, i) => { f.trabajadores[i].cantidad = valor; });
-};
+const invalidaPla = (f) => f.trabajadores.some((t) => Number.isNaN(t.cantidad) || t.cantidad < 0);
 
 const erroresPla = (f, claves) => {
     const d = datosPla(f);
-    const suma = sumaPla(f);
     const errores = [];
     const agregar = (campo, corto, mensaje) => errores.push({ campo, corto, mensaje });
 
@@ -1654,13 +1699,11 @@ const erroresPla = (f, claves) => {
     if (!d.lote) agregar('lote', 'Lote', 'Seleccione el lote.');
     if (!d.novedad) agregar('labor', 'Labor', 'Seleccione la labor.');
     if (!d.uMedida) agregar('um', 'Unidad de medida', 'Seleccione la unidad de medida.');
-    if (!(d.meta > 0)) agregar('meta', 'Meta', 'Indique una meta mayor que cero (máx. 2 decimales).');
     if (Boolean(d.horaInicio) !== Boolean(d.horaFin) || (d.horaInicio && d.horaFin && d.horaFin <= d.horaInicio)) {
         agregar('inicio', 'Horario', d.horaInicio && d.horaFin ? 'La hora fin debe ser posterior a la de inicio.' : 'Indique la hora de inicio y la hora fin, o deje ambas vacías.');
     }
     if (!f.trabajadores.length) agregar('trab', 'Trabajadores', 'Seleccione al menos un trabajador.');
-    else if (f.trabajadores.some((t) => Number.isNaN(t.cantidad) || t.cantidad < 0)) agregar('detalle', 'Reparto', 'Hay cantidades inválidas: use números mayores o iguales a cero con máximo 2 decimales.');
-    else if (d.meta > 0 && centavos(suma) !== centavos(d.meta)) agregar('detalle', 'Reparto', `La suma asignada (${cant(suma)}) debe ser igual a la meta (${cant(d.meta)} ${d.uMedida}).`);
+    else if (invalidaPla(f)) agregar('detalle', 'Cantidades', 'Hay cantidades inválidas: use números mayores o iguales a cero con máximo 2 decimales.');
 
     f.dups.forEach((mensaje, i) => { if (mensaje) agregar('trab', `${texto(f.trabajadores[i].codigo) || f.trabajadores[i].tercero} duplicado`, mensaje); });
 
@@ -1675,7 +1718,6 @@ const filaPlaHtml = (uid) => `<tr class="pl-planilla-fila" data-fila="${uid}">
             <select class="form-select form-select-sm mt-1 d-none" data-campo="pfa"><option value="">PFA (opcional)</option></select>
         </td>
         <td data-label="UM *"><div class="tx-select-ancho tx-select-sm"><select class="form-select form-select-sm" data-campo="um">${$id('act_um').innerHTML}</select></div></td>
-        <td data-label="Meta *"><input type="text" class="form-control form-control-sm tx-input-num font-monospace tx-num" data-campo="meta" inputmode="decimal" maxlength="14" autocomplete="off"></td>
         <td data-label="Inicio"><input type="time" class="form-control form-control-sm" data-campo="inicio"></td>
         <td data-label="Fin"><input type="time" class="form-control form-control-sm" data-campo="fin"></td>
         <td class="pl-planilla-ancha" data-label="Trabajadores *">
@@ -1688,8 +1730,8 @@ const filaPlaHtml = (uid) => `<tr class="pl-planilla-fila" data-fila="${uid}">
             <button type="button" class="btn btn-sm" data-pla="eliminar"></button>
         </div></td>
     </tr>
-    <tr class="pl-planilla-error d-none" data-fila="${uid}"><td colspan="10"><ul class="list-unstyled mb-0 small text-danger"></ul></td></tr>
-    <tr class="pl-planilla-detalle d-none" id="pla_det_${uid}" data-fila="${uid}"><td colspan="10"></td></tr>`;
+    <tr class="pl-planilla-error d-none" data-fila="${uid}"><td colspan="9"><ul class="list-unstyled mb-0 small text-danger"></ul></td></tr>
+    <tr class="pl-planilla-detalle d-none" id="pla_det_${uid}" data-fila="${uid}"><td colspan="9"></td></tr>`;
 
 const enfocarPla = (f, campo) => {
     const control = campoPla(f, campo);
@@ -1723,7 +1765,7 @@ const cargarPfaPla = async (f) => {
 
 const crearFilaPla = (d = {}, despues = null) => {
     const plantilla = document.createElement('template');
-    const f = { uid: ++pla.uid, id: d.id || null, trabajadores: (d.trabajadores || []).map((t) => ({ ...t })), manual: Boolean(d.manual), referencia: texto(d.referencia), servidor: '', errores: [], dups: [], umLabor: '' };
+    const f = { uid: ++pla.uid, id: d.id || null, trabajadores: (d.trabajadores || []).map((t) => ({ ...t })), referencia: texto(d.referencia), servidor: '', errores: [], dups: [], umLabor: '' };
     const comun = { width: '100%', language: IDIOMA_SELECT2, dropdownParent: $('#modalPlanilla') };
 
     plantilla.innerHTML = filaPlaHtml(f.uid);
@@ -1751,7 +1793,6 @@ const crearFilaPla = (d = {}, despues = null) => {
     }).append(f.trabajadores.map(opcionTercero)).trigger('change.select2');
 
     campoPla(f, 'codigo').value = d.novedad || '';
-    campoPla(f, 'meta').value = d.meta > 0 ? valorInput(Number(d.meta)) : '';
     campoPla(f, 'inicio').value = texto(d.horaInicio).slice(0, 5);
     campoPla(f, 'fin').value = texto(d.horaFin).slice(0, 5);
     campoPla(f, 'obs').value = texto(d.observacion);
@@ -1764,11 +1805,8 @@ const crearFilaPla = (d = {}, despues = null) => {
 
 const pintarDetallePla = (f) => {
     f.det.firstElementChild.innerHTML = `<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
-            <span class="gp-etiqueta-mini">Reparto de la meta</span>
-            <div class="d-flex flex-wrap flex-lg-nowrap align-items-center gap-3 ms-auto">
-                <button type="button" class="btn btn-link btn-sm p-0" data-pla="igual"><i class="bi bi-distribute-horizontal me-1" aria-hidden="true"></i>Repartir en partes iguales</button>
-                <div class="tx-reparto pl-indicador" data-indicador></div>
-            </div>
+            <span class="gp-etiqueta-mini">Cantidades por trabajador <span class="fw-normal text-muted">(opcional)</span></span>
+            <div class="tx-reparto tx-reparto--inactivo pl-indicador ms-auto" data-indicador></div>
         </div>
         ${f.trabajadores.length ? `<div class="pl-planilla-reparto">${f.trabajadores.map((t, i) => {
         const nombre = escaparHtml(t.nombre || t.tercero);
@@ -1777,7 +1815,7 @@ const pintarDetallePla = (f) => {
                 <span class="font-monospace fw-semibold">${escaparHtml(t.codigo || t.tercero)}</span>
                 <span class="gp-truncar flex-grow-1" title="${nombre}">${nombre}</span>
                 ${t.reasignadoDe ? `<span class="gp-chip-fila ambar">recibe de ${escaparHtml(codigoDe(t.reasignadoDe))}</span>` : ''}
-                <input type="text" class="form-control form-control-sm tx-input-num font-monospace" data-cant="${i}" value="${valorInput(t.cantidad)}" inputmode="decimal" maxlength="14" autocomplete="off" aria-label="Cantidad de ${nombre}">
+                <input type="text" class="form-control form-control-sm tx-input-num font-monospace" data-cant="${i}" value="${valorCant(t.cantidad)}" placeholder="Opcional" inputmode="decimal" maxlength="14" autocomplete="off" aria-label="Cantidad de ${nombre}">
                 <div class="invalid-feedback d-block d-none w-100 mt-0" data-dup></div>
             </div>`;
     }).join('')}</div>` : '<span class="small text-muted">Seleccione los trabajadores de la fila.</span>'}`;
@@ -1789,7 +1827,7 @@ const pintarFilaPla = (f, numero) => {
     const malos = new Set(errores.map((e) => e.campo));
     const d = datosPla(f);
     const suma = sumaPla(f);
-    const cuadra = f.trabajadores.length > 0 && d.meta > 0 && !Number.isNaN(suma) && centavos(suma) === centavos(d.meta);
+    const invalida = invalidaPla(f);
     const marca = MARCAS_PLA[tipo];
     const boton = f.tr.querySelector('[data-pla="detalle"]');
     const eliminar = f.tr.querySelector('[data-pla="eliminar"]');
@@ -1822,10 +1860,8 @@ const pintarFilaPla = (f, numero) => {
     eliminar.innerHTML = `<i class="bi ${f.eliminada ? 'bi-arrow-counterclockwise' : 'bi-trash'}" aria-hidden="true"></i>`;
 
     mostrar(boton, f.trabajadores.length > 0 && !f.eliminada);
-    boton.classList.toggle('pl-mal', !cuadra);
-    boton.innerHTML = cuadra
-        ? `<i class="bi bi-check-circle" aria-hidden="true"></i><span class="tx-chip-cont verde">${fmt(f.trabajadores.length)}</span>${igualPla(f, d.meta) ? 'Igual' : 'Manual'}`
-        : `<i class="bi bi-exclamation-octagon" aria-hidden="true"></i>Asignado <span class="tx-num">${Number.isNaN(suma) ? '—' : cant(suma)} / ${Number.isNaN(d.meta) ? '—' : cant(d.meta)}</span>`;
+    boton.classList.toggle('pl-mal', invalida);
+    boton.innerHTML = `<i class="bi bi-people" aria-hidden="true"></i><span class="tx-chip-cont verde">${fmt(f.trabajadores.length)}</span>${invalida ? 'Cantidades inválidas' : (suma > 0 ? `Total <span class="tx-num">${cant(suma)}</span>` : 'Sin cantidades')}`;
     boton.setAttribute('aria-expanded', String(pla.abierta === f.uid));
     mas.textContent = `+${ocultos}`;
     mostrar(mas, ocultos > 0);
@@ -1839,7 +1875,7 @@ const pintarFilaPla = (f, numero) => {
 
     const indicador = f.det.querySelector('[data-indicador]');
 
-    if (indicador) pintarIndicador(indicador, suma, d.meta, d.uMedida);
+    if (indicador) pintarTotal(indicador, f.trabajadores, d.uMedida);
 
     f.det.querySelectorAll('[data-item]').forEach((item) => {
         const i = Number(item.dataset.item);
@@ -1866,7 +1902,9 @@ const pintarResumenPla = () => {
     vivas.forEach((f) => {
         const d = datosPla(f);
 
-        if (d.uMedida && d.meta > 0) totales.set(d.uMedida, (totales.get(d.uMedida) || 0) + d.meta);
+        const suma = sumaPla(f);
+
+        if (d.uMedida && suma > 0) totales.set(d.uMedida, (totales.get(d.uMedida) || 0) + suma);
         f.trabajadores.forEach((t) => personas.add(t.tercero));
     });
 
@@ -1937,7 +1975,7 @@ const nuevaFilaPla = () => {
 
 const duplicarFilaPla = (f) => {
     const d = datosPla(f);
-    const nueva = crearFilaPla({ ...d, novedad: '', referencia: '', manual: f.manual, trabajadores: f.trabajadores.map((t) => ({ ...t, reasignadoDe: '' })) }, f);
+    const nueva = crearFilaPla({ ...d, novedad: '', referencia: '', trabajadores: f.trabajadores.map((t) => ({ ...t, reasignadoDe: '' })) }, f);
 
     refrescarPla();
     enfocarPla(nueva, 'codigo');
@@ -1994,11 +2032,11 @@ const pintarCerradasPla = () => {
         <summary>Cerradas en esta finca (${fmt(cerradas.length)})</summary>
         <div class="table-responsive mt-2">
             <table class="table table-sm align-middle mb-0 gp-tabla">
-                <thead class="gp-thead"><tr><th>Lote</th><th>Labor</th><th class="text-end">Meta</th><th>Trabajadores</th><th>Estado</th></tr></thead>
+                <thead class="gp-thead"><tr><th>Lote</th><th>Labor</th><th class="text-end">Total</th><th>Trabajadores</th><th>Estado</th></tr></thead>
                 <tbody>${cerradas.map((a) => `<tr>
                     <td class="font-monospace">${escaparHtml(a.lote)}</td>
                     <td><span class="font-monospace fw-semibold">${escaparHtml(a.novedad)}</span> ${escaparHtml(a.novedadNombre)}</td>
-                    <td class="text-end tx-num text-nowrap">${cant(a.cantidad)} ${escaparHtml(a.uMedida)}</td>
+                    <td class="text-end tx-num text-nowrap">${cantUm(a.cantidad, a.uMedida)}</td>
                     <td class="font-monospace">${a.trabajadores.map((t) => escaparHtml(t.codigo || t.tercero)).join(', ')}</td>
                     <td>${Number(a.vinculada) === 1 ? '<span class="pl-chip pl-e-registrada"><i class="bi bi-journal-check" aria-hidden="true"></i>Registrada</span>' : chipEstado(a.estado)}</td>
                 </tr>`).join('')}</tbody>
@@ -2068,9 +2106,7 @@ const cargarPlanilla = async (finca) => {
         const trabajadores = a.trabajadores.filter((t) => !ausente(t)).map((t) => ({
             tercero: t.tercero, codigo: texto(t.codigo), nombre: texto(t.nombre), cantidad: Number(t.cantidad), reasignadoDe: texto(t.reasignadoDe)
         }));
-        const f = crearFilaPla({ ...a, meta: Number(a.cantidad), trabajadores });
-
-        f.manual = !igualPla(f, Number(a.cantidad));
+        crearFilaPla({ ...a, trabajadores });
     });
     pintarCerradasPla();
 
@@ -2212,14 +2248,9 @@ const cambiarCampoPla = (f, control) => {
         f.trabajadores = datos.map((opcion) => f.trabajadores.find((t) => t.tercero === opcion.id)
             || { tercero: opcion.id, codigo: codigoTercero(opcion), nombre: texto(opcion.text), cantidad: 0, reasignadoDe: '' });
 
-        if (!f.manual) repartirPla(f);
         if (pla.abierta === f.uid) pintarDetallePla(f);
     } else if (campo === 'pfa') {
         f.referencia = control.value;
-    } else if (campo === 'meta') {
-        const meta = aNumero(control.value);
-
-        if (meta > 0) control.value = valorInput(meta);
     }
 
     f.servidor = '';
@@ -2243,13 +2274,8 @@ const iniciarPlanilla = () => {
         if (cantidad) {
             const valor = aNumero(cantidad.value);
 
-            f.manual = true;
             f.trabajadores[Number(cantidad.dataset.cant)].cantidad = valor;
             cantidad.classList.toggle('is-invalid', Number.isNaN(valor));
-        } else if (evento.target.dataset.campo === 'meta' && !f.manual) {
-            repartirPla(f);
-
-            if (pla.abierta === f.uid) pintarDetallePla(f);
         }
 
         f.servidor = '';
@@ -2264,12 +2290,6 @@ const iniciarPlanilla = () => {
         ({
             cancelar: cancelarPlanilla,
             detalle: () => alternarDetallePla(f),
-            igual: () => {
-                f.manual = false;
-                repartirPla(f);
-                pintarDetallePla(f);
-                refrescarPla();
-            },
             duplicar: () => duplicarFilaPla(f),
             eliminar: () => eliminarFilaPla(f),
             ir: () => irAFilaPla(pla.filas.find((x) => x.uid === Number(boton.dataset.uid)))
@@ -2355,7 +2375,608 @@ const iniciarSelect2 = () => {
     });
 };
 
+const sug = {
+    cache: new Map(), filas: [], dias: 15, estado: 'todas', cargando: false, error: '', decisiones: true, aviso: '', fecha: '', turno: 0, espera: null,
+    contador: 0, esperaContador: null, abierto: false, reabrir: false, origen: '', pestana: 'lista',
+    his: { filas: [], cargado: false, cargando: false, error: '', turno: 0 }
+};
+
+const plural = (n, uno, varios) => `${fmt(n)} ${n === 1 ? uno : varios}`;
+const claveSug = (dias) => `${empresaId()}|${fechaPlan()}|${dias}`;
+const sugPor = (clave) => sug.filas.find((s) => s.clave === clave) || null;
+const codigosSug = (s) => (s.trabajadores || []).map((t) => texto(t.codigo) || t.tercero);
+const ultimoSug = (s) => (texto(s.fechaUltima) ? escaparHtml(fechaCorta(s.fechaUltima)) : '<span class="text-muted">—</span>');
+const cicloSug = (s) => (Number(s.ciclo) > 0 ? plural(Number(s.ciclo), 'día', 'días') : '');
+
+const urgencia = (dias) => {
+    const n = Math.abs(Number(dias));
+
+    if (Number(dias) < 0) return { clase: 'pl-e-noejecutada', icono: 'bi-exclamation-octagon', texto: `Vencida hace ${plural(n, 'día', 'días')}` };
+    if (n === 0) return { clase: 'pl-e-parcial', icono: 'bi-alarm', texto: 'Vence hoy' };
+
+    return { clase: 'pl-e-registrada', icono: 'bi-calendar-event', texto: `En ${plural(n, 'día', 'días')}` };
+};
+
+const chipUrgencia = (s) => {
+    const u = urgencia(s.dias);
+
+    return `<span class="pl-chip ${u.clase}"><i class="bi ${u.icono}" aria-hidden="true"></i>${u.texto}</span>`;
+};
+
+const ORIGENES = {
+    CATALOGO: ['tx-chip-neutro', 'bi-arrow-repeat', 'Ciclo', 'Ciclo definido en el catálogo de labores'],
+    HISTORIAL: ['gris', 'bi-graph-up', 'Estimado', 'Frecuencia estimada según el historial de pases'],
+    PLAN: ['verde', 'bi-droplet', 'Plan de fertilización', 'Programada en un plan de fertilización']
+};
+
+const chipOrigen = (s) => {
+    const [clase, icono, nombre, titulo] = ORIGENES[s.origen] || ORIGENES.HISTORIAL;
+
+    return `<span class="gp-chip-fila ${clase}" title="${titulo}"><i class="bi ${icono} me-1" aria-hidden="true"></i>${nombre}${s.origen === 'PLAN' && texto(s.referencia) ? ` <span class="font-monospace small">PFA-${escaparHtml(s.referencia)}</span>` : ''}</span>`;
+};
+
+const laborSug = (s, truncar = false) => {
+    const nombre = escaparHtml(s.labor);
+
+    return `${texto(s.novedad) ? `<span class="font-monospace fw-semibold me-1">${escaparHtml(s.novedad)}</span>` : ''}${nombre
+        ? (truncar ? `<span class="gp-truncar d-inline-block align-bottom" title="${nombre}">${nombre}</span>` : nombre)
+        : '<span class="text-muted">Labor por definir</span>'}`;
+};
+
+const trabajadoresSug = (s) => {
+    const codigos = codigosSug(s);
+    const todos = (s.trabajadores || []).map((t) => `${texto(t.codigo) || t.tercero} ${texto(t.nombre)}`.trim()).join(', ');
+
+    if (!codigos.length) return '<span class="text-muted">Sin historial</span>';
+
+    return `<span class="font-monospace">${escaparHtml(codigos.slice(0, 2).join(', '))}</span>${codigos.length > 2 ? ` <span class="gp-chip-fila tx-chip-neutro" title="${escaparHtml(todos)}">+${codigos.length - 2}</span>` : ''}`;
+};
+
+const referenciaSug = (s) => `<div class="d-flex flex-wrap gap-3">
+    <div><span class="gp-etiqueta-mini d-block">Lote</span><span class="font-monospace fw-semibold">${escaparHtml(s.finca)} / ${escaparHtml(s.lote)}</span></div>
+    <div class="min-w-0"><span class="gp-etiqueta-mini d-block">Labor</span>${laborSug(s)}</div>
+    <div><span class="gp-etiqueta-mini d-block">Último pase</span>${ultimoSug(s)}</div>
+    <div><span class="gp-etiqueta-mini d-block">Ciclo</span>${cicloSug(s) || '<span class="text-muted">—</span>'}</div>
+    <div><span class="gp-etiqueta-mini d-block">Próxima</span>${escaparHtml(fechaCorta(s.fechaProxima))}</div>
+    <div><span class="gp-etiqueta-mini d-block">Origen</span>${chipOrigen(s)}</div>
+</div>`;
+
+const botonesSug = (s, movil) => {
+    const clave = escaparHtml(s.clave);
+    const desc = escaparHtml(`${s.lote} ${texto(s.novedad)} ${texto(s.labor)}`.replace(/\s+/g, ' ').trim());
+    const motivo = sug.decisiones ? '' : escaparHtml(sug.aviso || 'Falta ejecutar el script crear_planeacion_sugerencias.sql.');
+    const titulo = motivo ? ` title="${motivo}"` : '';
+    const inactivo = motivo ? ` disabled title="${motivo}"` : '';
+
+    return `<span class="d-inline-flex${movil ? ' flex-grow-1' : ''}"${titulo}><button type="button" class="btn btn-success btn-sm flex-grow-1" data-accion="sug-aprobar" data-clave="${clave}" aria-label="Revisar y aprobar ${desc}"${inactivo}><i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Revisar y aprobar</button></span>
+        <span class="d-inline-flex${movil ? '' : ' ms-1'}"${titulo}><button type="button" class="btn btn-outline-danger btn-sm" data-accion="sug-rechazar" data-clave="${clave}" aria-label="Rechazar ${desc}"${inactivo || ' title="Rechazar"'}><i class="bi bi-x-circle${movil ? ' me-1' : ''}" aria-hidden="true"></i>${movil ? 'Rechazar' : ''}</button></span>`;
+};
+
+const filaSug = (s, puede) => `<tr class="pl-sug-fila ${urgencia(s.dias).clase}" data-sug="${escaparHtml(s.clave)}">
+    <td class="font-monospace fw-semibold" title="${escaparHtml(s.loteNombre)}">${escaparHtml(s.lote)}</td>
+    <td>${laborSug(s, true)}<span class="gp-subtexto">${escaparHtml(s.grupoNombre || s.grupo)} · ${escaparHtml(s.uMedida)}</span></td>
+    <td class="text-nowrap">${ultimoSug(s)}${cicloSug(s) ? `<span class="gp-subtexto">Ciclo ${cicloSug(s)}</span>` : ''}</td>
+    <td><span class="d-block text-nowrap">${escaparHtml(fechaCorta(s.fechaProxima))}</span><span class="d-inline-block mt-1">${chipOrigen(s)}</span></td>
+    <td>${chipUrgencia(s)}</td>
+    <td>${trabajadoresSug(s)}</td>
+    ${puede ? `<td class="text-end text-nowrap">${botonesSug(s, false)}</td>` : ''}
+</tr>`;
+
+const tarjetaSug = (s, puede) => `<div class="pl-pendiente ${urgencia(s.dias).clase}" data-sug="${escaparHtml(s.clave)}">
+    <div class="d-flex align-items-start gap-2">
+        <div class="min-w-0 flex-grow-1"><span class="font-monospace fw-semibold d-block">${escaparHtml(s.finca)} / ${escaparHtml(s.lote)}</span>${laborSug(s)}</div>
+        ${chipUrgencia(s)}
+    </div>
+    <div class="d-flex flex-wrap align-items-center gap-2 mt-1">
+        <span class="tx-dato"><span class="gp-etiqueta-mini">Último pase</span><span class="tx-dato-valor">${ultimoSug(s)}</span></span>
+        <span class="tx-dato"><span class="gp-etiqueta-mini">Próxima</span><span class="tx-dato-valor">${escaparHtml(fechaCorta(s.fechaProxima))}</span></span>
+        ${cicloSug(s) ? `<span class="tx-dato"><span class="gp-etiqueta-mini">Ciclo</span><span class="tx-dato-valor">${cicloSug(s)}</span></span>` : ''}
+        ${chipOrigen(s)}
+    </div>
+    <span class="gp-subtexto mt-1"><i class="bi bi-people me-1" aria-hidden="true"></i>${codigosSug(s).length ? escaparHtml(codigosSug(s).join(', ')) : 'Sin historial'}</span>
+    ${puede ? `<div class="d-flex gap-2 mt-2">${botonesSug(s, true)}</div>` : ''}
+</div>`;
+
+const PH_SUG = Array(4).fill('<div class="tx-tarjeta pl-ph-tarjeta placeholder-glow"><span class="placeholder col-7 mb-3"></span><span class="placeholder col-12 mb-2"></span><span class="placeholder col-9"></span></div>').join('');
+
+const vacioSug = (icono, titulo, mensaje = '', boton = '', clase = '') => `<div class="gp-estado-vacio text-center py-5">
+    <div class="gp-medallon chico ${clase} d-inline-flex align-items-center justify-content-center rounded-circle mb-2"><i class="bi ${icono}" aria-hidden="true"></i></div>
+    <h6 class="mb-1">${titulo}</h6>
+    ${mensaje ? `<p class="text-muted small mb-3">${mensaje}</p>` : ''}
+    ${boton}
+</div>`;
+
+const reintentarSug = (accion) => `<button type="button" class="btn btn-outline-secondary btn-sm" data-accion="${accion}"><i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i>Reintentar</button>`;
+
+const opcionesSug = (selector, filas, todas) => {
+    const actual = selector.value;
+    const pares = [...new Map(filas.map((f) => [f.finca, f.fincaNombre])).entries()].sort(([x], [y]) => x.localeCompare(y, 'es', { numeric: true }));
+
+    selector.innerHTML = `<option value="">${todas}</option>` + pares.map(([valor, nombre]) => `<option value="${escaparHtml(valor)}">${escaparHtml(valor)} — ${escaparHtml(nombre)}</option>`).join('');
+    selector.value = pares.some(([valor]) => valor === actual) ? actual : '';
+};
+
+const consultarSug = (dias) => {
+    const clave = claveSug(dias);
+
+    if (!sug.cache.has(clave)) {
+        sug.cache.set(clave, pedir('sugerencias', { empresa: empresaId(), fecha: fechaPlan(), dias }).catch((error) => {
+            sug.cache.delete(clave);
+            throw error;
+        }));
+    }
+
+    return sug.cache.get(clave);
+};
+
+const pintarContadorSug = (lista) => {
+    const vencidas = (lista || []).filter((s) => Number(s.dias) < 0).length;
+    const proximas = (lista || []).length - vencidas;
+    const titulo = `Sugerencias de planeación (próximos 15 días): ${plural(vencidas, 'vencida', 'vencidas')}, ${plural(proximas, 'próxima', 'próximas')}`;
+
+    document.querySelectorAll('[data-cont="sugerencias"]').forEach((chip) => {
+        chip.textContent = lista ? fmt(lista.length) : '—';
+        chip.classList.toggle('pl-rojo', vencidas > 0);
+        chip.classList.toggle('pl-ambar', !vencidas && proximas > 0);
+    });
+    document.querySelectorAll('#barra_plan [data-accion="sugerencias"]').forEach((boton) => {
+        boton.title = titulo;
+        boton.setAttribute('aria-label', titulo);
+    });
+};
+
+const contarSug = () => {
+    if (!$id('panelSugerencias')) return;
+
+    clearTimeout(sug.esperaContador);
+    sug.esperaContador = setTimeout(async () => {
+        const turno = ++sug.contador;
+        let lista = null;
+
+        try {
+            lista = (await consultarSug(15)).sugerencias || [];
+        } catch (error) {
+            lista = null;
+        }
+
+        if (turno === sug.contador) pintarContadorSug(lista);
+    }, 300);
+};
+
+const invalidarSug = () => {
+    if (!$id('panelSugerencias')) return;
+
+    sug.cache.clear();
+    contarSug();
+
+    if (sug.abierto) cargarSug();
+};
+
+const pintarSug = () => {
+    const lista = $id('sug_lista');
+    const puede = PERMISOS.registrar;
+
+    $id('sug_subtitulo').textContent = `Según los últimos registros de labores · Referencia: ${fechaCorta(fechaPlan())}`;
+    $id('sug_filtros').querySelectorAll('select, .btn-check').forEach((control) => { control.disabled = sug.cargando; });
+    lista.setAttribute('aria-busy', String(sug.cargando));
+    mostrar($id('sug_aviso'), !sug.cargando && !sug.error && !sug.decisiones && Boolean(sug.aviso));
+    $id('sug_aviso').innerHTML = `<i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>${escaparHtml(sug.aviso)}`;
+
+    if (sug.cargando || sug.error) {
+        $id('sug_resumen').textContent = sug.cargando ? 'Calculando sugerencias…' : '';
+        mostrar($id('sug_limpiar'), false);
+        lista.innerHTML = sug.cargando ? PH_SUG : vacioSug('bi-exclamation-triangle', 'No se pudieron cargar las sugerencias', escaparHtml(sug.error), reintentarSug('sug-reintentar'), 'gp-ppto-error');
+
+        return;
+    }
+
+    opcionesSug($id('sug_finca'), sug.filas, 'Todas las fincas');
+
+    const grupoActual = $id('sug_grupo').value;
+    const grupos = [...new Map(sug.filas.map((s) => [s.grupo, s.grupoNombre])).entries()].sort(([x], [y]) => x.localeCompare(y, 'es', { numeric: true }));
+
+    $id('sug_grupo').innerHTML = '<option value="">Todos los grupos</option>' + grupos.map(([valor, nombre]) => `<option value="${escaparHtml(valor)}">${escaparHtml(valor)} — ${escaparHtml(nombre)}</option>`).join('');
+    $id('sug_grupo').value = grupos.some(([valor]) => valor === grupoActual) ? grupoActual : '';
+
+    const finca = $id('sug_finca').value;
+    const grupo = $id('sug_grupo').value;
+    const base = sug.filas.filter((s) => (!finca || s.finca === finca) && (!grupo || s.grupo === grupo));
+    const vencidas = base.filter((s) => Number(s.dias) < 0).length;
+    const totalVencidas = sug.filas.filter((s) => Number(s.dias) < 0).length;
+    const conteos = { total: sug.filas.length, vencidas, proximas: base.length - vencidas };
+    const visibles = base.filter((s) => sug.estado === 'todas' || (sug.estado === 'vencidas') === (Number(s.dias) < 0))
+        .sort((x, y) => x.finca.localeCompare(y.finca, 'es', { numeric: true }) || Number(x.dias) - Number(y.dias)
+            || x.lote.localeCompare(y.lote, 'es', { numeric: true }) || texto(x.novedad).localeCompare(texto(y.novedad), 'es', { numeric: true }));
+
+    document.querySelectorAll('[data-sug-cont]').forEach((chip) => {
+        const clave = chip.dataset.sugCont;
+
+        chip.textContent = fmt(conteos[clave]);
+        chip.classList.toggle('pl-rojo', clave === 'total' ? totalVencidas > 0 : clave === 'vencidas' && vencidas > 0);
+        chip.classList.toggle('pl-ambar', clave === 'total' && !totalVencidas && sug.filas.length > 0);
+    });
+    $id('sug_resumen').textContent = plural(visibles.length, 'sugerencia', 'sugerencias');
+    mostrar($id('sug_limpiar'), Boolean(finca || grupo || sug.estado !== 'todas' || sug.dias !== 15));
+
+    if (!sug.filas.length) {
+        lista.innerHTML = vacioSug('bi-check2-all', 'Todo al día', `No hay labores vencidas ni próximas en los próximos ${plural(sug.dias, 'día', 'días')}.`);
+
+        return;
+    }
+
+    if (!visibles.length) {
+        lista.innerHTML = vacioSug('bi-funnel', 'Ninguna sugerencia coincide con los filtros', '', '<button type="button" class="btn btn-outline-secondary btn-sm" data-accion="sug-limpiar">Limpiar filtros</button>');
+
+        return;
+    }
+
+    const porFinca = agrupar(visibles, (s) => s.finca);
+
+    lista.innerHTML = `<div class="table-responsive d-none d-lg-block">
+        <table class="table table-sm align-middle mb-0 gp-tabla pl-sug-tabla">
+            <caption class="visually-hidden">Sugerencias de planeación agrupadas por finca</caption>
+            <thead class="gp-thead"><tr><th>Lote</th><th>Labor</th><th>Último pase</th><th>Próxima</th><th>Estado</th><th>Trabajadores</th>${puede ? '<th class="text-end"><span class="visually-hidden">Acciones</span></th>' : ''}</tr></thead>
+            <tbody>${porFinca.map(([clave, items]) => `<tr class="pl-sug-grupo"><td colspan="${puede ? 7 : 6}"><div class="d-flex justify-content-between gap-2"><span>${escaparHtml(clave)} — ${escaparHtml(items[0].fincaNombre)}</span><span>${plural(items.length, 'sugerencia', 'sugerencias')}</span></div></td></tr>${items.map((s) => filaSug(s, puede)).join('')}`).join('')}</tbody>
+        </table>
+    </div>
+    <div class="d-lg-none">${porFinca.map(([clave, items]) => `<div class="mb-3">
+        <span class="gp-grupo-titulo mb-2"><span class="font-monospace me-1">${escaparHtml(clave)}</span>${escaparHtml(items[0].fincaNombre)}</span>
+        ${items.map((s) => tarjetaSug(s, puede)).join('')}
+    </div>`).join('')}</div>`;
+};
+
+const cargarSug = async () => {
+    const turno = ++sug.turno;
+    const fecha = fechaPlan();
+    const cacheada = sug.cache.has(claveSug(sug.dias));
+    const promesa = consultarSug(sug.dias);
+
+    sug.error = '';
+
+    if (!cacheada) {
+        sug.cargando = true;
+        pintarSug();
+    }
+
+    try {
+        const respuesta = await promesa;
+
+        if (turno !== sug.turno) return;
+
+        sug.filas = respuesta.sugerencias || [];
+        sug.decisiones = respuesta.decisiones !== false;
+        sug.aviso = texto(respuesta.message);
+    } catch (error) {
+        if (turno !== sug.turno) return;
+
+        sug.error = error.message;
+    }
+
+    sug.fecha = fecha;
+    sug.cargando = false;
+    pintarSug();
+
+    if (sug.dias === 15 && !sug.error) pintarContadorSug(sug.filas);
+};
+
+const retirarSug = async (clave) => {
+    document.querySelectorAll('#sug_lista [data-sug]').forEach((nodo) => { if (nodo.dataset.sug === clave) nodo.classList.add('pl-ocupado', 'pl-saliendo'); });
+    await new Promise((fin) => setTimeout(fin, reducido() ? 0 : 250));
+    sug.filas = sug.filas.filter((s) => s.clave !== clave);
+    sug.cache.clear();
+    sug.cache.set(claveSug(sug.dias), Promise.resolve({ sugerencias: [...sug.filas], decisiones: sug.decisiones, message: sug.aviso }));
+    sug.his.cargado = false;
+    pintarSug();
+
+    if (sug.dias === 15) pintarContadorSug(sug.filas);
+    else contarSug();
+};
+
+const limpiarSug = () => {
+    $id('sug_finca').value = '';
+    $id('sug_grupo').value = '';
+    $id('sug_e_todas').checked = true;
+    sug.estado = 'todas';
+    $id('sug_dias').value = '15';
+    $id('sug_dias').classList.remove('is-invalid');
+    clearTimeout(sug.espera);
+
+    if (sug.dias !== 15) {
+        sug.dias = 15;
+        cargarSug();
+    } else {
+        pintarSug();
+    }
+};
+
+const chipDecision = (f) => (f.estado === 'APROBADA'
+    ? '<span class="pl-chip pl-e-completada"><i class="bi bi-check2-circle" aria-hidden="true"></i>Aprobada</span>'
+    : '<span class="pl-chip pl-e-noejecutada"><i class="bi bi-x-circle" aria-hidden="true"></i>Rechazada</span>');
+
+const detalleDecision = (f) => (f.estado === 'APROBADA'
+    ? `Planeada para el ${texto(f.fechaPlaneacion) ? escaparHtml(fechaCorta(f.fechaPlaneacion)) : '—'}`
+    : `<span class="gp-truncar d-inline-block align-bottom" title="${escaparHtml(f.motivo)}">${escaparHtml(f.motivo)}</span>`);
+
+const pintarHistorial = () => {
+    const h = sug.his;
+    const lista = $id('his_lista');
+
+    $id('his_filtros').querySelectorAll('input, select').forEach((control) => { control.disabled = h.cargando; });
+    lista.setAttribute('aria-busy', String(h.cargando));
+
+    if (h.cargando || h.error) {
+        $id('his_resumen').textContent = h.cargando ? 'Cargando historial…' : '';
+        lista.innerHTML = h.cargando ? PH_SUG : vacioSug('bi-exclamation-triangle', 'No se pudo cargar el historial', escaparHtml(h.error), reintentarSug('his-reintentar'), 'gp-ppto-error');
+
+        return;
+    }
+
+    opcionesSug($id('his_finca'), h.filas, 'Todas las fincas');
+
+    const decision = $id('his_decision').value;
+    const finca = $id('his_finca').value;
+    const filas = h.filas.filter((f) => (!decision || f.estado === decision) && (!finca || f.finca === finca))
+        .sort((x, y) => texto(y.fecha).localeCompare(texto(x.fecha)) || Number(y.id) - Number(x.id));
+
+    $id('his_resumen').textContent = plural(filas.length, 'decisión', 'decisiones');
+
+    if (!filas.length) {
+        lista.innerHTML = vacioSug('bi-journal', h.filas.length ? 'Ninguna decisión coincide con los filtros' : 'Aún no hay decisiones registradas');
+
+        return;
+    }
+
+    lista.innerHTML = `<div class="table-responsive d-none d-lg-block">
+        <table class="table table-sm align-middle mb-0 gp-tabla pl-sug-tabla">
+            <caption class="visually-hidden">Historial de decisiones sobre sugerencias</caption>
+            <thead class="gp-thead"><tr><th>Fecha decisión</th><th>Lote</th><th>Labor</th><th>Decisión</th><th>Detalle</th><th>Usuario</th></tr></thead>
+            <tbody>${filas.map((f) => `<tr>
+                <td class="text-nowrap">${escaparHtml(fechaLegible(f.fecha))}<span class="gp-subtexto">${escaparHtml(texto(f.fecha).slice(11, 16))}</span></td>
+                <td><span class="font-monospace fw-semibold">${escaparHtml(f.lote)}</span><span class="gp-subtexto">${escaparHtml(f.fincaNombre || f.finca)}</span></td>
+                <td>${laborSug(f, true)}</td>
+                <td>${chipDecision(f)}</td>
+                <td>${detalleDecision(f)}</td>
+                <td>${escaparHtml(f.usuario)}</td>
+            </tr>`).join('')}</tbody>
+        </table>
+    </div>
+    <div class="d-lg-none">${filas.map((f) => `<div class="pl-pendiente ${f.estado === 'APROBADA' ? 'pl-e-completada' : 'pl-e-noejecutada'}">
+        <div class="d-flex align-items-start gap-2">
+            <div class="min-w-0 flex-grow-1"><span class="font-monospace fw-semibold d-block">${escaparHtml(f.finca)} / ${escaparHtml(f.lote)}</span>${laborSug(f)}</div>
+            ${chipDecision(f)}
+        </div>
+        <span class="gp-subtexto mt-1">${detalleDecision(f)}</span>
+        <span class="gp-subtexto">${escaparHtml(fechaLegible(f.fecha))} ${escaparHtml(texto(f.fecha).slice(11, 16))} · ${escaparHtml(f.usuario)}</span>
+    </div>`).join('')}</div>`;
+};
+
+const cargarHistorial = async () => {
+    const h = sug.his;
+    const turno = ++h.turno;
+
+    h.cargando = true;
+    h.error = '';
+    pintarHistorial();
+
+    try {
+        const respuesta = await pedir('sugerencias/historial', { empresa: empresaId(), desde: $id('his_desde').value, hasta: $id('his_hasta').value });
+
+        if (turno !== h.turno) return;
+
+        h.filas = respuesta.filas || [];
+        h.cargado = true;
+    } catch (error) {
+        if (turno !== h.turno) return;
+
+        h.error = error.message;
+    }
+
+    h.cargando = false;
+    pintarHistorial();
+};
+
+const pestanaSug = (pestana) => {
+    sug.pestana = pestana;
+    document.querySelectorAll('[data-sug-tab]').forEach((boton) => {
+        boton.classList.toggle('active', boton.dataset.sugTab === pestana);
+        boton.setAttribute('aria-selected', String(boton.dataset.sugTab === pestana));
+    });
+    mostrar($id('sug_panel_lista'), pestana === 'lista');
+    mostrar($id('sug_panel_historial'), pestana === 'historial');
+
+    if (pestana === 'historial' && !sug.his.cargado && !sug.his.cargando) cargarHistorial();
+};
+
+const abrirPanelSug = () => {
+    bootstrap.Offcanvas.getOrCreateInstance($id('panelSugerencias')).show();
+    cargarSug();
+    pestanaSug(sug.pestana);
+};
+
+const verActividadSug = (id) => {
+    bootstrap.Offcanvas.getOrCreateInstance($id('panelSugerencias')).hide();
+    $id(`act_${id}`)?.scrollIntoView({ behavior: reducido() ? 'auto' : 'smooth', block: 'center' });
+};
+
+const abrirSugerencia = async (clave) => {
+    const s = sugPor(clave);
+    const panel = $id('panelSugerencias');
+
+    if (!s || !PERMISOS.registrar || estado.guardando) return;
+
+    sug.origen = clave;
+    sug.reabrir = panel.classList.contains('show');
+
+    if (sug.reabrir) {
+        await new Promise((fin) => {
+            panel.addEventListener('hidden.bs.offcanvas', fin, { once: true });
+            bootstrap.Offcanvas.getOrCreateInstance(panel).hide();
+        });
+    }
+
+    abrirActividad({
+        finca: s.finca,
+        lote: s.lote,
+        novedad: texto(s.novedad),
+        uMedida: texto(s.uMedida),
+        referencia: texto(s.referencia),
+        horaInicio: '',
+        horaFin: '',
+        observacion: '',
+        trabajadores: (s.trabajadores || []).map((t) => ({ ...t, cantidad: 0 }))
+    }, false, s);
+};
+
+const aprobarSug = async () => {
+    if (estado.guardando) return;
+
+    const s = form.sug;
+    const fecha = $id('act_fecha').value;
+    const vista = fechaPlan();
+
+    estado.guardando = true;
+    botonActividad();
+
+    try {
+        const respuesta = await pedir('sugerencias/aprobar', { empresa: empresaId(), clave: s.clave, fecha, actividad: JSON.stringify(datosActividad()) });
+        const id = Number(respuesta.linea) || null;
+
+        bootstrap.Modal.getOrCreateInstance($id('modalActividad')).hide();
+        retirarSug(s.clave);
+
+        if (fecha === vista) {
+            aplicarPlan(respuesta.plan, id);
+            Toast.fire({ icon: 'success', title: `Actividad planeada en ${escaparHtml(s.lote)}`, showConfirmButton: Boolean(id), confirmButtonText: 'Ver', timer: 5000 })
+                .then((r) => { if (r.isConfirmed) verActividadSug(id); });
+        } else {
+            Toast.fire({ icon: 'success', title: `Actividad planeada para el ${escaparHtml(fechaCorta(fecha))}`, showConfirmButton: true, confirmButtonText: 'Ir a la fecha', timer: 5000 })
+                .then(async (r) => {
+                    if (!r.isConfirmed) return;
+
+                    bootstrap.Offcanvas.getOrCreateInstance($id('panelSugerencias')).hide();
+                    $id('fecha').value = fecha;
+                    await cargar();
+
+                    if (estado.plan && id) aplicarPlan(estado.plan, id);
+                });
+        }
+    } catch (error) {
+        errorSwal(error, 'No se pudo aprobar la sugerencia').then(() => { if (/recargue el plan/i.test(error.message)) cargar(true); });
+    } finally {
+        estado.guardando = false;
+        botonActividad();
+    }
+};
+
+const rechazarSug = async (clave) => {
+    const s = sugPor(clave);
+
+    if (!s || !PERMISOS.registrar) return;
+
+    const { isConfirmed } = await Swal.fire({
+        target: $id('panelSugerencias'),
+        title: 'Rechazar sugerencia',
+        html: `<strong>${escaparHtml(s.lote)}</strong> · ${escaparHtml(`${texto(s.novedad)} ${texto(s.labor)}`.trim())}<br><small class="text-muted">No se volverá a sugerir hasta el próximo ciclo.</small>`,
+        input: 'textarea',
+        inputLabel: 'Motivo del rechazo',
+        inputPlaceholder: 'Ej. Lote en renovación, labor ejecutada por contratista',
+        inputAttributes: { maxlength: 250, 'aria-label': 'Motivo del rechazo' },
+        showCancelButton: true,
+        confirmButtonText: 'Rechazar',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#d6293e',
+        showLoaderOnConfirm: true,
+        keydownListenerCapture: true,
+        allowOutsideClick: () => !Swal.isLoading(),
+        didOpen: () => {
+            Swal.getContainer().addEventListener('keydown', (evento) => { if (evento.key === 'Escape') evento.stopPropagation(); });
+            Swal.getInput()?.focus();
+        },
+        inputValidator: (valor) => {
+            const largo = texto(valor).length;
+
+            if (largo < 5) return 'Escriba un motivo de al menos 5 caracteres.';
+
+            return largo > 250 ? 'Máximo 250 caracteres.' : undefined;
+        },
+        preConfirm: (motivo) => pedir('sugerencias/rechazar', { empresa: empresaId(), clave, motivo: texto(motivo), fecha: fechaPlan() }).catch((error) => {
+            Swal.showValidationMessage(escaparHtml(error.message));
+
+            return false;
+        })
+    });
+
+    if (!isConfirmed) return;
+
+    Toast.fire({ icon: 'success', title: 'Sugerencia rechazada' });
+    retirarSug(clave);
+};
+
+const iniciarSug = () => {
+    const panel = $id('panelSugerencias');
+    const hoy = aIso(new Date());
+
+    if (!panel) return;
+
+    $id('his_hasta').value = hoy;
+    $id('his_desde').value = sumarDias(hoy, -30);
+    panel.addEventListener('show.bs.offcanvas', () => { sug.abierto = true; });
+    panel.addEventListener('hide.bs.offcanvas', () => { sug.abierto = false; });
+    $id('sug_dias').addEventListener('input', () => {
+        const valor = Number($id('sug_dias').value);
+        const valido = Number.isInteger(valor) && valor >= 1 && valor <= 90;
+
+        $id('sug_dias').classList.toggle('is-invalid', !valido);
+        clearTimeout(sug.espera);
+
+        if (!valido || valor === sug.dias) return;
+
+        sug.espera = setTimeout(() => {
+            sug.dias = valor;
+            cargarSug();
+        }, 400);
+    });
+    ['sug_finca', 'sug_grupo'].forEach((id) => $id(id).addEventListener('change', pintarSug));
+    document.querySelectorAll('[name="sug_estado"]').forEach((radio) => radio.addEventListener('change', () => {
+        sug.estado = radio.value;
+        pintarSug();
+    }));
+    document.querySelectorAll('[data-sug-tab]').forEach((boton) => boton.addEventListener('click', () => pestanaSug(boton.dataset.sugTab)));
+    ['his_decision', 'his_finca'].forEach((id) => $id(id).addEventListener('change', pintarHistorial));
+    ['his_desde', 'his_hasta'].forEach((id) => $id(id).addEventListener('change', () => {
+        if ($id('his_desde').value && $id('his_hasta').value) cargarHistorial();
+    }));
+    $id('modalActividad').addEventListener('hidden.bs.modal', () => {
+        if (!form.sug) return;
+
+        form.sug = null;
+
+        if (!sug.reabrir) return;
+
+        sug.reabrir = false;
+        panel.addEventListener('shown.bs.offcanvas', () => {
+            [...panel.querySelectorAll('[data-accion="sug-aprobar"]')].find((boton) => boton.dataset.clave === sug.origen && boton.offsetParent)?.focus();
+        }, { once: true });
+        bootstrap.Offcanvas.getOrCreateInstance(panel).show();
+    });
+    $id('act_fecha').addEventListener('change', () => {
+        errorCampo('error_act_fecha', false);
+        $id('act_fecha').classList.remove('is-invalid');
+        fechaDestino();
+
+        if (grupoFormulario() === '02') cargarPfa($id('act_pfa').value || $id('act_pfa').dataset.previo || '');
+
+        pintarReparto();
+    });
+};
+
 const ACCIONES = {
+    sugerencias: abrirPanelSug,
+    'sug-aprobar': (d) => abrirSugerencia(d.clave),
+    'sug-rechazar': (d) => rechazarSug(d.clave),
+    'sug-limpiar': limpiarSug,
+    'sug-reintentar': () => cargarSug(),
+    'his-reintentar': () => cargarHistorial(),
     agregar: () => abrirActividad(),
     planilla: (d) => abrirPlanilla(d.finca || ''),
     pendientes: () => bootstrap.Offcanvas.getOrCreateInstance($id('panelPendientes')).show(),
@@ -2391,6 +3012,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     iniciarSelect2();
     iniciarPlanilla();
+    iniciarSug();
 
     document.addEventListener('click', (evento) => {
         const kpiBoton = evento.target.closest('.pl-kpi');
@@ -2454,7 +3076,6 @@ document.addEventListener('DOMContentLoaded', () => {
     $('#act_um').on('change', () => {
         errorCampo('error_act_um', false);
         $id('act_um').closest('.tx-select-ancho').classList.remove('is-invalid');
-        $id('act_meta_um').textContent = umFormulario() || '—';
         indicadorActividad();
     });
     ['act_hora_inicio', 'act_hora_fin'].forEach((id) => $id(id).addEventListener('change', () => {
@@ -2472,22 +3093,6 @@ document.addEventListener('DOMContentLoaded', () => {
             errorCampo('error_act_labor', true, 'No existe una labor con ese código.');
         }
     });
-    $id('act_meta').addEventListener('input', () => {
-        $id('act_meta').classList.remove('is-invalid');
-        errorCampo('error_act_meta', false);
-
-        if (!form.manual) {
-            repartirFormulario();
-            pintarReparto();
-        } else {
-            indicadorActividad();
-        }
-    });
-    $id('act_repartir').addEventListener('click', () => {
-        form.manual = false;
-        repartirFormulario();
-        pintarReparto();
-    });
     $id('act_observacion').addEventListener('input', contarObservacion);
     $id('act_filas').addEventListener('input', (evento) => {
         const campo = evento.target.closest('[data-reparto]');
@@ -2496,7 +3101,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const valor = aNumero(campo.value);
 
-        form.manual = true;
         form.trabajadores[Number(campo.dataset.reparto)].cantidad = valor;
         campo.classList.toggle('is-invalid', Number.isNaN(valor));
         indicadorActividad();

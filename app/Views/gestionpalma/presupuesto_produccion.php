@@ -3,7 +3,7 @@
 
 <!-- SECCION DE CSS -->
 <?php echo $this->section('css'); ?>
-<link rel="stylesheet" href="<?= base_url() ?>public/assets/css/gestionpalma.css?v=<?= filemtime(FCPATH . 'public/assets/css/gestionpalma.css') ?>">
+<link rel="stylesheet" href="<?= asset_url('public/assets/css/gestionpalma.css') ?>">
 <?php echo $this->endSection(); ?>
 <!-- FIN SECCION DE CSS -->
 
@@ -272,5 +272,5 @@ $esqueleto = '<td><span class="placeholder col-8"></span></td>';
     const BASE_URL = "<?= base_url() ?>";
     const TABLA_EXISTE = <?= $tabla_existe ? 'true' : 'false' ?>;
 </script>
-<script src="<?= base_url('public/assets/js/gestionpalma/presupuesto_produccion.js') ?>?v=<?= filemtime(FCPATH . 'public/assets/js/gestionpalma/presupuesto_produccion.js') ?>"></script>
+<script src="<?= asset_url('public/assets/js/gestionpalma/presupuesto_produccion.js') ?>"></script>
 <?php echo $this->endSection(); ?>

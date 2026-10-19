@@ -3,7 +3,7 @@
 
 <!-- SECCION DE CSS -->
 <?php echo $this->section('css'); ?>
-<link rel="stylesheet" href="<?= base_url() ?>public/assets/css/gestionpalma.css">
+<link rel="stylesheet" href="<?= asset_url('public/assets/css/gestionpalma.css') ?>">
 <?php echo $this->endSection(); ?>
 <!-- FIN SECCION DE CSS -->
 
@@ -396,5 +396,5 @@
 
 <?php echo $this->section('scripts'); ?>
 <script> const BASE_URL = "<?= base_url() ?>"; const TERCEROS_DISPONIBLES = <?= json_encode($terceros_disponibles) ?>; const PROVEEDORES = <?= json_encode($proveedores) ?>; </script>
-<script src="<?= base_url('public/assets/js/gestionpalma/nomina_empleados.js') ?>"></script>
+<script src="<?= asset_url('public/assets/js/gestionpalma/nomina_empleados.js') ?>"></script>
 <?php echo $this->endSection(); ?>

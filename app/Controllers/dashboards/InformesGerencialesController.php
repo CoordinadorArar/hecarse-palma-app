@@ -4,7 +4,9 @@ namespace App\Controllers\Dashboards;
 
 use App\Controllers\BaseController;
 use App\Models\InformesGerencialesModel;
+use App\Models\FertilizacionTransaccionModel;
 use App\Models\MapeoPalmasModel;
+use App\Models\PlaneacionModel;
 use App\Models\ReportesModel;
 use CodeIgniter\HTTP\RedirectResponse;
 use CodeIgniter\HTTP\ResponseInterface;
@@ -68,6 +70,21 @@ class InformesGerencialesController extends BaseController
             'nombre'      => 'Ciclos de poda',
             'icono'       => 'bi bi-scissors',
             'descripcion' => 'Días para el próximo ingreso de poda por lote sobre el mapa de la finca',
+        ], [
+            'clave'       => 'ciclos-fertilizacion',
+            'nombre'      => 'Ciclos de fertilización',
+            'icono'       => 'bi bi-droplet',
+            'descripcion' => 'Días para la próxima fertilización por lote sobre el mapa de la finca',
+        ], [
+            'clave'       => 'ciclos-sanidad',
+            'nombre'      => 'Ciclos de sanidad',
+            'icono'       => 'bi bi-bug',
+            'descripcion' => 'Días para el próximo ingreso sanitario por lote y estado sanitario de cada palma',
+        ], [
+            'clave'       => 'ciclos-mantenimiento',
+            'nombre'      => 'Ciclos de mantenimiento',
+            'icono'       => 'bi bi-tools',
+            'descripcion' => 'Días para el próximo ingreso de mantenimiento por lote sobre el mapa de la finca',
         ]];
         $data['empresas']    = $empresas;
         $data['anios']       = $anios;
@@ -76,6 +93,7 @@ class InformesGerencialesController extends BaseController
         $data['anio_sel']    = $anioSel;
         $data['mes_sel']     = $mesSel > 0 ? $mesSel : (int) date('n');
         $data['mapas']       = self::MAPAS;
+        $data['planeacion']  = $this->planeacion($empresaSel);
 
         return view('dashboards/informesGerenciales', $data);
     }
@@ -94,7 +112,59 @@ class InformesGerencialesController extends BaseController
             return $this->error('Debe seleccionar una empresa válida.');
         }
 
-        return $this->response->setJSON(['success' => true, 'message' => '', 'fincas' => $this->model->getFincas($empresa)]);
+        $planeacion = $this->planeacion($empresa);
+
+        return $this->response->setJSON(['success' => true, 'message' => '', 'fincas' => $this->model->getFincas($empresa)]
+            + ($planeacion['habilitada'] ? ['labores' => $planeacion['labores'], 'unidades' => $planeacion['unidades']] : []));
+    }
+
+    private function planeacion(int $empresa): array
+    {
+        $modelo   = new PlaneacionModel();
+        $permisos = ['registrar' => false, 'editar' => false];
+        $datos    = ['labores' => [], 'unidades' => [], 'fincas' => []];
+
+        try {
+            $modulo   = $modelo->idModulo();
+            $acciones = $modulo > 0 ? $modelo->accionesPermitidas((int) $this->session->get('usu_id'), $modulo) : [];
+
+            foreach ($permisos as $accion => $valor) {
+                $permisos[$accion] = in_array($accion . '-planeacion', $acciones, true);
+            }
+
+            $habilitada = ($permisos['registrar'] || $permisos['editar']) && $modelo->planeacionDisponible() && $modelo->columnasHoras();
+
+            if ($habilitada && $empresa > 0) {
+                $datos = [
+                    'labores'  => array_map(fn ($l) => $l + ['temas' => $this->temasLabor($l)], $modelo->labores($empresa)),
+                    'unidades' => $modelo->unidades($empresa),
+                    'fincas'   => $modelo->fincas($empresa),
+                ];
+            }
+        } catch (\Throwable $e) {
+            log_message('error', 'Error preparando la planeación desde informes gerenciales: ' . $e->getMessage());
+
+            $habilitada = false;
+            $datos      = ['labores' => [], 'unidades' => [], 'fincas' => []];
+        }
+
+        return ['habilitada' => $habilitada, 'permisos' => $permisos, 'fechaDefecto' => date('Y-m-d', strtotime('+1 day'))] + $datos;
+    }
+
+    private function temasLabor(array $labor): array
+    {
+        $grupo   = trim((string) $labor['grupo']);
+        $poda    = stripos((string) $labor['descripcion'], 'PODA') !== false;
+        $cosecha = (int) $labor['claseLabor'] === 2 && strtoupper(trim((string) $labor['uMedida'])) === 'KG';
+
+        return array_keys(array_filter([
+            'presupuesto-ejecutado' => $cosecha,
+            'ciclos-cosecha'        => $cosecha,
+            'ciclos-poda'           => $grupo === '04' && $poda,
+            'ciclos-fertilizacion'  => $grupo === FertilizacionTransaccionModel::GRUPO,
+            'ciclos-sanidad'        => $grupo === '03',
+            'ciclos-mantenimiento'  => $grupo === '04' && ! $poda,
+        ]));
     }
 
     public function consultar(): ResponseInterface
@@ -109,6 +179,9 @@ class InformesGerencialesController extends BaseController
             'presupuesto-ejecutado' => $this->presupuestoEjecutado(),
             'ciclos-cosecha'        => $this->ciclos('ciclos-cosecha'),
             'ciclos-poda'           => $this->ciclos('ciclos-poda'),
+            'ciclos-fertilizacion'  => $this->ciclos('ciclos-fertilizacion'),
+            'ciclos-sanidad'        => $this->ciclos('ciclos-sanidad'),
+            'ciclos-mantenimiento'  => $this->ciclos('ciclos-mantenimiento'),
             default                 => $this->error('El informe solicitado no existe.', 404),
         };
     }
@@ -283,76 +356,8 @@ class InformesGerencialesController extends BaseController
 
     private function datosCiclos(string $informe, int $empresa, string $finca, string $nombre, string $corte): array
     {
-        $poda   = $informe === 'ciclos-poda';
-        $dia    = static fn (string $f) => intdiv(strtotime($f . ' 00:00:00 UTC'), 86400);
-        $fechaD = static fn (int $d) => gmdate('Y-m-d', $d * 86400);
-        $hoy    = $dia($corte);
-        $brecha = $poda ? 7 : 1;
-        $rangos = $poda ? [
-            ['clave' => 'vencido', 'etiqueta' => 'Vencido', 'desde' => null, 'hasta' => -1, 'color' => '#FF0000'],
-            ['clave' => 'proximo', 'etiqueta' => 'Próximo (0 a 45 días)', 'desde' => 0, 'hasta' => 45, 'color' => '#FF9900'],
-            ['clave' => 'intermedio', 'etiqueta' => 'Intermedio (46 a 90 días)', 'desde' => 46, 'hasta' => 90, 'color' => '#FFD600'],
-            ['clave' => 'al-dia', 'etiqueta' => 'Al día (más de 90 días)', 'desde' => 91, 'hasta' => null, 'color' => '#00B050'],
-        ] : [
-            ['clave' => 'seguimiento', 'etiqueta' => 'En seguimiento (menos de 10 días)', 'desde' => 0, 'hasta' => 9, 'color' => '#0d6efd'],
-            ['clave' => 'normal', 'etiqueta' => 'Próximo a cosechar (10 a 12 días)', 'desde' => 10, 'hasta' => 12, 'color' => '#00B050'],
-            ['clave' => 'alerta', 'etiqueta' => 'Listo para cosechar (13 a 15 días)', 'desde' => 13, 'hasta' => 15, 'color' => '#FF9900'],
-            ['clave' => 'sobremaduracion', 'etiqueta' => 'Sobremaduración (más de 15 días)', 'desde' => 16, 'hasta' => null, 'color' => '#FF0000'],
-        ];
-        $rangos[] = ['clave' => 'sin-dato', 'etiqueta' => 'Sin registro', 'desde' => null, 'hasta' => null, 'color' => '#ADB5BD'];
-
-        $fechas = [];
-
-        foreach ($this->model->getFechasLabor($empresa, $finca, $poda ? 'TLA' : 'TLC', $fechaD($hoy - ($poda ? 730 : 400)), $corte) as $r) {
-            $actual = $fechas[$r['lote']][$r['fecha']] ?? null;
-
-            if ($actual === null || (int) $r['ciclos'] > (int) $actual['ciclos']) {
-                $fechas[$r['lote']][$r['fecha']] = $r;
-            }
-        }
-
-        $porEstado = array_fill_keys(array_column($rangos, 'clave'), 0);
-        $lotes     = [];
-        $hectareas = 0;
-
-        foreach ($this->model->getLotesCiclo($empresa, $finca) as $l) {
-            $dias   = array_keys($fechas[$l['codigo']] ?? []);
-            $ciclo  = $poda ? 180 : 10;
-            $item   = ['codigo' => $l['codigo'], 'descripcion' => $l['descripcion'], 'hectareas' => round((float) $l['hectareas'], 2), 'inicio' => '', 'fin' => '', 'diasLabor' => null,
-                'ciclo' => $ciclo, 'proximo' => '', 'diasTranscurridos' => null, 'diasParaIngreso' => null, 'estado' => 'sin-dato', 'labor' => ''];
-
-            if ($dias !== []) {
-                $fin    = $dia(end($dias));
-                $inicio = $fin;
-
-                for ($i = count($dias) - 2; $i >= 0 && $inicio - $dia($dias[$i]) <= $brecha; $i--) {
-                    $inicio = $dia($dias[$i]);
-                }
-
-                $ultima = $fechas[$l['codigo']][$fechaD($fin)];
-                $ciclo  = $poda && (int) $ultima['ciclos'] > 0 ? (int) $ultima['ciclos'] : $ciclo;
-                $trans  = $hoy - $fin;
-                $para   = $fin + $ciclo - $hoy;
-
-                $item = array_merge($item, [
-                    'inicio'            => $fechaD($inicio),
-                    'fin'               => $fechaD($fin),
-                    'diasLabor'         => $fin - $inicio + 1,
-                    'ciclo'             => $ciclo,
-                    'proximo'           => $fechaD($fin + $ciclo),
-                    'diasTranscurridos' => $trans,
-                    'diasParaIngreso'   => $para,
-                    'estado'            => $poda
-                        ? ($para < 0 ? 'vencido' : ($para <= 45 ? 'proximo' : ($para <= 90 ? 'intermedio' : 'al-dia')))
-                        : ($trans < 10 ? 'seguimiento' : ($trans <= 12 ? 'normal' : ($trans <= 15 ? 'alerta' : 'sobremaduracion'))),
-                    'labor'             => $ultima['labor'] . ' — ' . $ultima['laborNombre'],
-                ]);
-            }
-
-            $porEstado[$item['estado']]++;
-            $hectareas += $item['hectareas'];
-            $lotes[]    = $item;
-        }
+        $ciclos = $this->model->calcularCiclos($informe, $empresa, $finca, $corte);
+        $lotes  = $ciclos['lotes'];
 
         $mapa    = self::MAPAS[$empresa][$finca] ?? null;
         $sinLote = [];
@@ -370,8 +375,8 @@ class InformesGerencialesController extends BaseController
             'finca'   => ['codigo' => $finca, 'descripcion' => $nombre],
             'mapa'    => $mapa,
             'mapaUrl' => $mapa === null ? null : base_url('public/assets/mapas/' . $mapa . '.svg'),
-            'rangos'  => $rangos,
-            'kpis'    => ['lotes' => count($lotes), 'hectareas' => round($hectareas, 2), 'porEstado' => $porEstado],
+            'rangos'  => $ciclos['rangos'],
+            'kpis'    => ['lotes' => count($lotes), 'hectareas' => round($ciclos['hectareas'], 2), 'porEstado' => $ciclos['porEstado']],
             'lotes'   => $lotes,
             'sinLote' => $sinLote,
             'geo'     => $this->geoFinca($empresa, $finca),

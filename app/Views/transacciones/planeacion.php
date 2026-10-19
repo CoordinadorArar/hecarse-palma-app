@@ -2,14 +2,15 @@
 <?php
 $permisos   = $permisos ?? ['registrar' => false, 'consultar' => false, 'editar' => false, 'eliminar' => false];
 $disponible = ! empty($tablas_disponibles);
-$destinos   = $registrar_destino ?? ['labores' => false, 'fertilizacion' => false];
+$destinos   = $registrar_destino ?? ['labores' => false, 'fertilizacion' => false, 'produccion' => false];
+$verSugerencias = ! empty($permisos['consultar']) || ! empty($permisos['registrar']);
 ?>
 
 <?php echo $this->section('css'); ?>
-<link rel="stylesheet" href="<?= base_url() ?>public/assets/css/gestionpalma.css">
-<link rel="stylesheet" href="<?= base_url() ?>public/assets/css/transacciones.css">
-<link rel="stylesheet" href="<?= base_url() ?>public/assets/css/informes.css">
-<link rel="stylesheet" href="<?= base_url() ?>public/assets/css/planeacion.css">
+<link rel="stylesheet" href="<?= asset_url('public/assets/css/gestionpalma.css') ?>">
+<link rel="stylesheet" href="<?= asset_url('public/assets/css/transacciones.css') ?>">
+<link rel="stylesheet" href="<?= asset_url('public/assets/css/informes.css') ?>">
+<link rel="stylesheet" href="<?= asset_url('public/assets/css/planeacion.css') ?>">
 <?php echo $this->endSection(); ?>
 
 <?php echo $this->section('contenido'); ?>
@@ -89,6 +90,11 @@ $destinos   = $registrar_destino ?? ['labores' => false, 'fertilizacion' => fals
                 <button type="button" class="btn btn-link btn-sm p-0 d-none" id="btn_ver_todas">Ver todas</button>
             </div>
             <div class="d-flex align-items-center gap-2 ms-auto">
+                <?php if ($verSugerencias): ?>
+                <button type="button" class="btn btn-outline-secondary d-none d-md-inline-flex align-items-center gap-1" data-accion="sugerencias">
+                    <i class="bi bi-lightbulb" aria-hidden="true"></i>Sugerencias <span class="tx-chip-cont" data-cont="sugerencias">0</span>
+                </button>
+                <?php endif; ?>
                 <button type="button" class="btn btn-outline-secondary d-none d-md-inline-flex align-items-center gap-1" data-accion="pendientes">
                     <i class="bi bi-clock-history" aria-hidden="true"></i>Pendientes <span class="tx-chip-cont" data-cont="pendientes">0</span>
                 </button>
@@ -101,6 +107,9 @@ $destinos   = $registrar_destino ?? ['labores' => false, 'fertilizacion' => fals
                 <div class="dropdown d-md-none">
                     <button type="button" class="btn btn-outline-secondary" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Más opciones"><i class="bi bi-three-dots" aria-hidden="true"></i></button>
                     <ul class="dropdown-menu dropdown-menu-end">
+                        <?php if ($verSugerencias): ?>
+                        <li><button type="button" class="dropdown-item" data-accion="sugerencias"><i class="bi bi-lightbulb me-2" aria-hidden="true"></i>Sugerencias <span class="tx-chip-cont" data-cont="sugerencias">0</span></button></li>
+                        <?php endif; ?>
                         <li><button type="button" class="dropdown-item" data-accion="pendientes"><i class="bi bi-clock-history me-2" aria-hidden="true"></i>Pendientes <span class="tx-chip-cont" data-cont="pendientes">0</span></button></li>
                         <li><button type="button" class="dropdown-item" data-accion="ausentes"><i class="bi bi-person-x me-2" aria-hidden="true"></i>Ausentes <span class="tx-chip-cont" data-cont="ausentes">0</span></button></li>
                         <li><button type="button" class="dropdown-item" data-accion="imprimir"><i class="bi bi-printer me-2" aria-hidden="true"></i>Imprimir</button></li>
@@ -159,14 +168,25 @@ $destinos   = $registrar_destino ?? ['labores' => false, 'fertilizacion' => fals
                         <span><i class="bi bi-plus-square me-1" aria-hidden="true" id="icono_actividad"></i><span id="texto_actividad">Agregar actividad</span></span>
                         <span class="gp-chip-fila verde" id="chip_fecha_actividad"></span>
                         <span class="gp-chip-fila tx-chip-neutro d-none" id="chip_duplicada"></span>
+                        <span class="d-none" id="chip_sug_actividad"></span>
                     </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
                 </div>
                 <form id="formulario_actividad" novalidate>
                     <div class="modal-body px-4 py-3">
+                        <div class="gp-referencia mb-3 d-none" id="act_sugerencia"></div>
                         <h6 class="gp-seccion mb-3"><i class="bi bi-geo-alt" aria-hidden="true"></i>Ubicación y labor</h6>
                         <div class="row g-3 mb-4">
-                            <div class="col-12 col-md-6">
+                            <div class="col-12 col-md-4 d-none" id="col_act_fecha">
+                                <label class="form-label mb-1 small fw-semibold text-muted" for="act_fecha">Fecha destino <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-calendar3" aria-hidden="true"></i></span>
+                                    <input type="date" class="form-control" id="act_fecha">
+                                </div>
+                                <div class="invalid-feedback d-block d-none" id="error_act_fecha">Seleccione la fecha destino.</div>
+                                <div class="form-text d-none" id="act_fecha_ayuda"></div>
+                            </div>
+                            <div class="col-12 col-md-6" id="col_act_finca">
                                 <label class="form-label mb-1 small fw-semibold text-muted" for="act_finca">Finca <span class="text-danger">*</span></label>
                                 <div class="tx-select-ancho">
                                     <select class="form-select" id="act_finca">
@@ -178,7 +198,7 @@ $destinos   = $registrar_destino ?? ['labores' => false, 'fertilizacion' => fals
                                 </div>
                                 <div class="invalid-feedback d-block d-none" id="error_act_finca">Seleccione la finca.</div>
                             </div>
-                            <div class="col-12 col-md-6">
+                            <div class="col-12 col-md-6" id="col_act_lote">
                                 <label class="form-label mb-1 small fw-semibold text-muted" for="act_lote">Lote <span class="text-danger">*</span></label>
                                 <div class="tx-select-ancho">
                                     <select class="form-select" id="act_lote" disabled>
@@ -202,15 +222,7 @@ $destinos   = $registrar_destino ?? ['labores' => false, 'fertilizacion' => fals
                                 </div>
                                 <div class="invalid-feedback d-block d-none" id="error_act_labor">Seleccione la labor.</div>
                             </div>
-                            <div class="col-6 col-md-3">
-                                <label class="form-label mb-1 small fw-semibold text-muted" for="act_meta">Meta total <span class="text-danger">*</span></label>
-                                <div class="input-group">
-                                    <input type="text" class="form-control font-monospace text-end tx-num" id="act_meta" inputmode="decimal" maxlength="14" autocomplete="off">
-                                    <span class="input-group-text" id="act_meta_um">—</span>
-                                </div>
-                                <div class="invalid-feedback d-block d-none" id="error_act_meta">Indique una meta mayor que cero (máx. 2 decimales).</div>
-                            </div>
-                            <div class="col-6 col-md-3">
+                            <div class="col-12 col-md-4">
                                 <label class="form-label mb-1 small fw-semibold text-muted" for="act_um">Unidad de medida <span class="text-danger">*</span></label>
                                 <div class="tx-select-ancho">
                                     <select class="form-select" id="act_um">
@@ -222,14 +234,14 @@ $destinos   = $registrar_destino ?? ['labores' => false, 'fertilizacion' => fals
                                 </div>
                                 <div class="invalid-feedback d-block d-none" id="error_act_um">Seleccione la unidad de medida.</div>
                             </div>
-                            <div class="col-6 col-md-3">
+                            <div class="col-6 col-md-4">
                                 <label class="form-label mb-1 small fw-semibold text-muted" for="act_hora_inicio">Hora inicio</label>
                                 <div class="input-group">
                                     <span class="input-group-text"><i class="bi bi-clock" aria-hidden="true"></i></span>
                                     <input type="time" class="form-control" id="act_hora_inicio">
                                 </div>
                             </div>
-                            <div class="col-6 col-md-3">
+                            <div class="col-6 col-md-4">
                                 <label class="form-label mb-1 small fw-semibold text-muted" for="act_hora_fin">Hora fin</label>
                                 <div class="input-group">
                                     <span class="input-group-text"><i class="bi bi-clock-history" aria-hidden="true"></i></span>
@@ -254,13 +266,14 @@ $destinos   = $registrar_destino ?? ['labores' => false, 'fertilizacion' => fals
                         </div>
 
                         <h6 class="gp-seccion mb-3"><i class="bi bi-people" aria-hidden="true"></i>Trabajadores <span class="tx-chip-cont verde ms-1" id="act_contador">0</span></h6>
+                        <div class="gp-nota-alerta mb-2 d-none" id="act_aviso_ausentes" role="status"></div>
                         <div class="tx-select-ancho">
                             <select class="form-select" id="act_terceros" multiple></select>
                         </div>
                         <div class="invalid-feedback d-block d-none" id="error_act_terceros">Seleccione al menos un trabajador.</div>
                         <div class="form-text mb-3">Código (ej. CR150), identificación o nombre. Mínimo 3 caracteres.</div>
                         <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
-                            <button type="button" class="btn btn-link btn-sm p-0" id="act_repartir"><i class="bi bi-distribute-horizontal me-1" aria-hidden="true"></i>Repartir en partes iguales</button>
+                            <span class="form-text m-0">Cantidad por trabajador opcional; el total es informativo.</span>
                             <div class="tx-reparto tx-reparto--inactivo pl-indicador" id="act_indicador"></div>
                         </div>
                         <div class="table-responsive">
@@ -268,7 +281,7 @@ $destinos   = $registrar_destino ?? ['labores' => false, 'fertilizacion' => fals
                                 <thead class="gp-thead">
                                     <tr>
                                         <th>Trabajador</th>
-                                        <th class="text-end">Cantidad</th>
+                                        <th class="text-end">Cantidad <span class="fw-normal text-muted">(opcional)</span></th>
                                         <th class="text-center"><span class="visually-hidden">Quitar</span></th>
                                     </tr>
                                 </thead>
@@ -281,7 +294,7 @@ $destinos   = $registrar_destino ?? ['labores' => false, 'fertilizacion' => fals
                         <div class="d-flex flex-wrap gap-2 ms-auto">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><i class="bi bi-x-circle me-1" aria-hidden="true"></i>Cancelar</button>
                             <button type="button" class="btn btn-outline-primary" id="btn_guardar_otra"><i class="bi bi-plus-circle me-1" aria-hidden="true"></i>Guardar y agregar otra</button>
-                            <button type="submit" class="btn btn-primary" title="Ctrl+S"><i class="bi bi-floppy me-1" aria-hidden="true"></i>Guardar</button>
+                            <button type="submit" class="btn btn-primary" id="btn_guardar_actividad" title="Ctrl+S"><i class="bi bi-floppy me-1" aria-hidden="true"></i>Guardar</button>
                         </div>
                     </div>
                 </form>
@@ -326,7 +339,6 @@ $destinos   = $registrar_destino ?? ['labores' => false, 'fertilizacion' => fals
                                         <th>Lote <span class="text-danger">*</span></th>
                                         <th>Labor <span class="text-danger">*</span></th>
                                         <th>UM <span class="text-danger">*</span></th>
-                                        <th class="text-end">Meta <span class="text-danger">*</span></th>
                                         <th>Inicio</th>
                                         <th>Fin</th>
                                         <th>Trabajadores <span class="text-danger">*</span></th>
@@ -377,9 +389,9 @@ $destinos   = $registrar_destino ?? ['labores' => false, 'fertilizacion' => fals
                                 <div class="form-text">Código (ej. CR150), identificación o nombre. Mínimo 3 caracteres.</div>
                             </div>
                             <div class="col-12 col-sm-6">
-                                <label class="form-label mb-1 small fw-semibold text-muted" for="edit_cantidad">Cantidad <span class="text-muted fw-normal" id="edit_um"></span> <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control font-monospace text-end" id="edit_cantidad" inputmode="decimal" maxlength="14" autocomplete="off">
-                                <div class="invalid-feedback d-block d-none" id="error_edit_cantidad">Indique una cantidad mayor o igual a cero (máx. 2 decimales).</div>
+                                <label class="form-label mb-1 small fw-semibold text-muted" for="edit_cantidad">Cantidad <span class="text-muted fw-normal" id="edit_um"></span></label>
+                                <input type="text" class="form-control font-monospace text-end tx-num" id="edit_cantidad" placeholder="Opcional" inputmode="decimal" maxlength="14" autocomplete="off">
+                                <div class="invalid-feedback d-block d-none" id="error_edit_cantidad">Use números mayores o iguales a cero con máximo 2 decimales.</div>
                                 <span class="gp-subtexto tx-num mt-1" id="edit_resumen" aria-live="polite"></span>
                             </div>
                         </div>
@@ -438,7 +450,7 @@ $destinos   = $registrar_destino ?? ['labores' => false, 'fertilizacion' => fals
                     <div class="modal-body px-4 py-3">
                         <div class="gp-referencia mb-3" id="cierre_referencia"></div>
                         <div class="mb-3" id="cierre_col_cantidad">
-                            <label class="form-label mb-1 small fw-semibold text-muted" for="cierre_cantidad">Cantidad ejecutada <span class="text-danger">*</span></label>
+                            <label class="form-label mb-1 small fw-semibold text-muted" for="cierre_cantidad">Cantidad ejecutada <span class="text-danger" id="cierre_marca">*</span></label>
                             <div class="input-group">
                                 <input type="text" class="form-control font-monospace text-end tx-num" id="cierre_cantidad" inputmode="decimal" maxlength="14" autocomplete="off">
                                 <span class="input-group-text" id="cierre_um"></span>
@@ -474,6 +486,98 @@ $destinos   = $registrar_destino ?? ['labores' => false, 'fertilizacion' => fals
         <div class="offcanvas-body" id="lista_pendientes"></div>
     </div>
 
+    <?php if ($verSugerencias): ?>
+    <div class="offcanvas offcanvas-end pl-offcanvas pl-offcanvas--ancho" tabindex="-1" id="panelSugerencias" aria-labelledby="titulo_sugerencias">
+        <div class="offcanvas-header border-bottom">
+            <div class="min-w-0">
+                <h5 class="offcanvas-title d-flex align-items-center gap-2" id="titulo_sugerencias">
+                    <i class="bi bi-lightbulb" aria-hidden="true"></i>Sugerencias de planeación <span class="tx-chip-cont" data-sug-cont="total" aria-live="polite">0</span>
+                </h5>
+                <span class="gp-subtexto" id="sug_subtitulo"></span>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
+        </div>
+        <div class="offcanvas-body">
+            <ul class="nav nav-pills tx-pestanas mb-3" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button type="button" class="nav-link active" id="sug_tab_lista" data-sug-tab="lista" role="tab" aria-selected="true" aria-controls="sug_panel_lista"><i class="bi bi-lightbulb" aria-hidden="true"></i>Sugerencias <span class="tx-chip-cont" data-sug-cont="total">0</span></button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button type="button" class="nav-link" id="sug_tab_historial" data-sug-tab="historial" role="tab" aria-selected="false" aria-controls="sug_panel_historial"><i class="bi bi-journal-check" aria-hidden="true"></i>Historial</button>
+                </li>
+            </ul>
+
+            <div id="sug_panel_lista" role="tabpanel" aria-labelledby="sug_tab_lista">
+                <div class="gp-nota-alerta mb-3 d-none" id="sug_aviso" role="status"></div>
+                <?php if (empty($permisos['registrar'])): ?>
+                <div class="gp-nota-alerta mb-3"><i class="bi bi-eye me-1" aria-hidden="true"></i>Solo lectura: no tiene permiso para planear.</div>
+                <?php endif; ?>
+                <div class="row g-2 align-items-end mb-3" id="sug_filtros">
+                    <div class="col-6 col-md-2">
+                        <label class="form-label mb-1 small fw-semibold text-muted" for="sug_dias">Horizonte</label>
+                        <div class="input-group input-group-sm has-validation">
+                            <input type="number" class="form-control" id="sug_dias" min="1" max="90" value="15" inputmode="numeric">
+                            <span class="input-group-text">días</span>
+                            <div class="invalid-feedback">Ingrese entre 1 y 90 días.</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <label class="form-label mb-1 small fw-semibold text-muted" for="sug_finca">Finca</label>
+                        <select class="form-select form-select-sm" id="sug_finca"><option value="">Todas las fincas</option></select>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <label class="form-label mb-1 small fw-semibold text-muted" for="sug_grupo">Grupo</label>
+                        <select class="form-select form-select-sm" id="sug_grupo"><option value="">Todos los grupos</option></select>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <span class="form-label d-block mb-1 small fw-semibold text-muted" id="sug_estado_titulo">Estado</span>
+                        <div class="btn-group btn-group-sm w-100" role="group" aria-labelledby="sug_estado_titulo">
+                            <input type="radio" class="btn-check" name="sug_estado" id="sug_e_todas" value="todas" checked>
+                            <label class="btn btn-outline-secondary" for="sug_e_todas">Todas</label>
+                            <input type="radio" class="btn-check" name="sug_estado" id="sug_e_vencidas" value="vencidas">
+                            <label class="btn btn-outline-secondary" for="sug_e_vencidas">Vencidas <span class="tx-chip-cont" data-sug-cont="vencidas">0</span></label>
+                            <input type="radio" class="btn-check" name="sug_estado" id="sug_e_proximas" value="proximas">
+                            <label class="btn btn-outline-secondary" for="sug_e_proximas">Próximas <span class="tx-chip-cont" data-sug-cont="proximas">0</span></label>
+                        </div>
+                    </div>
+                </div>
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <span class="gp-contador" id="sug_resumen" aria-live="polite"></span>
+                    <button type="button" class="btn btn-link btn-sm p-0 ms-auto d-none" id="sug_limpiar" data-accion="sug-limpiar">Limpiar filtros</button>
+                </div>
+                <div id="sug_lista" aria-busy="false"></div>
+            </div>
+
+            <div class="d-none" id="sug_panel_historial" role="tabpanel" aria-labelledby="sug_tab_historial">
+                <div class="row g-2 align-items-end mb-3" id="his_filtros">
+                    <div class="col-6 col-md-3">
+                        <label class="form-label mb-1 small fw-semibold text-muted" for="his_decision">Decisión</label>
+                        <select class="form-select form-select-sm" id="his_decision">
+                            <option value="">Todas</option>
+                            <option value="APROBADA">Aprobadas</option>
+                            <option value="RECHAZADA">Rechazadas</option>
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <label class="form-label mb-1 small fw-semibold text-muted" for="his_finca">Finca</label>
+                        <select class="form-select form-select-sm" id="his_finca"><option value="">Todas las fincas</option></select>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <label class="form-label mb-1 small fw-semibold text-muted" for="his_desde">Desde</label>
+                        <input type="date" class="form-control form-control-sm" id="his_desde">
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <label class="form-label mb-1 small fw-semibold text-muted" for="his_hasta">Hasta</label>
+                        <input type="date" class="form-control form-control-sm" id="his_hasta">
+                    </div>
+                </div>
+                <div class="mb-2"><span class="gp-contador" id="his_resumen" aria-live="polite"></span></div>
+                <div id="his_lista" aria-busy="false"></div>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+
     <?php endif; ?>
 </main>
 <?php echo $this->endSection(); ?>
@@ -492,8 +596,9 @@ $destinos   = $registrar_destino ?? ['labores' => false, 'fertilizacion' => fals
     const DESTINOS = <?= json_encode([
         'labores'       => ['url' => base_url('transacciones/labores/' . $id_loseta), 'puede' => ! empty($destinos['labores'])],
         'fertilizacion' => ['url' => base_url('transacciones/fertilizacion/' . $id_loseta), 'puede' => ! empty($destinos['fertilizacion'])],
+        'produccion'    => ['url' => base_url('transacciones/produccion/' . $id_loseta), 'puede' => ! empty($destinos['produccion'])],
     ]) ?>;
 </script>
-<script src="<?= base_url('public/assets/js/transacciones/planeacion.js') ?>"></script>
+<script src="<?= asset_url('public/assets/js/transacciones/planeacion.js') ?>"></script>
 <?php echo $this->endSection(); ?>
 <?php endif; ?>

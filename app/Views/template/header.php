@@ -1,6 +1,6 @@
 <!-- SECCION DE CSS -->
 <?php echo $this->section('css'); ?>
-<link rel="stylesheet" href="<?= base_url() ?>public/assets/css/header.css">
+<link rel="stylesheet" href="<?= asset_url('public/assets/css/header.css') ?>">
 <?php echo $this->endSection(); ?>
 <!-- FIN SECCION DE CSS -->
 
@@ -51,6 +51,14 @@
                     </li>
                 </ul>
             </li> -->
+
+            <?php if (alerta_labores_permitida()): ?>
+            <li class="nav-item">
+                <button type="button" class="nav-link nav-icon lpl-trigger lpl-trigger-header" aria-label="Próximas labores agrícolas" aria-haspopup="dialog" aria-controls="modalProximasLabores" data-bs-toggle="tooltip" data-bs-title="Próximas labores" data-bs-placement="bottom">
+                    <i class="bi bi-calendar-check" aria-hidden="true"></i>
+                </button>
+            </li>
+            <?php endif; ?>
 
             <!-- PANEL DE PERFIL USUARIO -->
             <li class="nav-item dropdown pe-3">

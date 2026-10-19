@@ -3,7 +3,7 @@
 
 <!-- SECCION DE CSS -->
 <?php echo $this->section('css'); ?>
-<link rel="stylesheet" href="<?= base_url() ?>public/assets/css/gestionpalma.css">
+<link rel="stylesheet" href="<?= asset_url('public/assets/css/gestionpalma.css') ?>">
 <?php echo $this->endSection(); ?>
 <!-- FIN SECCION DE CSS -->
 
@@ -247,5 +247,5 @@
     const GRUPOS = <?= json_encode(array_map(static fn($g) => ['codigo' => (string) $g['codigo'], 'descripcion' => (string) $g['descripcion']], $grupos)) ?>;
     const VARIANTES = <?= json_encode($variantes ?? []) ?>;
 </script>
-<script src="<?= base_url('public/assets/js/gestionpalma/caracteristicas_registro.js') ?>"></script>
+<script src="<?= asset_url('public/assets/js/gestionpalma/caracteristicas_registro.js') ?>"></script>
 <?php echo $this->endSection(); ?>

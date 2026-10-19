@@ -3,7 +3,7 @@
 
 <!-- SECCION DE CSS -->
 <?php echo $this->section('css'); ?>
-<link rel="stylesheet" href="<?= base_url() ?>public/assets/css/gestionpalma.css">
+<link rel="stylesheet" href="<?= asset_url('public/assets/css/gestionpalma.css') ?>">
 <?php echo $this->endSection(); ?>
 <!-- FIN SECCION DE CSS -->
 
@@ -498,5 +498,5 @@ foreach ($secciones as $s) {
     const TIPOS_CANAL = <?= json_encode($tipos_canal) ?>;
     const SECCIONES_POR_FINCA = <?= json_encode($seccionesPorFinca) ?>;
 </script>
-<script src="<?= base_url('public/assets/js/gestionpalma/lotes_registro.js') ?>"></script>
+<script src="<?= asset_url('public/assets/js/gestionpalma/lotes_registro.js') ?>"></script>
 <?php echo $this->endSection(); ?>

@@ -11,8 +11,8 @@ $etiqueta    = static fn ($valor) => ucfirst(mb_strtolower(trim(preg_replace('/\
 ?>
 
 <?php echo $this->section('css'); ?>
-<link rel="stylesheet" href="<?= base_url() ?>public/assets/css/gestionpalma.css">
-<link rel="stylesheet" href="<?= base_url() ?>public/assets/css/transacciones.css">
+<link rel="stylesheet" href="<?= asset_url('public/assets/css/gestionpalma.css') ?>">
+<link rel="stylesheet" href="<?= asset_url('public/assets/css/transacciones.css') ?>">
 <?php echo $this->endSection(); ?>
 
 <?php echo $this->section('contenido'); ?>
@@ -638,7 +638,7 @@ $etiqueta    = static fn ($valor) => ucfirst(mb_strtolower(trim(preg_replace('/\
     const MODULO_TX = { ruta: 'fertilizacion', jornales: false, referencia: true, items: <?= json_encode($items ?? []) ?> };
     const PERMISOS = <?= json_encode(['registrar' => $pRegistrar, 'consultar' => $pConsultar, 'editar' => $pEditar, 'eliminar' => $pEliminar]) ?>;
 </script>
-<script src="<?= base_url('public/assets/js/transacciones/labores.js') ?>"></script>
-<script src="<?= base_url('public/assets/js/transacciones/labores_consulta.js') ?>"></script>
-<script src="<?= base_url('public/assets/js/transacciones/fertilizacion_pfa.js') ?>"></script>
+<script src="<?= asset_url('public/assets/js/transacciones/labores.js') ?>"></script>
+<script src="<?= asset_url('public/assets/js/transacciones/labores_consulta.js') ?>"></script>
+<script src="<?= asset_url('public/assets/js/transacciones/fertilizacion_pfa.js') ?>"></script>
 <?php echo $this->endSection(); ?>

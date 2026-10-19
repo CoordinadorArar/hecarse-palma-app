@@ -24,7 +24,7 @@ class ProduccionController extends BaseController
     private $produccionModel;
     private ?array $permisos = null;
 
-    private const MODULO = 58;
+    public const MODULO = 58;
 
     private const MAX_LINEAS       = 500;
     private const MAX_TRABAJADORES = 500;
@@ -398,6 +398,8 @@ class ProduccionController extends BaseController
         }
 
         unset($datos['racimosLineas'], $datos['confirmaFaltante'], $datos['totalTrabajadores'], $datos['lineasSinTrabajadores'], $datos['periodoCerrado']);
+
+        $datos['planeacionLinea'] = max(0, (int) $this->campo('planeacionLinea'));
 
         try {
             $resultado = $this->produccionModel->guardar($datos, $this->session->get('usu_id'));

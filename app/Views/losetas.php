@@ -3,7 +3,7 @@
 
 <!-- SECCION DE CSS -->
 <?php echo $this->section('css'); ?>
-<link rel="stylesheet" href="public/assets/css/losetas.css">
+<link rel="stylesheet" href="<?= asset_url('public/assets/css/losetas.css') ?>">
 <?php echo $this->endSection(); ?>
 <!-- FIN SECCION DE CSS -->
 
@@ -27,6 +27,11 @@
                         <?php endif; ?>
                     </span>
                 </div>
+            <?php endif; ?>
+            <?php if (alerta_labores_permitida()): ?>
+                <button type="button" class="btn lpl-trigger lpl-trigger-topbar" aria-label="Próximas labores agrícolas" aria-haspopup="dialog" aria-controls="modalProximasLabores" data-bs-toggle="tooltip" data-bs-title="Próximas labores" data-bs-placement="bottom">
+                    <i class="bi bi-calendar-check" aria-hidden="true"></i>
+                </button>
             <?php endif; ?>
             <button type="button" class="btn btn-logout" data-bs-toggle="tooltip" data-bs-title="Cerrar sesión">
                 <i class="bi bi-box-arrow-right"></i>
@@ -112,5 +117,8 @@
         });
     });
 </script>
+<?php if (!empty($alerta_labores)): ?>
+    <script>window.LPL_AUTO = true;</script>
+<?php endif; ?>
 <?php echo $this->endSection(); ?>
 <!-- FIN SECCION DE SCRIPTS -->

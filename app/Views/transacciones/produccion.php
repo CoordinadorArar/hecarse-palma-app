@@ -11,8 +11,8 @@ $anchoAcciones = [1 => 64, 2 => 98, 3 => 132][1 + (int) $pEditar + (int) $pElimi
 ?>
 
 <?php echo $this->section('css'); ?>
-<link rel="stylesheet" href="<?= base_url() ?>public/assets/css/gestionpalma.css">
-<link rel="stylesheet" href="<?= base_url() ?>public/assets/css/transacciones.css">
+<link rel="stylesheet" href="<?= asset_url('public/assets/css/gestionpalma.css') ?>">
+<link rel="stylesheet" href="<?= asset_url('public/assets/css/transacciones.css') ?>">
 <?php echo $this->endSection(); ?>
 
 <?php echo $this->section('contenido'); ?>
@@ -661,6 +661,6 @@ $anchoAcciones = [1 => 64, 2 => 98, 3 => 132][1 + (int) $pEditar + (int) $pElimi
     const BASE_URL = "<?= base_url() ?>";
     const PERMISOS = <?= json_encode(['registrar' => $pRegistrar, 'consultar' => $pConsultar, 'editar' => $pEditar, 'eliminar' => $pEliminar]) ?>;
 </script>
-<script src="<?= base_url('public/assets/js/transacciones/produccion.js') ?>"></script>
-<script src="<?= base_url('public/assets/js/transacciones/produccion_consulta.js') ?>"></script>
+<script src="<?= asset_url('public/assets/js/transacciones/produccion.js') ?>"></script>
+<script src="<?= asset_url('public/assets/js/transacciones/produccion_consulta.js') ?>"></script>
 <?php echo $this->endSection(); ?>

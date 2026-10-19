@@ -569,8 +569,8 @@ class ProduccionModel extends Model
                FROM pPlaneacionLinea l
                JOIN pPlaneacion p ON p.id = l.planeacion
               WHERE l.id = ? AND p.empresa = ? AND l.estado IN ('COMPLETADA', 'PARCIAL') AND l.numeroTransaccion IS NULL
-                AND EXISTS (SELECT 1 FROM aNovedad n WHERE n.empresa = p.empresa AND RTRIM(n.codigo) = l.novedad AND ISNULL(n.claseLabor, 0) <> 2
-                               AND CASE WHEN LTRIM(RTRIM(n.grupo)) = '02' THEN 'RLF' ELSE 'TLA' END = ?)",
+                AND EXISTS (SELECT 1 FROM aNovedad n WHERE n.empresa = p.empresa AND RTRIM(n.codigo) = l.novedad
+                               AND CASE WHEN ISNULL(n.claseLabor, 0) = 2 THEN 'TLC' WHEN LTRIM(RTRIM(n.grupo)) = '02' THEN 'RLF' ELSE 'TLA' END = ?)",
             [static::TIPO, $numero, $linea, $empresa, static::TIPO]
         );
 
@@ -905,6 +905,12 @@ class ProduccionModel extends Model
                 $this->db->transRollback();
 
                 return ['success' => false, 'message' => $detalle];
+            }
+
+            if (! $this->vincularPlaneacion($empresa, (int) ($datos['planeacionLinea'] ?? 0), $numero)) {
+                $this->db->transRollback();
+
+                return ['success' => false, 'message' => 'La actividad de la planeación ya fue registrada, no está cerrada como completada o parcial, o no corresponde a este tipo de transacción.'];
             }
 
             $auditoria = $this->insertarAuditoria('INSERT', [

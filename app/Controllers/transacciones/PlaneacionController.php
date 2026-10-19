@@ -7,16 +7,19 @@ use CodeIgniter\HTTP\ResponseInterface;
 use App\Models\FertilizacionTransaccionModel;
 use App\Models\LaboresTransaccionModel;
 use App\Models\PlaneacionModel;
+use App\Models\PlaneacionSugerenciaModel;
 
 class PlaneacionController extends LaboresController
 {
-    protected const MODELO  = PlaneacionModel::class;
+    protected const MODELO  = PlaneacionSugerenciaModel::class;
     protected const TITULO  = 'Transacciones · Planeación de labores';
     protected const VISTA   = 'transacciones/planeacion';
     protected const NOMBRE  = 'planeación de labores';
     protected const PERMISO = 'planeacion';
 
     private const SIN_TABLAS = 'La planeación de labores no está disponible: ejecute el script crear_planeacion_labores.sql.';
+
+    private const SIN_SUGERENCIAS = 'Falta ejecutar el script crear_planeacion_sugerencias.sql.';
 
     private const MAX_ACTIVIDADES = 500;
 
@@ -43,6 +46,7 @@ class PlaneacionController extends LaboresController
             'registrar_destino'  => [
                 'labores'       => $puede(LaboresTransaccionModel::class, 'registrar-labores'),
                 'fertilizacion' => $puede(FertilizacionTransaccionModel::class, 'registrar-fertilizacion'),
+                'produccion'    => in_array('registrar-produccion', $this->laboresModel->accionesPermitidas($usuario, ProduccionController::MODULO), true),
             ],
         ];
     }
@@ -279,7 +283,7 @@ class PlaneacionController extends LaboresController
                 return $this->error('Solo se pueden trasladar pendientes de días anteriores al ' . $fecha . ' (' . $etiqueta . ').');
             }
 
-            if ($linea['saldo'] <= 0) {
+            if ($linea['saldo'] <= 0 && $linea['cantidad'] > 0) {
                 return $this->error('La actividad ' . $etiqueta . ' no tiene saldo pendiente.');
             }
 
@@ -491,8 +495,12 @@ class PlaneacionController extends LaboresController
             $ejecutada = $linea['cantidad'];
         } elseif ($estado === 'NO_EJECUTADA') {
             $ejecutada = 0.0;
-        } elseif ($ejecutada === null || $ejecutada <= 0 || $ejecutada >= $linea['cantidad']) {
-            return $this->error('La cantidad ejecutada debe ser mayor que cero y menor que la meta (' . number_format($linea['cantidad'], 2, '.', '') . ').');
+        } elseif ($linea['cantidad'] > 0 && ($ejecutada === null || $ejecutada <= 0 || $ejecutada >= $linea['cantidad'])) {
+            return $this->error('La cantidad ejecutada debe ser mayor que cero y menor que la cantidad planeada (' . number_format($linea['cantidad'], 2, '.', '') . ').');
+        } elseif ($ejecutada === null) {
+            return $this->error('La cantidad ejecutada debe ser un número mayor o igual a cero con máximo 2 decimales.');
+        } elseif ($ejecutada < 0) {
+            return $this->error('La cantidad ejecutada no puede ser negativa.');
         }
 
         if ($estado !== 'COMPLETADA' && $observacion === '') {
@@ -586,16 +594,12 @@ class PlaneacionController extends LaboresController
 
         $etiqueta = $this->etiqueta($linea);
 
-        if ($linea['tipoDestino'] === null) {
-            return $this->error('La actividad ' . $etiqueta . ' es de cosecha: se registra en Producción con el tiquete.');
-        }
-
         if ($linea['vinculada'] === 1) {
             return $this->error('La actividad ' . $etiqueta . ' ya fue registrada en ' . $linea['tipoTransaccion'] . ' ' . $linea['numeroTransaccion'] . '.');
         }
 
         if ($linea['registrable'] !== 1) {
-            return $this->error('La actividad ' . $etiqueta . ' debe estar cerrada como COMPLETADA o PARCIAL con cantidad ejecutada.');
+            return $this->error('La actividad ' . $etiqueta . ' debe estar cerrada como COMPLETADA o PARCIAL con cantidad ejecutada (o sin cantidad planeada).');
         }
 
         $cantidades = $this->repartir($linea['cantidadEjecutada'], array_column($linea['trabajadores'], 'cantidad'));
@@ -624,6 +628,225 @@ class PlaneacionController extends LaboresController
                 'cantidad' => $c,
             ], $linea['trabajadores'], $cantidades),
         ]);
+    }
+
+    public function sugerencias(): ResponseInterface
+    {
+        $datos = $this->empresaFecha(['consultar', 'registrar'], 'consultar');
+
+        if ($datos instanceof ResponseInterface) {
+            return $datos;
+        }
+
+        $dias  = trim($this->campo('dias'));
+        $dias  = $dias === '' ? 15 : (ctype_digit($dias) ? (int) $dias : 0);
+        $finca = trim($this->campo('finca'));
+
+        if ($dias < 1 || $dias > 90) {
+            return $this->error('El campo "Días" debe ser un número entero entre 1 y 90.');
+        }
+
+        try {
+            if ($finca !== '' && ! $this->laboresModel->fincaValida($datos['empresa'], $finca)) {
+                return $this->error('La finca ' . $finca . ' no existe.');
+            }
+
+            $sugerencias = $this->laboresModel->sugerencias($datos['empresa'], $datos['fecha'], $dias, $finca);
+            $decisiones  = $this->laboresModel->sugerenciasDisponible();
+        } catch (\Throwable $e) {
+            log_message('error', 'Error calculando las sugerencias de planeación: ' . $e->getMessage());
+
+            return $this->error('No se pudieron calcular las sugerencias.', 500);
+        }
+
+        return $this->response->setJSON([
+            'success'     => true,
+            'message'     => $decisiones ? '' : self::SIN_SUGERENCIAS,
+            'fecha'       => $datos['fecha'],
+            'dias'        => $dias,
+            'decisiones'  => $decisiones,
+            'total'       => count($sugerencias),
+            'sugerencias' => $sugerencias,
+        ]);
+    }
+
+    public function aprobarSugerencia(): ResponseInterface
+    {
+        $datos = $this->empresaFecha(['registrar', 'editar'], 'registrar o editar');
+
+        if ($datos instanceof ResponseInterface) {
+            return $datos;
+        }
+
+        ['empresa' => $empresa, 'fecha' => $fecha] = $datos;
+
+        $sugerencia = $this->sugerenciaPedida($empresa, $fecha);
+
+        if ($sugerencia instanceof ResponseInterface) {
+            return $sugerencia;
+        }
+
+        $nueva = $this->actividadNueva($empresa, $fecha);
+
+        if ($nueva instanceof ResponseInterface) {
+            return $nueva;
+        }
+
+        [$plan, $actividad] = $nueva;
+
+        return $this->resultado(fn () => $this->laboresModel->aprobar(
+            $empresa, $sugerencia, $fecha, $actividad, $plan, $this->usuarioRegistro(), $this->session->get('usu_id')
+        ));
+    }
+
+    public function agregar(): ResponseInterface
+    {
+        $datos = $this->empresaFecha(['registrar', 'editar'], 'registrar o editar');
+
+        if ($datos instanceof ResponseInterface) {
+            return $datos;
+        }
+
+        ['empresa' => $empresa, 'fecha' => $fecha] = $datos;
+
+        $nueva = $this->actividadNueva($empresa, $fecha);
+
+        if ($nueva instanceof ResponseInterface) {
+            return $nueva;
+        }
+
+        [$plan, $actividad] = $nueva;
+
+        return $this->resultado(fn () => $this->laboresModel->agregarActividad(
+            $empresa, $fecha, $actividad, $plan, $this->usuarioRegistro(), $this->session->get('usu_id')
+        ));
+    }
+
+    private function actividadNueva(int $empresa, string $fecha): array|ResponseInterface
+    {
+        $plan = $this->planDestino($empresa, $fecha);
+
+        if ($plan instanceof ResponseInterface) {
+            return $plan;
+        }
+
+        $fila = json_decode($this->campo('actividad'), true);
+
+        if (! is_array($fila)) {
+            return $this->error('No se pudieron leer los datos de la actividad.');
+        }
+
+        $ausentes = array_column($plan['ausencias'] ?? [], 'tercero');
+        $usados   = [];
+
+        foreach ($plan['actividades'] ?? [] as $existente) {
+            $this->marcarUsados($usados, $existente);
+        }
+
+        $orden     = count($plan['actividades'] ?? []) + 1;
+        $actividad = $this->actividadValida($empresa, $fecha, $orden, $fila, $ausentes, $usados);
+
+        return is_string($actividad) ? $this->errorActividad($actividad, $orden) : [$plan, $actividad];
+    }
+
+    public function rechazarSugerencia(): ResponseInterface
+    {
+        if ($sinRequisitos = $this->requisitos(['registrar'], 'registrar')) {
+            return $sinRequisitos;
+        }
+
+        $empresa = $this->empresaValida();
+
+        if ($empresa === null) {
+            return $this->error('Debe seleccionar una empresa válida.');
+        }
+
+        $motivo = trim($this->campo('motivo'));
+
+        if (mb_strlen($motivo) < 5 || mb_strlen($motivo) > 250) {
+            return $this->error('El motivo del rechazo es obligatorio y debe tener entre 5 y 250 caracteres.');
+        }
+
+        $sugerencia = $this->sugerenciaPedida($empresa, $this->fechaValida($this->campo('fecha')) ?? date('Y-m-d'));
+
+        if ($sugerencia instanceof ResponseInterface) {
+            return $sugerencia;
+        }
+
+        return $this->resultado(fn () => $this->laboresModel->rechazar(
+            $empresa, $sugerencia, $motivo, $this->usuarioRegistro(), $this->session->get('usu_id')
+        ), false);
+    }
+
+    public function historialSugerencias(): ResponseInterface
+    {
+        if ($sinRequisitos = $this->requisitos(['consultar', 'registrar'], 'consultar')) {
+            return $sinRequisitos;
+        }
+
+        $empresa = $this->empresaValida();
+
+        if ($empresa === null) {
+            return $this->error('Debe seleccionar una empresa válida.');
+        }
+
+        $desde = trim($this->campo('desde')) === '' ? date('Y-m-d', strtotime('-30 days')) : $this->fechaValida($this->campo('desde'));
+        $hasta = trim($this->campo('hasta')) === '' ? date('Y-m-d') : $this->fechaValida($this->campo('hasta'));
+
+        if ($desde === null || $hasta === null || $desde > $hasta) {
+            return $this->error('Las fechas "Desde" y "Hasta" deben tener el formato AAAA-MM-DD y "Desde" no puede ser mayor que "Hasta".');
+        }
+
+        try {
+            $disponible = $this->laboresModel->sugerenciasDisponible();
+        } catch (\Throwable $e) {
+            log_message('error', 'Error verificando la tabla de sugerencias: ' . $e->getMessage());
+
+            return $this->error('No se pudo verificar el historial de sugerencias.', 500);
+        }
+
+        if (! $disponible) {
+            return $this->error(self::SIN_SUGERENCIAS, 503);
+        }
+
+        return $this->listado(fn () => $this->laboresModel->historial($empresa, $desde, $hasta), 'decisiones');
+    }
+
+    private function sugerenciaPedida(int $empresa, string $fecha): array|ResponseInterface
+    {
+        try {
+            $disponible = $this->laboresModel->sugerenciasDisponible();
+        } catch (\Throwable $e) {
+            log_message('error', 'Error verificando la tabla de sugerencias: ' . $e->getMessage());
+
+            return $this->error('No se pudo verificar la tabla de sugerencias.', 500);
+        }
+
+        if (! $disponible) {
+            return $this->error(self::SIN_SUGERENCIAS, 503);
+        }
+
+        $partes = explode('|', (string) base64_decode(trim($this->campo('clave')), true));
+
+        if (count($partes) !== 4 || $partes[0] === '' || $partes[1] === '' || $partes[3] === '') {
+            return $this->error('La sugerencia no es válida.');
+        }
+
+        try {
+            $sugerencias = $this->laboresModel->sugerencias($empresa, $fecha, 90, $partes[0]);
+        } catch (\Throwable $e) {
+            log_message('error', 'Error calculando las sugerencias de planeación: ' . $e->getMessage());
+
+            return $this->error('No se pudo validar la sugerencia.', 500);
+        }
+
+        foreach ($sugerencias as $sugerencia) {
+            if ([$sugerencia['finca'], $sugerencia['lote'], $sugerencia['novedad'], $sugerencia['base']] === $partes) {
+                return $sugerencia;
+            }
+        }
+
+        return $this->error('La sugerencia ya no está vigente (la labor se registró, ya está planeada o fue decidida); recargue las sugerencias.');
     }
 
     private function requisitos(array $acciones, string $verbo): ?ResponseInterface

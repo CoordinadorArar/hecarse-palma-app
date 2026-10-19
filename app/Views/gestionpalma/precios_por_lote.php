@@ -3,7 +3,7 @@
 
 <!-- SECCION DE CSS -->
 <?php echo $this->section('css'); ?>
-<link rel="stylesheet" href="<?= base_url() ?>public/assets/css/gestionpalma.css">
+<link rel="stylesheet" href="<?= asset_url('public/assets/css/gestionpalma.css') ?>">
 <?php echo $this->endSection(); ?>
 <!-- FIN SECCION DE CSS -->
 
@@ -456,5 +456,5 @@ $urlPorLabor = base_url('gestion-palma/precios/por-labor/' . $id_loseta);
     const TOTAL_INICIAL = <?= (int) $total_precios ?>;
     const NIVELES_INICIALES = <?= json_encode($niveles_precios) ?>;
 </script>
-<script src="<?= base_url('public/assets/js/gestionpalma/precios_por_lote.js') ?>"></script>
+<script src="<?= asset_url('public/assets/js/gestionpalma/precios_por_lote.js') ?>"></script>
 <?php echo $this->endSection(); ?>
