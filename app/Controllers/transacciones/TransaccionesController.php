@@ -3,6 +3,7 @@
 namespace App\Controllers\Transacciones;
 
 use App\Controllers\BaseController;
+use App\Models\TransaccionesResumenModel;
 use CodeIgniter\HTTP\RedirectResponse;
 
 /**
@@ -32,6 +33,41 @@ class TransaccionesController extends BaseController
             return $data;
         }
 
+        $modelo = new TransaccionesResumenModel();
+        $fallo  = false;
+
+        try {
+            $empresas = $modelo->getEmpresas();
+        } catch (\Throwable $e) {
+            log_message('error', 'TransaccionesController::index [empresas] ' . $e->getMessage());
+            $empresas = [];
+            $fallo    = true;
+        }
+
+        $empresaSel = $this->empresaSeleccionada($empresas);
+
+        $data['empresas']    = $empresas;
+        $data['empresa_sel'] = $empresaSel;
+        $data['resumen']     = $modelo->resumen($empresaSel);
+
+        if ($fallo) {
+            $data['resumen']['fallos'][] = 'empresas';
+            $data['resumen']['avisos'] = ['No fue posible cargar las empresas.'];
+        }
+
         return view('transacciones/onboarding', $data);
+    }
+
+    protected function empresaSeleccionada(array $empresas): int
+    {
+        $solicitada = (int) $this->request->getGet('empresa');
+
+        foreach ($empresas as $empresa) {
+            if ($solicitada > 0 && (int) $empresa['id'] === $solicitada) {
+                return $solicitada;
+            }
+        }
+
+        return $empresas ? (int) $empresas[0]['id'] : 0;
     }
 }

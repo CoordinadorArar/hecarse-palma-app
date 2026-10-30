@@ -634,7 +634,7 @@ const pintarBarraInferior = () => {
         barra.innerHTML = `<div class="gp-llave-fija flex-grow-1 align-items-center">
             <i class="bi bi-lock" aria-hidden="true"></i>
             <span class="gp-llave-titulo flex-grow-1">Plan cerrado el ${escaparHtml(fechaHora(plan.fechaModificacion) || fechaLegible(plan.fecha))}${texto(plan.usuarioModificacion) ? ` por ${escaparHtml(plan.usuarioModificacion)}` : ''}</span>
-            ${PERMISOS.editar ? '<button type="button" class="btn btn-sm btn-outline-secondary" data-accion="reabrir-plan"><i class="bi bi-unlock me-1" aria-hidden="true"></i>Reabrir plan</button>' : ''}
+            ${PERMISOS.editar ? '<button type="button" class="btn btn-sm btn-outline-secondary" id="btn_reabrir_plan" data-accion="reabrir-plan"><i class="bi bi-unlock me-1" aria-hidden="true"></i>Reabrir plan</button>' : ''}
         </div>`;
 
         return;
@@ -645,7 +645,7 @@ const pintarBarraInferior = () => {
     barra.innerHTML = `<span class="gp-subtexto pl-faltan">${!plan.resumen.actividades ? 'El plan no tiene actividades' : (faltan ? `Faltan <strong>${fmt(faltan)}</strong> ${faltan === 1 ? 'actividad' : 'actividades'} por cerrar` : '<i class="bi bi-check2-all me-1" aria-hidden="true"></i>Todas las actividades están cerradas')}</span>
         <div class="d-flex flex-wrap justify-content-end gap-2 ms-auto pl-acciones-fin">
             ${editable() ? botonAgregar('d-sm-none w-100') : ''}
-            ${PERMISOS.editar ? `<button type="button" class="btn btn-primary" data-accion="cerrar-plan"${faltan || !plan.resumen.actividades ? ' disabled' : ''}><i class="bi bi-lock me-1" aria-hidden="true"></i>Cerrar plan</button>` : ''}
+            ${PERMISOS.editar ? `<button type="button" class="btn btn-primary" id="btn_cerrar_plan" data-accion="cerrar-plan"${faltan || !plan.resumen.actividades ? ' disabled' : ''}><i class="bi bi-lock me-1" aria-hidden="true"></i>Cerrar plan</button>` : ''}
         </div>`;
 };
 
@@ -1573,7 +1573,7 @@ const imprimir = () => {
             <td>${escaparHtml(a.novedad)} ${escaparHtml(a.novedadNombre)}</td>
             <td>${escaparHtml(a.uMedida)}</td>
             <td class="text-end">${Number(t.cantidad) > 0 ? cant(t.cantidad) : ''}</td>
-            <td class="text-nowrap">${escaparHtml(formatoHorario(a))}</td>
+            <td class="pl-imp-horario">${texto(a.horaInicio) && texto(a.horaFin) ? `<span class="text-nowrap">${escaparHtml(formatoHora(a.horaInicio))} –</span><br><span class="text-nowrap">${escaparHtml(formatoHora(a.horaFin))}</span>` : '—'}</td>
             <td>${escaparHtml(a.observacion)}</td>
             <td></td>
         </tr>`;

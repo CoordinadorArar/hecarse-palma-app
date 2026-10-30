@@ -324,7 +324,7 @@ const filaTrabajador = (linea, trabajador) => `
         ${celdaTercero(trabajador.terceroCodigo, trabajador.terceroNombre, trabajador.tercero)}
         <td><span class="font-monospace">${escaparHtml(trabajador.novedad)}</span><span class="gp-subtexto gp-truncar" title="${escaparHtml(trabajador.novedadNombre)}">${escaparHtml(trabajador.novedadNombre)}</span></td>
         <td class="font-monospace text-nowrap" title="${escaparHtml(fechaCorta(trabajador.fecha))}">${escaparHtml(fechaCorta(trabajador.fecha).substring(0, 5))}</td>
-        <td class="tx-num">${fmt(trabajador.cantidad, 2)}</td>
+        <td class="tx-num"${trabajador.manual ? ' title="Cantidad ajustada manualmente. Los demás trabajadores de esta actividad absorben la diferencia."' : ''}>${trabajador.manual ? '<i class="bi bi-pencil-fill tx-texto-ambar small me-1" aria-hidden="true"></i><span class="visually-hidden">Ajustada manualmente</span>' : ''}${fmt(trabajador.cantidad, 2)}</td>
         <td class="tx-num">${fmt(trabajador.precio, 2)}</td>
         <td class="tx-num${trabajador.jornales === 0 ? ' tx-cero' : ''}">${fmt(trabajador.jornales, 2)}</td>
         <td class="tx-num fw-semibold">${fmt(trabajador.cantidad * trabajador.precio)}</td>
@@ -358,14 +358,6 @@ const tarjeta = (linea, indice) => {
         return lista.length === 0 ? '' : `<tr class="tx-grupo"><td colspan="8">${escaparHtml(bloque.rotuloPie)} <span class="tx-chip-cont verde">${fmt(lista.length)}</span></td></tr>`
             + lista.map((trabajador) => filaTrabajador(linea, trabajador)).join('');
     }).join('');
-
-    const pie = BLOQUES.map((bloque) => {
-        const valor = delBloque(bloque.clave).reduce((suma, trabajador) => suma + trabajador.cantidad * trabajador.precio, 0);
-        const jor = delBloque(bloque.clave).reduce((suma, trabajador) => suma + trabajador.jornales, 0);
-
-        return `<span><span class="${valor === 0 ? 'tx-cero' : ''}">${escaparHtml(bloque.rotuloPie)} $${fmt(valor)}</span>`
-            + ` <span class="${jor === 0 ? 'tx-cero' : ''}">&middot; Jor. ${fmt(jor)}</span></span>`;
-    }).join('<span class="tx-cero">|</span>');
 
     return `
     <div class="tx-tarjeta${linea.pesoRacimo > 0 || !hayPesos() ? '' : ' tx-tarjeta--sinpeso'}" data-linea="${linea.id}">
@@ -433,9 +425,84 @@ const tarjeta = (linea, indice) => {
                 <tbody>${filas || `<tr><td colspan="8" class="text-center text-muted small py-3"><i class="bi ${vacia ? 'bi-slash-circle' : 'bi-people'} me-1" aria-hidden="true"></i>${escaparHtml(vacia ? SIN_LABORES : 'Sin trabajadores. Use + Cosecha, + Cargue o + Transporte.')}</td></tr>`}</tbody>
             </table>
         </div>
-        <div class="tx-pie-tarjeta px-3 py-2 border-top d-flex flex-wrap justify-content-end gap-3">${pie}</div>
+        <div class="tx-pie-tarjeta px-3 py-2 border-top d-flex flex-wrap justify-content-end gap-3">${pieTarjeta(linea)}</div>
     </div>`;
 };
+
+const pieTarjeta = (linea) => BLOQUES.map((bloque) => {
+    const lista = linea.trabajadores.filter((trabajador) => trabajador.bloque === bloque.clave);
+    const valor = lista.reduce((suma, trabajador) => suma + trabajador.cantidad * trabajador.precio, 0);
+    const jor = lista.reduce((suma, trabajador) => suma + trabajador.jornales, 0);
+
+    return `<span><span class="${valor === 0 ? 'tx-cero' : ''}">${escaparHtml(bloque.rotuloPie)} $${fmt(valor)}</span>`
+        + ` <span class="${jor === 0 ? 'tx-cero' : ''}">&middot; Jor. ${fmt(jor)}</span></span>`;
+}).join('<span class="tx-cero">|</span>');
+
+const repartir = (kg, pesos) => {
+    const centavos = Math.round(kg * 100);
+    let w = pesos.map((peso) => Math.max(0, Number(peso) || 0));
+    let suma = w.reduce((total, peso) => total + peso, 0);
+
+    if (suma <= 0) {
+        w = w.map(() => 1);
+        suma = w.length;
+    }
+
+    const exactos = w.map((peso) => (centavos > 0 ? centavos * peso / suma : 0));
+    const base = exactos.map((exacto) => Math.floor(exacto));
+    let sobrante = centavos - base.reduce((total, valor) => total + valor, 0);
+
+    exactos.map((exacto, k) => k)
+        .sort((a, b) => ((exactos[b] - base[b]) - (exactos[a] - base[a])) || a - b)
+        .forEach((k) => {
+            if (sobrante <= 0) return;
+
+            base[k]++;
+            sobrante--;
+        });
+
+    return base.map((valor) => valor / 100);
+};
+
+const grupoDe = (linea, novedad) => linea.trabajadores.filter((trabajador) => trabajador.novedad === novedad);
+
+const igualar = (linea, novedad) => {
+    const grupo = grupoDe(linea, novedad);
+
+    repartir(linea.kg, grupo.map(() => 1)).forEach((cantidad, k) => Object.assign(grupo[k], { cantidad, manual: false }));
+};
+
+const ajustar = (linea, actual, valor) => {
+    const otros = grupoDe(linea, actual.novedad).filter((item) => item !== actual);
+
+    Object.assign(actual, { cantidad: valor, manual: true });
+    repartir(linea.kg - valor, otros.map(() => 1)).forEach((cantidad, k) => Object.assign(otros[k], { cantidad, manual: false }));
+};
+
+const reescalar = (linea) => new Set(linea.trabajadores.map((trabajador) => trabajador.novedad)).forEach((novedad) => {
+    const grupo = grupoDe(linea, novedad);
+
+    repartir(linea.kg, grupo.map((trabajador) => trabajador.cantidad)).forEach((cantidad, k) => { grupo[k].cantidad = cantidad; });
+});
+
+const fotoCantidades = () => Object.fromEntries(estado.lineas.flatMap((linea) => linea.trabajadores.map((trabajador) => [trabajador.id, trabajador.cantidad])));
+
+const refrescarTrabajadores = (antes) => estado.lineas.forEach((linea) => {
+    const cambiados = linea.trabajadores.filter((trabajador) => trabajador.id in antes && Math.round(antes[trabajador.id] * 100) !== Math.round(trabajador.cantidad * 100));
+    const pie = document.querySelector(`.tx-tarjeta[data-linea="${linea.id}"] .tx-pie-tarjeta`);
+
+    if (cambiados.length === 0 || !pie) return;
+
+    pie.innerHTML = pieTarjeta(linea);
+    cambiados.forEach((trabajador) => {
+        const fila = document.querySelector(`tr[data-trabajador="${trabajador.id}"]`);
+
+        if (!fila) return;
+
+        fila.outerHTML = filaTrabajador(linea, trabajador);
+        [3, 6].forEach((indice) => document.querySelector(`tr[data-trabajador="${trabajador.id}"]`).cells[indice].classList.add('tx-recalculo'));
+    });
+});
 
 const sinKg = (linea) => linea.pesoRacimo <= 0 && hayPesos();
 
@@ -580,6 +647,7 @@ const previsualizar = () => {
         estado.fallaPrevio = false;
 
         const cambios = [];
+        const antes = fotoCantidades();
 
         (resultado.lineas || []).forEach((fila, indice) => {
             const linea = estado.lineas[indice];
@@ -595,7 +663,9 @@ const previsualizar = () => {
             linea.kg = nuevo;
         });
 
+        estado.lineas.forEach(reescalar);
         refrescarDerivados();
+        refrescarTrabajadores(antes);
         marcarFlash(cambios);
     }, 400);
 };
@@ -1090,7 +1160,84 @@ const pintarSeleccion = () => {
     $id('btn_guardar_trabajador').innerHTML = total > 1
         ? `<i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Agregar ${total} trabajadores`
         : '<i class="bi bi-floppy me-1" aria-hidden="true"></i>Guardar';
+    pintarCantidad();
     pintarPrecio();
+};
+
+const pintarCantidad = () => {
+    const linea = estado.lineas.find((item) => item.id === estado.modal.linea);
+
+    if (!linea) return;
+
+    const campo = $id('trab_cantidad');
+    const ayuda = $id('ayuda_cantidad');
+    const novedad = texto($id('trab_novedad').value);
+    const actual = linea.trabajadores.find((item) => item.id === estado.modal.trabajador) || null;
+    const otros = grupoDe(linea, novedad).filter((item) => item !== actual);
+    const seleccion = tercerosModal().length;
+    const editable = actual !== null && novedad === actual.novedad && otros.length > 0 && Math.round(linea.kg * 100) > 0;
+
+    if (editable && !estado.modal.editable) {
+        campo.value = fmt(actual.cantidad, 2);
+        estado.modal.igualar = false;
+    }
+
+    estado.modal.editable = editable;
+    campo.readOnly = !editable;
+    campo.classList.toggle('tx-neto', !editable);
+    campo.placeholder = editable ? '' : 'Automática';
+    document.querySelector('label[for="trab_cantidad"]').innerHTML = editable ? 'Cantidad (kg) <span class="text-danger">*</span>' : 'Cantidad c/u (kg)';
+
+    if (editable) {
+        const cada = fmt(repartir(Math.max(0, linea.kg - aNumero(campo.value)), otros.map(() => 1))[0], 2);
+
+        ayuda.innerHTML = `<span class="d-block">Máx. ${fmt(linea.kg, 2)} kg (total de la línea).</span>`
+            + (otros.length === 1 ? `El otro quedaría con ${cada} kg.` : `Los otros ${otros.length} quedarían con ${cada} kg c/u.`)
+            + (actual.manual && !estado.modal.igualar ? '<button type="button" class="btn btn-link btn-sm p-0 ms-1 align-baseline" id="btn_repartir_iguales">Repartir en partes iguales</button>' : '');
+
+        return;
+    }
+
+    campo.classList.remove('is-invalid');
+    mostrar($id('error_trab_cantidad'), false);
+
+    if (novedad === '' || seleccion === 0) {
+        campo.value = '';
+        ayuda.textContent = 'Se reparte entre los trabajadores de la misma actividad.';
+
+        return;
+    }
+
+    if (sinKg(linea) || Math.round(linea.kg * 100) <= 0) {
+        campo.value = fmt(0, 2);
+        ayuda.innerHTML = '<span class="tx-texto-ambar">La línea no tiene kg asignados; la cantidad se calculará cuando los tenga.</span>';
+
+        return;
+    }
+
+    const total = otros.length + seleccion;
+
+    campo.value = fmt(repartir(linea.kg, Array(total).fill(1))[0], 2);
+    ayuda.innerHTML = (total === 1
+        ? 'Recibe todos los kg de la línea.'
+        : `Reparto igual entre ${total} trabajadores${otros.length > 0 ? ` (incluye ${otros.length} ya ${otros.length === 1 ? 'registrado' : 'registrados'})` : ''}.`)
+        + (otros.some((item) => item.manual) ? '<span class="tx-texto-ambar d-block">Los ajustes manuales de esta actividad se reemplazan por el reparto igual.</span>' : '');
+};
+
+const repartirIguales = () => {
+    const linea = estado.lineas.find((item) => item.id === estado.modal.linea);
+    const actual = linea?.trabajadores.find((item) => item.id === estado.modal.trabajador);
+
+    if (!actual) return;
+
+    const grupo = grupoDe(linea, actual.novedad);
+
+    estado.modal.igualar = true;
+    $id('trab_cantidad').value = fmt(repartir(linea.kg, grupo.map(() => 1))[grupo.indexOf(actual)], 2);
+    $id('trab_cantidad').classList.remove('is-invalid');
+    mostrar($id('error_trab_cantidad'), false);
+    pintarCantidad();
+    totalModal();
 };
 
 const usarSugeridos = () => {
@@ -1182,7 +1329,7 @@ const abrirModalTrabajador = async (idLinea, bloqueClave, idTrabajador) => {
         ? linea.trabajadores.find((item) => item.id === idTrabajador)
         : null;
 
-    estado.modal = { linea: idLinea, bloque: bloque.clave, trabajador: idTrabajador || null, precios: {}, manual: false };
+    estado.modal = { linea: idLinea, bloque: bloque.clave, trabajador: idTrabajador || null, precios: {}, manual: false, editable: false, igualar: false };
 
     $id('titulo_modal_trabajador').innerHTML = `<i class="bi bi-person-plus me-1" aria-hidden="true"></i>`
         + `${trabajador ? 'Editar trabajador' : 'Agregar trabajador'} &middot; ${escaparHtml(bloque.rotulo)}`;
@@ -1194,9 +1341,7 @@ const abrirModalTrabajador = async (idLinea, bloqueClave, idTrabajador) => {
     $id('trab_fecha').max = periodo && !sinFechas(periodo) ? texto(periodo.fechaFinal).substring(0, 10) : '';
     $id('trab_fecha').classList.remove('is-invalid');
     $id('trab_fecha').value = trabajador ? trabajador.fecha : (linea.fecha || $id('fecha').value);
-    const pendiente = linea.kg - linea.trabajadores.reduce((suma, item) => suma + item.cantidad, 0);
-
-    $id('trab_cantidad').value = trabajador ? fmt(trabajador.cantidad, 2) : (pendiente > 0 ? fmt(pendiente, 2) : '');
+    $id('trab_cantidad').classList.remove('is-invalid');
     $id('trab_precio').value = trabajador ? fmt(trabajador.precio, 2) : '';
     $id('trab_jornales').value = trabajador ? fmt(trabajador.jornales, 2) : '0';
     $id('ayuda_precio').textContent = '';
@@ -1243,15 +1388,21 @@ const guardarTrabajador = async () => {
     if (!linea) return;
 
     const seleccion = tercerosModal();
-    const novedad = $id('trab_novedad').value;
-    const cantidad = aNumero($id('trab_cantidad').value);
+    const novedad = texto($id('trab_novedad').value);
+    const crudo = texto($id('trab_cantidad').value);
+    const cantidad = Math.round(aNumero(crudo) * 100) / 100;
+    const errorCantidad = !estado.modal.editable ? ''
+        : (crudo !== '' && !/^-?(\d+|\d{1,3}(\.\d{3})+)([.,]\d+)?$/.test(crudo.replace(/\s/g, '')) ? 'Indique una cantidad válida.'
+            : (cantidad <= 0 ? 'Indique una cantidad mayor que cero.'
+                : (Math.round(cantidad * 100) > Math.round(linea.kg * 100) ? `La cantidad no puede superar los ${fmt(linea.kg, 2)} kg de la línea.` : '')));
 
     mostrar($id('error_trab_tercero'), seleccion.length === 0);
     $id('error_trab_tercero').textContent = 'Seleccione al menos un tercero';
     mostrar($id('error_trab_novedad'), novedad === '');
     $id('error_trab_novedad').textContent = 'Seleccione la actividad.';
-    mostrar($id('error_trab_cantidad'), cantidad <= 0);
-    $id('error_trab_cantidad').textContent = 'Indique la cantidad.';
+    $id('trab_cantidad').classList.toggle('is-invalid', errorCantidad !== '');
+    mostrar($id('error_trab_cantidad'), errorCantidad !== '');
+    $id('error_trab_cantidad').textContent = errorCantidad;
 
     const faltaPrecio = aNumero($id('trab_precio').value) <= 0 && (seleccion.length === 1 || (seleccion.length > 1 && sinPrecioModal().length > 0));
 
@@ -1266,12 +1417,11 @@ const guardarTrabajador = async () => {
     campoFecha.classList.toggle('is-invalid', fechaInvalida);
     campoFecha.parentElement.querySelector('.invalid-feedback').textContent = campoFecha.value === '' ? 'Indique la fecha.' : 'La fecha debe estar dentro del periodo';
 
-    if (seleccion.length === 0 || novedad === '' || cantidad <= 0 || faltaPrecio || fechaInvalida) return;
+    if (seleccion.length === 0 || novedad === '' || errorCantidad !== '' || faltaPrecio || fechaInvalida) return;
 
     const datos = {
         novedad,
         novedadNombre: texto($id('trab_novedad').selectedOptions[0]?.text).split('—').slice(1).join('—').trim(),
-        cantidad,
         jornales: aNumero($id('trab_jornales').value),
         fecha: $id('trab_fecha').value,
         bloque: estado.modal.bloque
@@ -1295,31 +1445,38 @@ const guardarTrabajador = async () => {
     }
 
     const ids = [];
+    const antes = fotoCantidades();
 
     if (estado.modal.trabajador) {
         const actual = linea.trabajadores.find((item) => item.id === estado.modal.trabajador);
+        const origen = actual.novedad;
+        const ajustada = estado.modal.editable && !estado.modal.igualar && Math.round(cantidad * 100) !== Math.round(actual.cantidad * 100);
 
         Object.assign(actual, datos, { tercero: seleccion[0].tercero, terceroNombre: seleccion[0].nombre, terceroCodigo: seleccion[0].codigo, precio: aNumero($id('trab_precio').value) });
         ids.push(actual.id);
+
+        if (ajustada) {
+            ajustar(linea, actual, cantidad);
+        } else if (!estado.modal.editable || estado.modal.igualar) {
+            igualar(linea, novedad);
+            igualar(linea, origen);
+        }
     } else {
         seleccion.forEach((item) => {
             const id = estado.secuenciaTrabajador++;
 
             ids.push(id);
-            linea.trabajadores.push({ id, ...datos, tercero: item.tercero, terceroNombre: item.nombre, terceroCodigo: item.codigo, precio: precioDe(item.tercero) });
+            linea.trabajadores.push({ id, ...datos, cantidad: 0, tercero: item.tercero, terceroNombre: item.nombre, terceroCodigo: item.codigo, precio: precioDe(item.tercero) });
         });
+        igualar(linea, novedad);
     }
 
     bootstrap.Modal.getOrCreateInstance($id('modalTrabajador')).hide();
     renderizar();
+    ids.forEach((id) => delete antes[id]);
+    refrescarTrabajadores(antes);
 
     ids.forEach((id) => document.querySelector(`tr[data-trabajador="${id}"]`)?.classList.add('gp-flash-guardado'));
-
-    const asignado = linea.trabajadores.reduce((suma, item) => suma + item.cantidad, 0);
-
-    if (linea.kg > 0 && asignado > linea.kg) {
-        Toast.fire({ icon: 'warning', title: `Los trabajadores suman ${fmt(asignado, 2)} kg y la línea tiene ${fmt(linea.kg, 2)} kg.` });
-    }
 };
 
 const eliminarTrabajador = async (idLinea, idTrabajador) => {
@@ -1337,8 +1494,15 @@ const eliminarTrabajador = async (idLinea, idTrabajador) => {
 
     if (!respuesta.isConfirmed) return;
 
+    const quitado = linea.trabajadores.find((item) => item.id === idTrabajador);
+    const antes = fotoCantidades();
+
     linea.trabajadores = linea.trabajadores.filter((item) => item.id !== idTrabajador);
+
+    if (quitado) igualar(linea, quitado.novedad);
+
     renderizar();
+    refrescarTrabajadores(antes);
 };
 
 const congelar = (activo) => ['card_tiquete', 'card_observacion', 'card_detalle']
@@ -1509,7 +1673,7 @@ const precargarPlaneacion = async () => {
     estado.lineas.push(nueva);
     estado.planeacionLinea = Number(linea);
     notaPlaneacion();
-    $id('nota_planeacion_texto').textContent = `Precargado desde la planeación del ${fechaCorta(fecha)} · ${novedad} — ${novedadNombre} · Lote ${lote}. Cargue el tiquete, ${porRacimos ? 'asigne los kilos por trabajador, ' : ''}revise y guarde.`;
+    $id('nota_planeacion_texto').textContent = `Precargado desde la planeación del ${fechaCorta(fecha)} · ${novedad} — ${novedadNombre} · Lote ${lote}. Cargue el tiquete, revise y guarde.`;
     mostrar($id('nota_planeacion'), true);
     renderizar();
     previsualizar();
@@ -1581,6 +1745,17 @@ const cargarEdicion = async (numero) => {
         resultado = await pedir('detalle', { empresa: empresaId(), numero });
     } catch (error) {
         Swal.fire({ icon: 'warning', title: error.status === 403 ? 'Acción no permitida' : 'No se puede editar la transacción', html: escaparHtml(error.message), confirmButtonText: 'Entendido' });
+
+        return;
+    }
+
+    if (Number(consulta.filas.find((item) => texto(item.numero) === numero)?.bloqueada) === 1 && Number(resultado.encabezado?.habilitada) !== 1) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Transacción liquidada',
+            html: `La transacción <b class="font-monospace">${escaparHtml(numero)}</b> ya fue liquidada en nómina y no se puede editar.<br>${PERMISOS.habilitar ? 'Puede habilitarla con el botón <i class="bi bi-unlock"></i> de la consulta.' : 'Solicite a su superior que la habilite para edición.'}`,
+            confirmButtonText: 'Entendido'
+        });
 
         return;
     }
@@ -1659,8 +1834,8 @@ const cargarEdicion = async (numero) => {
     ['btn_guardar', 'btn_cancelar'].forEach((id) => { $id(id).disabled = false; });
     estado.foto = JSON.stringify(cuerpoBase());
 
-    if (Number(consulta.filas.find((item) => texto(item.numero) === numero)?.bloqueada) === 1) {
-        Toast.fire({ icon: 'info', title: 'Transacción liquidada en nómina: los cambios quedarán registrados en auditoría.' });
+    if (Number(encabezado.habilitada) === 1) {
+        Toast.fire({ icon: 'info', title: 'Edición habilitada · un solo uso', text: `Al guardar, la transacción quedará bloqueada de nuevo. Vence el ${fechaCorta(encabezado.habilitadaVence)} a las ${texto(encabezado.habilitadaVence).substring(11, 16)}.`, timer: 8000 });
     }
 };
 
@@ -2006,6 +2181,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     ['trab_cantidad', 'trab_precio'].forEach((id) => $id(id).addEventListener('input', totalModal));
+    $id('trab_cantidad').addEventListener('input', () => {
+        estado.modal.igualar = false;
+        $id('trab_cantidad').classList.remove('is-invalid');
+        mostrar($id('error_trab_cantidad'), false);
+        pintarCantidad();
+    });
+    $id('ayuda_cantidad').addEventListener('click', (evento) => {
+        if (evento.target.closest('#btn_repartir_iguales')) repartirIguales();
+    });
     $('#trab_tercero, #trab_novedad').on('change', sugerirPrecio);
     $id('trab_precio').addEventListener('input', () => {
         $id('trab_precio').classList.remove('is-invalid');

@@ -1,233 +1,231 @@
-<!-- PLANTILLA BASE -->
 <?php echo $this->extend('template/layout'); ?>
 
+<?php echo $this->section('css'); ?>
+<link rel="stylesheet" href="<?= asset_url('public/assets/css/gestionpalma.css') ?>">
+<link rel="stylesheet" href="<?= asset_url('public/assets/css/site_config.css') ?>">
+<?php echo $this->endSection(); ?>
 
-<!-- SECCION PRINCIPAL -->
 <?php echo $this->section('contenido'); ?>
+<?php
+$claves = ['logo', 'logo_claro', 'favicon'];
+$valor = fn ($k) => (string) (($config[$k] ?? '') !== '' ? $config[$k] : $defectos[$k]);
+$imgs = array_combine($claves, array_map(fn ($k) => sitio_img($k), $claves));
+$imgsDefecto = array_combine($claves, array_map(fn ($k) => base_url($defectos[$k]), $claves));
+$ayudaLogo = 'PNG o WEBP · fondo transparente · máx. 2 MB';
+$acceptLogo = '.png,.webp,image/png,image/webp';
+$logos = [
+    'logo' => ['Logo', 'Inicio de sesión y recuperación', $ayudaLogo, $acceptLogo, ''],
+    'logo_claro' => ['Logo claro', 'Barra superior y menú principal. Se muestra sobre el color primario. Formato horizontal', $ayudaLogo, $acceptLogo, 'cs-miniatura-primario'],
+    'favicon' => ['Favicon', 'Pestaña del navegador', 'PNG o ICO · fondo transparente · máx. 2 MB', '.png,.ico,image/png,image/x-icon', 'cs-miniatura-favicon'],
+];
+$colores = [
+    'primary' => ['Primario', 'Barra superior, botones, enlaces, pestañas y menú activo'],
+    'secundario' => ['Secundario', 'Textos del menú lateral y títulos'],
+];
+$datos = [
+    'url' => base_url('admin/sitio/guardar'),
+    'nombre' => $valor('nombre_app'),
+    'primary' => strtolower($valor('color_primary')),
+    'secundario' => strtolower($valor('color_secundario')),
+    'img' => $imgs,
+    'defectos' => [
+        'nombre' => (string) $defectos['nombre_app'],
+        'primary' => strtolower((string) $defectos['color_primary']),
+        'secundario' => strtolower((string) $defectos['color_secundario']),
+        'img' => $imgsDefecto,
+        'propia' => array_combine($claves, array_map(fn ($k) => $valor($k) !== $defectos[$k], $claves)),
+    ],
+];
+?>
 <main id="main" class="main">
+
     <div class="pagetitle">
-        <h1>Configuración del Sitio</h1>
+        <h1>Configuración del sitio</h1>
+        <nav>
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="<?= esc(base_url('losetas'), 'attr') ?>">Menú principal</a></li>
+                <li class="breadcrumb-item"><a href="<?= esc(base_url('admin/onboarding/' . $id_loseta), 'attr') ?>">Administración</a></li>
+                <li class="breadcrumb-item active">Configuración del sitio</li>
+            </ol>
+        </nav>
     </div>
 
     <section class="section">
 
-        <form id="formulario_administracion_sitio" enctype="multipart/form-data">
-            <div class="row">
+        <div class="gp-nota mb-3">
+            <i class="bi bi-info-circle me-1" aria-hidden="true"></i>Los cambios se aplican a todo el sitio y a todos los usuarios al guardar.
+        </div>
 
-                <!-- Columna izquierda: Identidad -->
-                <div class="col-lg-6">
-                    <div class="card">
-                        <div class="card-body">
-                            <h5 class="card-title">Identidad de la Marca</h5>
+        <form id="cs_form" novalidate>
+            <div class="row g-3">
 
-                            <!-- Nombre de la aplicación -->
-                            <div class="row mb-3">
-                                <label class="col-sm-3 col-form-label">Nombre del Sitio</label>
-                                <div class="col-sm-9">
-                                    <input
-                                        type="text"
-                                        name="nombre_sitio"
-                                        class="form-control"
-                                        placeholder="Ej: MiEmpresa Admin"
-                                        value="<?= esc($config['nombre_sitio'] ?? '') ?>"
-                                        required>                                    
-                                </div>
-                            </div>
+                <div class="col-lg-7">
 
-                            <!-- Logo -->
-                            <div class="row mb-3">
-                                <label class="col-sm-3 col-form-label">Logo</label>
-                                <div class="col-sm-9">
-                                    <?php if (!empty($config['logo'])): ?>
-                                        <div class="mb-2">
-                                            <img src="<?= base_url('public/uploads/config/' . $config['logo']) ?>"
-                                                alt="Logo actual"
-                                                style="max-height: 60px; border: 1px solid #dee2e6; border-radius: 6px; padding: 4px; background: #fff;">
-                                            <span class="ms-2 text-muted small">Logo actual</span>
-                                        </div>
-                                    <?php endif; ?>
-                                    <input class="form-control" type="file" name="logo" accept="image/png,image/jpeg,image/svg+xml,image/webp">
-                                    <div class="form-text">PNG, SVG o JPG, fondo transparente. Máx. 2 MB.</div>
-                                </div>
-                            </div>
-
-                            <!-- Favicon -->
-                            <div class="row mb-3">
-                                <label class="col-sm-3 col-form-label">Favicon</label>
-                                <div class="col-sm-9">
-                                    <?php if (!empty($config['favicon'])): ?>
-                                        <div class="mb-2">
-                                            <img src="<?= base_url('public/uploads/config/' . $config['favicon']) ?>"
-                                                alt="Favicon actual"
-                                                style="width: 32px; height: 32px; border: 1px solid #dee2e6; border-radius: 4px; padding: 2px; background: #fff;">
-                                            <span class="ms-2 text-muted small">Favicon actual</span>
-                                        </div>
-                                    <?php endif; ?>
-                                    <input class="form-control" type="file" name="favicon" accept="image/png,image/x-icon,image/svg+xml">
-                                    <div class="form-text">ICO, PNG o SVG. Recomendado: 32x32 px.</div>
-                                </div>
-                            </div>
-
+                    <div class="card mb-3">
+                        <div class="card-header cs-encabezado"><h6 class="gp-seccion"><i class="bi bi-type" aria-hidden="true"></i>Identidad</h6></div>
+                        <div class="card-body pt-3">
+                            <label for="cs_nombre" class="form-label fw-semibold mb-1">Nombre del sitio <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="cs_nombre" maxlength="60" required autocomplete="off" value="<?= esc($datos['nombre'], 'attr') ?>" aria-describedby="cs_nombre_ayuda">
+                            <div class="invalid-feedback" data-cs-error="nombre_app"></div>
+                            <span class="gp-subtexto mt-1" id="cs_nombre_ayuda">Se muestra en la pestaña del navegador y como texto alternativo del logo</span>
                         </div>
                     </div>
+
+                    <div class="card mb-3">
+                        <div class="card-header cs-encabezado"><h6 class="gp-seccion"><i class="bi bi-image" aria-hidden="true"></i>Logos</h6></div>
+                        <div class="card-body pt-3">
+                            <div class="row g-3">
+                                <?php foreach ($logos as $clave => [$titulo, $uso, $ayuda, $accept, $modificador]): ?>
+                                    <div class="col-md-4">
+                                        <div class="cs-logo h-100" data-cs-logo="<?= $clave ?>">
+                                            <span class="fw-semibold cs-logo-titulo"><?= $titulo ?></span>
+                                            <span class="gp-subtexto mb-2 cs-logo-uso"><?= $uso ?></span>
+                                            <div class="cs-miniatura <?= $modificador ?>" <?= $clave === 'logo_claro' ? 'data-cs-tema' : '' ?>>
+                                                <?php if ($clave === 'favicon'): ?>
+                                                    <img src="<?= esc($imgs[$clave], 'attr') ?>" data-cs-src="favicon" class="cs-fav-64" alt="Favicon a 64 px">
+                                                    <img src="<?= esc($imgs[$clave], 'attr') ?>" data-cs-src="favicon" class="cs-fav-16" alt="Favicon a 16 px">
+                                                <?php else: ?>
+                                                    <img src="<?= esc($imgs[$clave], 'attr') ?>" data-cs-src="<?= $clave ?>" alt="<?= $titulo ?> actual">
+                                                <?php endif; ?>
+                                            </div>
+                                            <input type="file" class="d-none" id="cs_archivo_<?= $clave ?>" accept="<?= $accept ?>" tabindex="-1" aria-hidden="true">
+                                            <button type="button" class="btn btn-outline-primary btn-sm w-100 mt-2" data-cs-elegir="<?= $clave ?>"><i class="bi bi-upload me-1" aria-hidden="true"></i>Cambiar imagen</button>
+                                            <div class="cs-logo-estado d-none" data-cs-estado>
+                                                <span class="gp-subtexto font-monospace text-truncate" data-cs-archivo></span>
+                                                <span class="d-flex align-items-center gap-2 mt-1">
+                                                    <span class="gp-chip-fila ambar">Sin guardar</span>
+                                                    <button type="button" class="btn btn-link btn-sm p-0 cs-deshacer" data-cs-deshacer="<?= $clave ?>">Deshacer</button>
+                                                </span>
+                                            </div>
+                                            <div class="invalid-feedback" data-cs-error="<?= $clave ?>"></div>
+                                            <?php if ($clave === 'favicon'): ?>
+                                                <div class="gp-nota-alerta mt-2 d-none" data-cs-cuadrado><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>Se recomienda una imagen cuadrada de 64×64 px</div>
+                                            <?php endif; ?>
+                                            <span class="gp-subtexto mt-2"><?= $ayuda ?></span>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mb-3">
+                        <div class="card-header cs-encabezado d-flex align-items-center gap-2">
+                            <h6 class="gp-seccion flex-grow-1"><i class="bi bi-palette" aria-hidden="true"></i>Colores</h6>
+                            <button type="button" class="btn btn-link btn-sm p-0" id="cs_colores_defecto">Restablecer colores ELAEIX</button>
+                        </div>
+                        <div class="card-body pt-3">
+                            <?php foreach ($colores as $clave => [$titulo, $uso]): ?>
+                                <div class="cs-color" data-cs-color="<?= $clave ?>">
+                                    <div class="d-flex flex-wrap align-items-center gap-3">
+                                        <div class="me-auto">
+                                            <label class="form-label fw-semibold mb-0" for="cs_hex_<?= $clave ?>"><?= $titulo ?></label>
+                                            <span class="gp-subtexto"><?= $uso ?></span>
+                                        </div>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <input type="color" class="form-control form-control-color cs-picker" value="<?= esc($datos[$clave], 'attr') ?>" aria-label="Seleccionar color <?= strtolower($titulo) ?>">
+                                            <input type="text" class="form-control font-monospace cs-hex" id="cs_hex_<?= $clave ?>" maxlength="7" autocomplete="off" spellcheck="false" value="<?= esc(strtoupper($datos[$clave]), 'attr') ?>">
+                                            <span class="cs-chip" data-cs-contraste></span>
+                                        </div>
+                                    </div>
+                                    <div class="invalid-feedback text-end" data-cs-error="color_<?= $clave ?>"></div>
+                                    <div class="gp-nota-alerta mt-2 d-none" data-cs-aviso><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i><?= $clave === 'primary' ? 'El texto blanco sobre este color puede ser difícil de leer (mínimo 4.5:1)' : 'Este color sobre fondo blanco puede ser difícil de leer (mínimo 4.5:1)' ?></div>
+                                    <?php if ($clave === 'primary'): ?>
+                                        <div class="d-flex align-items-center gap-2 mt-2">
+                                            <span class="gp-subtexto">Tonos derivados</span>
+                                            <span class="cs-tira" id="cs_tira">
+                                                <?php foreach (['active' => 'Activo', 'hover' => 'Hover', 'base' => 'Base', 'border' => 'Borde', 'subtle' => 'Fondo suave'] as $tono => $nombreTono): ?>
+                                                    <span class="cs-muestra" data-cs-tono="<?= $tono ?>" data-cs-nombre="<?= $nombreTono ?>"></span>
+                                                <?php endforeach; ?>
+                                            </span>
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+
                 </div>
 
-                <!-- Columna derecha: Colores -->
-                <div class="col-lg-6">
-                    <div class="card">
-                        <div class="card-body">
-                            <h5 class="card-title">Colores del Tema</h5>
-
-                            <!-- Color primario -->
-                            <div class="row mb-3">
-                                <label class="col-sm-4 col-form-label">Color Primario</label>
-                                <div class="col-sm-8">
-                                    <div class="d-flex align-items-center gap-2">
-                                        <input
-                                            type="color"
-                                            name="color_primary"
-                                            id="colorPrimary"
-                                            class="form-control form-control-color"
-                                            value="<?= esc($config['color_primary'] ?? '#4154f1') ?>"
-                                            title="Color principal de la aplicación">
-                                        <input
-                                            type="text"
-                                            id="colorPrimaryHex"
-                                            class="form-control font-monospace"
-                                            placeholder="#4154f1"
-                                            value="<?= esc($config['color_primary'] ?? '#4154f1') ?>"
-                                            maxlength="7"
-                                            style="max-width: 110px;">
+                <div class="col-lg-5">
+                    <div class="card mb-3 cs-preview">
+                        <div class="card-header cs-encabezado"><h6 class="gp-seccion"><i class="bi bi-eye" aria-hidden="true"></i>Vista previa</h6></div>
+                        <div class="card-body pt-3" data-cs-tema aria-hidden="true">
+                            <div class="cs-pv-app">
+                                <div class="cs-pv-barra">
+                                    <img src="<?= esc($imgs['logo_claro'], 'attr') ?>" data-cs-src="logo_claro" alt="">
+                                    <span class="cs-pv-usuario"><span class="cs-pv-avatar"></span>Usuario</span>
+                                </div>
+                                <div class="cs-pv-cuerpo">
+                                    <div class="cs-pv-menu">
+                                        <span class="badge bg-primary mb-2">Módulo</span>
+                                        <span class="cs-pv-item activo"><i class="bi bi-grid"></i>Inicio</span>
+                                        <span class="cs-pv-item"><i class="bi bi-people"></i>Usuarios</span>
+                                        <span class="cs-pv-item"><i class="bi bi-gear"></i>Ajustes</span>
+                                    </div>
+                                    <div class="cs-pv-contenido">
+                                        <span class="cs-pv-titulo">Panel principal</span>
+                                        <div class="cs-pv-card">
+                                            <ul class="nav nav-tabs nav-tabs-bordered cs-pv-tabs">
+                                                <li class="nav-item"><span class="nav-link active">General</span></li>
+                                                <li class="nav-item"><span class="nav-link">Detalle</span></li>
+                                            </ul>
+                                            <input type="text" class="form-control form-control-sm cs-pv-foco" value="Campo activo" readonly tabindex="-1">
+                                            <span class="d-flex flex-wrap gap-1">
+                                                <span class="btn btn-primary btn-sm">Guardar</span>
+                                                <span class="btn btn-outline-primary btn-sm">Cancelar</span>
+                                            </span>
+                                            <span class="d-flex align-items-center gap-2">
+                                                <a class="cs-pv-enlace">Ver detalle</a>
+                                                <span class="badge bg-primary">Nuevo</span>
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
 
-                            <!-- Preview en tiempo real -->
-                            <div class="row mb-4">
-                                <label class="col-sm-4 col-form-label">Vista Previa</label>
-                                <div class="col-sm-8">
-                                    <div id="colorPreview" class="p-3 rounded" style="background-color: <?= esc($config['color_primary'] ?? '#4154f1') ?>1a; border: 1px solid <?= esc($config['color_primary'] ?? '#4154f1') ?>40;">
-                                        <div class="d-flex flex-wrap gap-2 mb-2">
-                                            <button type="button" class="btn btn-sm" id="prevBtnPrimary"
-                                                style="background-color: <?= esc($config['color_primary'] ?? '#4154f1') ?>; color: #fff; border: none;">
-                                                Botón Primary
-                                            </button>
-                                            <button type="button" class="btn btn-sm" id="prevBtnOutline"
-                                                style="background: transparent; color: <?= esc($config['color_primary'] ?? '#4154f1') ?>; border: 1px solid <?= esc($config['color_primary'] ?? '#4154f1') ?>;">
-                                                Outline
-                                            </button>
-                                        </div>
-                                        <div class="d-flex gap-2">
-                                            <div id="prevSwatchDark" class="rounded" style="width:28px;height:28px;background-color:<?= esc($config['color_primary'] ?? '#4154f1') ?>;"></div>
-                                            <div id="prevSwatchLight" class="rounded" style="width:28px;height:28px;"></div>
-                                            <div id="prevSwatchLighter" class="rounded" style="width:28px;height:28px;"></div>
-                                        </div>
-                                        <div class="mt-2">
-                                            <small id="prevColorLabel" class="text-muted font-monospace"></small>
-                                        </div>
-                                    </div>                                    
+                            <div class="row g-2 mt-1">
+                                <div class="col-6">
+                                    <div class="cs-pv-mini">
+                                        <span class="cs-pv-mini-titulo">Inicio de sesión</span>
+                                        <img src="<?= esc($imgs['logo'], 'attr') ?>" data-cs-src="logo" class="cs-pv-logo" alt="">
+                                        <span class="btn btn-primary btn-sm w-100">Ingresar</span>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="cs-pv-mini">
+                                        <span class="cs-pv-mini-titulo">Pestaña del navegador</span>
+                                        <span class="cs-pv-pestana">
+                                            <img src="<?= esc($imgs['favicon'], 'attr') ?>" data-cs-src="favicon" alt="">
+                                            <span class="text-truncate" id="cs_pv_nombre"><?= esc($datos['nombre']) ?></span>
+                                            <i class="bi bi-x-lg"></i>
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
-
                         </div>
                     </div>
                 </div>
 
             </div>
 
-            <!-- Botones de acción -->
-            <div class="row">
-                <div class="col-12">
-                    <div class="card">
-                        <div class="p-2 d-flex justify-content-end gap-2">
-                            <a href="<?= base_url('/admin/sitio/1') ?>" class="btn btn-secondary">
-                                <i class="bi bi-x-circle me-1"></i> Cancelar
-                            </a>
-                            <button type="submit" class="btn btn-primary">
-                                <i class="bi bi-floppy me-1"></i> Guardar Cambios
-                            </button>
-                        </div>
-                    </div>
+            <div class="cs-acciones sticky-bottom p-3 d-flex flex-wrap align-items-center gap-2">
+                <span class="cs-pendientes d-none" id="cs_pendientes" aria-live="polite"><i class="bi bi-circle-fill me-1" aria-hidden="true"></i><span></span></span>
+                <div class="ms-auto d-flex flex-wrap gap-2">
+                    <button type="button" class="btn btn-outline-secondary" id="cs_defectos"><i class="bi bi-arrow-counterclockwise me-1" aria-hidden="true"></i>Restablecer valores por defecto</button>
+                    <button type="button" class="btn btn-outline-secondary" id="cs_descartar" disabled>Descartar cambios</button>
+                    <button type="submit" class="btn btn-primary" id="cs_guardar" disabled><i class="bi bi-floppy me-1" aria-hidden="true"></i>Guardar cambios</button>
                 </div>
             </div>
-
         </form>
 
     </section>
-    </div>
 </main>
 <?php echo $this->endSection(); ?>
-<!-- FIN SECCION PRINCIPAL -->
 
-<!-- SECCION DE SCRIPTS -->
 <?php echo $this->section('scripts'); ?>
-
 <script>
-    (function() {
-        const colorPicker = document.getElementById('colorPrimary');
-        const colorHex = document.getElementById('colorPrimaryHex');
-
-        // Helpers para manipular el color HEX
-        function hexToRgb(hex) {
-            const r = parseInt(hex.slice(1, 3), 16);
-            const g = parseInt(hex.slice(3, 5), 16);
-            const b = parseInt(hex.slice(5, 7), 16);
-            return {
-                r,
-                g,
-                b
-            };
-        }
-
-        function lighten(hex, amount) {
-            // amount: 0 = sin cambio, 1 = blanco
-            const {
-                r,
-                g,
-                b
-            } = hexToRgb(hex);
-            const nr = Math.round(r + (255 - r) * amount);
-            const ng = Math.round(g + (255 - g) * amount);
-            const nb = Math.round(b + (255 - b) * amount);
-            return '#' + [nr, ng, nb].map(v => v.toString(16).padStart(2, '0')).join('');
-        }
-
-        function updatePreview(hex) {
-            if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return;
-
-            const light = lighten(hex, 0.55);
-            const lighter = lighten(hex, 0.90);
-
-            document.getElementById('prevBtnPrimary').style.backgroundColor = hex;
-            document.getElementById('prevBtnOutline').style.color = hex;
-            document.getElementById('prevBtnOutline').style.borderColor = hex;
-            document.getElementById('prevSwatchDark').style.backgroundColor = hex;
-            document.getElementById('prevSwatchLight').style.backgroundColor = light;
-            document.getElementById('prevSwatchLighter').style.backgroundColor = lighter;
-            document.getElementById('prevColorLabel').textContent = hex + '  →  ' + light + '  →  ' + lighter;
-            document.getElementById('colorPreview').style.backgroundColor = lighter;
-            document.getElementById('colorPreview').style.borderColor = hex + '40';
-        }
-
-        // Sincronizar picker → texto
-        colorPicker.addEventListener('input', function() {
-            colorHex.value = this.value;
-            updatePreview(this.value);
-        });
-
-        // Sincronizar texto → picker
-        colorHex.addEventListener('input', function() {
-            const val = this.value.trim();
-            if (/^#[0-9a-fA-F]{6}$/.test(val)) {
-                colorPicker.value = val;
-                updatePreview(val);
-            }
-        });
-
-        // Init preview con el valor cargado
-        updatePreview(colorPicker.value);
-    })();
+    window.CS_CONFIG = <?= json_encode($datos, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?>;
 </script>
-
+<script src="<?= asset_url('public/assets/js/admin/site.js') ?>"></script>
 <?php echo $this->endSection(); ?>
-<!-- FIN SECCION DE SCRIPTS -->

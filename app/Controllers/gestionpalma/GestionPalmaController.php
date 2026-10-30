@@ -3,6 +3,7 @@
 namespace App\Controllers\gestionpalma;
 
 use App\Controllers\BaseController;
+use App\Models\GestionPalmaModel;
 use CodeIgniter\HTTP\RedirectResponse;
 
 class GestionPalmaController extends BaseController
@@ -22,6 +23,28 @@ class GestionPalmaController extends BaseController
 
         if ($data instanceof RedirectResponse) {
             return $data;
+        }
+
+        $modelo     = new GestionPalmaModel();
+        $fallo      = false;
+
+        try {
+            $empresas = $modelo->getEmpresas();
+        } catch (\Throwable $e) {
+            log_message('error', 'GestionPalmaController::index [empresas] ' . $e->getMessage());
+            $empresas = [];
+            $fallo    = true;
+        }
+
+        $empresaSel = $this->empresaSeleccionada($empresas);
+
+        $data['empresas']    = $empresas;
+        $data['empresa_sel'] = $empresaSel;
+        $data['resumen']     = $modelo->resumen($empresaSel);
+
+        if ($fallo) {
+            $data['resumen']['fallos'][] = 'empresas';
+            $data['resumen']['avisos'] = ['No fue posible cargar las empresas.'];
         }
 
         return view('gestionpalma/onboarding', $data);

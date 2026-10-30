@@ -6,6 +6,7 @@ use App\Controllers\BaseController;
 use App\Models\LosetasModel;
 use App\Models\UsuariosModel;
 use App\Models\InformeModel;
+use App\Models\LiquidacionSiesaModel;
 
 use CodeIgniter\HTTP\RedirectResponse;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -66,7 +67,157 @@ class InformeController extends BaseController
             return $data;
         }
 
+        $data['puedeMarcar'] = $this->puedeMarcar();
+
         return view('informes/liquidacion', $data);
+    }
+
+    public function consultarLiquidacionSiesa()
+    {
+        if (empty($this->session->get('usu_id'))) {
+            return $this->sesionExpirada();
+        }
+
+        $periodo = $this->periodoSiesa();
+
+        if ($periodo === null) {
+            return $this->response->setStatusCode(422)->setJSON(['success' => false, 'message' => 'Debe indicar un año y un mes válidos.']);
+        }
+
+        [$anio, $mes] = $periodo;
+        $modelo       = new LiquidacionSiesaModel();
+
+        try {
+            $documentos = $modelo->documentos($anio, $mes);
+            $rowid      = (int) $this->request->getPost('documento');
+            $documento  = null;
+
+            foreach ($documentos as $d) {
+                if ($d['rowid'] === $rowid) {
+                    $documento = $d;
+                }
+            }
+
+            foreach ($documentos as $d) {
+                if ($documento === null && $d['marcable']) {
+                    $documento = $d;
+                }
+            }
+
+            $documento ??= $documentos[0] ?? null;
+            $empleados   = $documento === null ? [] : $modelo->empleados($documento);
+        } catch (\Throwable $e) {
+            log_message('error', 'Error consultando la liquidación en Siesa: ' . $e->getMessage());
+
+            return $this->response->setStatusCode(500)->setJSON(['success' => false, 'message' => 'No se pudo consultar Siesa. Verifique la conexión con el servidor de nómina e intente de nuevo.']);
+        }
+
+        $totales = ['empleados' => count($empleados), 'valorSiesa' => 0, 'valorAppPalma' => 0, 'diferencia' => 0, 'lineasPendientes' => 0, 'lineasMarcadas' => 0];
+
+        foreach ($empleados as $e) {
+            foreach (['valorSiesa', 'valorAppPalma', 'lineasPendientes', 'lineasMarcadas'] as $campo) {
+                $totales[$campo] += $e[$campo];
+            }
+        }
+
+        $totales['diferencia'] = $totales['valorSiesa'] - $totales['valorAppPalma'];
+
+        return $this->response->setJSON([
+            'success'               => true,
+            'message'               => $documentos === [] ? 'No hay documentos de nómina mensual (NNM) en Siesa para el periodo.' : '',
+            'documentos'            => $documentos,
+            'documentoSeleccionado' => $documento['rowid'] ?? null,
+            'empleados'             => $empleados,
+            'totales'               => $totales,
+            'puedeMarcar'           => $this->puedeMarcar(),
+        ]);
+    }
+
+    public function marcarLiquidacionSiesa()
+    {
+        return $this->cambiarMarcaSiesa(true);
+    }
+
+    public function revertirLiquidacionSiesa()
+    {
+        return $this->cambiarMarcaSiesa(false);
+    }
+
+    private function cambiarMarcaSiesa(bool $marcar)
+    {
+        if (empty($this->session->get('usu_id'))) {
+            return $this->sesionExpirada();
+        }
+
+        if (! $this->puedeMarcar()) {
+            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => 'No tiene permiso para marcar la liquidación de nómina.']);
+        }
+
+        $periodo = $this->periodoSiesa();
+        $rowid   = (int) $this->request->getPost('documento');
+
+        if ($periodo === null || $rowid <= 0) {
+            return $this->response->setStatusCode(422)->setJSON(['success' => false, 'message' => 'Debe indicar un año, un mes y un documento válidos.']);
+        }
+
+        [$anio, $mes] = $periodo;
+        $modelo       = new LiquidacionSiesaModel();
+
+        try {
+            $documento = null;
+
+            foreach ($modelo->documentos($anio, $mes) as $d) {
+                if ($d['rowid'] === $rowid) {
+                    $documento = $d;
+                }
+            }
+        } catch (\Throwable $e) {
+            log_message('error', 'Error consultando el documento en Siesa: ' . $e->getMessage());
+
+            return $this->response->setStatusCode(500)->setJSON(['success' => false, 'message' => 'No se pudo consultar Siesa. Verifique la conexión con el servidor de nómina e intente de nuevo.']);
+        }
+
+        if ($documento === null) {
+            return $this->response->setStatusCode(422)->setJSON(['success' => false, 'message' => 'El documento indicado no es una nómina mensual (NNM) del periodo seleccionado.']);
+        }
+
+        if ($marcar && ! $documento['marcable']) {
+            return $this->response->setStatusCode(422)->setJSON(['success' => false, 'message' => 'Solo se puede marcar con documentos en estado Aprobado o Facturado. El documento ' . $documento['consecutivo'] . ' está ' . $documento['estadoTexto'] . '.']);
+        }
+
+        try {
+            $resultado = $modelo->cambiarMarca($documento, $anio, $mes, $marcar, (int) $this->session->get('usu_id'));
+        } catch (\Throwable $e) {
+            log_message('error', 'Error consultando los empleados en Siesa: ' . $e->getMessage());
+
+            return $this->response->setStatusCode(500)->setJSON(['success' => false, 'message' => 'No se pudo consultar Siesa. Verifique la conexión con el servidor de nómina e intente de nuevo.']);
+        }
+
+        return $this->response->setStatusCode($resultado['success'] ? 200 : 500)->setJSON($resultado + ['empleados' => 0, 'lineas' => 0]);
+    }
+
+    private function sesionExpirada()
+    {
+        return $this->response->setStatusCode(401)->setJSON(['success' => false, 'message' => 'Sesión expirada. Vuelva a iniciar sesión.']);
+    }
+
+    private function periodoSiesa(): ?array
+    {
+        $anio = (int) $this->request->getPost('anio');
+        $mes  = (int) $this->request->getPost('mes');
+
+        return $anio >= 2000 && $anio <= 2100 && $mes >= 1 && $mes <= 12 ? [$anio, $mes] : null;
+    }
+
+    private function puedeMarcar(): bool
+    {
+        try {
+            return (new LiquidacionSiesaModel())->puedeMarcar((int) $this->session->get('usu_id'));
+        } catch (\Throwable $e) {
+            log_message('error', 'Error validando el permiso de marcar liquidación: ' . $e->getMessage());
+
+            return false;
+        }
     }
 
     /**

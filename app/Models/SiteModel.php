@@ -83,7 +83,7 @@ class SiteModel extends Model
                     'Nombre' => $nombre,
                     'Valor' => $valor,
                     'IdUsuario' => $session->get('usu_id'),
-
+                    'FechaInicio' => $fecha
                 ];
                 $result = $this->db->table('ConfiguracionSitio')->insert($insertData);
 

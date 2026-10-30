@@ -39,6 +39,8 @@ class ProduccionModel extends Model
 
     private ?bool $planeacion = null;
 
+    private ?bool $habilitaciones = null;
+
     // ── Catálogos ────────────────────────────────────────────────────────────
 
     public function getEmpresas(): array
@@ -230,7 +232,7 @@ class ProduccionModel extends Model
                        CASE WHEN ISNULL(t.anulado, 0) = 0 THEN 0 ELSE 1 END AS anulado,
                        CASE WHEN EXISTS (SELECT 1 FROM cPeriodo p WHERE p.empresa = t.empresa AND p.[año] = t.[año]
                                             AND p.mes = t.mes AND p.cerrado = 1) THEN 1 ELSE 0 END AS cerrado,
-                       CASE WHEN " . $this->liquidadaSql('t') . " THEN 1 ELSE 0 END AS bloqueada" . $this->auditoriaSql('t') . "
+                       CASE WHEN " . $this->liquidadaSql('t') . " THEN 1 ELSE 0 END AS bloqueada" . $this->auditoriaSql('t') . $this->habilitacionSql('t') . "
                   FROM aTransaccion t
                  OUTER APPLY (SELECT TOP 1 * FROM aTransaccionBascula x
                                WHERE x.empresa = t.empresa AND x.tipo = t.tipo AND x.numero = t.numero) b
@@ -272,6 +274,8 @@ class ProduccionModel extends Model
             foreach (['anio', 'mes', 'externo', 'racimos', 'pesoNeto', 'lineas', 'trabajadores', 'anulado', 'cerrado', 'bloqueada'] as $campo) {
                 $fila[$campo] = (int) $fila[$campo];
             }
+
+            $fila['habilitada'] = $fila['habilitadaVence'] === null ? 0 : 1;
         }
 
         unset($fila);
@@ -308,6 +312,8 @@ class ProduccionModel extends Model
             $encabezado['fechaAnulado']   = null;
             $encabezado['usuarioAnulado'] = '';
         }
+
+        $encabezado += $this->estadoHabilitacion($empresa, $numero);
 
         $bascula = $this->db->query(
             "SELECT TOP 1 LTRIM(RTRIM(ISNULL(b.tiquete, ''))) AS tiquete,
@@ -498,10 +504,7 @@ class ProduccionModel extends Model
 
     protected function liquidadaSql(string $alias): string
     {
-        $filtro = "empresa = {$alias}.empresa AND tipo = {$alias}.tipo AND numero = {$alias}.numero"
-            . ' AND (periodo IS NOT NULL OR ISNULL(ejecutado, 0) = 1 OR ISNULL(saldo, 0) <> ISNULL(cantidad, 0))';
-
-        return "(EXISTS (SELECT 1 FROM aTransaccionNovedad WHERE {$filtro}) OR EXISTS (SELECT 1 FROM aTransaccionTercero WHERE {$filtro}))";
+        return "EXISTS (SELECT 1 FROM aTransaccionTercero WHERE empresa = {$alias}.empresa AND tipo = {$alias}.tipo AND numero = {$alias}.numero AND ISNULL(ejecutado, 0) = 1)";
     }
 
     protected function estadoLiquidacion(array $llave): array
@@ -543,6 +546,84 @@ class ProduccionModel extends Model
         }
 
         return $this->eliminadas;
+    }
+
+    public function tablaHabilitaciones(): bool
+    {
+        if ($this->habilitaciones === null) {
+            $this->habilitaciones = $this->db->query("SELECT OBJECT_ID('dbo.aTransaccionHabilitacion', 'U') AS id")->getRow()->id !== null;
+        }
+
+        return $this->habilitaciones;
+    }
+
+    public function habilitacion(int $empresa, string $numero): ?array
+    {
+        if (! $this->tablaHabilitaciones()) {
+            return null;
+        }
+
+        $fila = $this->db->query(
+            'SELECT TOP 1 Id, CONVERT(varchar(19), FechaVence, 120) AS vence FROM aTransaccionHabilitacion
+              WHERE empresa = ? AND tipo = ? AND numero = ? AND FechaUso IS NULL AND FechaVence > GETDATE() ORDER BY Id DESC',
+            [$empresa, static::TIPO, trim($numero)]
+        )->getRowArray();
+
+        return $fila === null ? null : ['id' => (int) $fila['Id'], 'vence' => $fila['vence']];
+    }
+
+    public function estadoHabilitacion(int $empresa, string $numero): array
+    {
+        $habilitacion = $this->habilitacion($empresa, $numero);
+
+        return ['habilitada' => $habilitacion === null ? 0 : 1, 'habilitadaVence' => $habilitacion['vence'] ?? null];
+    }
+
+    public function habilitar(int $empresa, string $numero, string $motivo, ?int $usu_id): ?string
+    {
+        $llave = [$empresa, static::TIPO, trim($numero)];
+
+        $this->db->query(
+            'INSERT INTO aTransaccionHabilitacion (empresa, tipo, numero, motivo, IdUsuarioHabilita, FechaHabilitacion, FechaVence)
+             SELECT ?, ?, ?, ?, ?, GETDATE(), DATEADD(HOUR, 24, GETDATE())
+              WHERE NOT EXISTS (SELECT 1 FROM aTransaccionHabilitacion WITH (UPDLOCK, HOLDLOCK)
+                                 WHERE empresa = ? AND tipo = ? AND numero = ? AND FechaUso IS NULL AND FechaVence > GETDATE())',
+            array_merge($llave, [$motivo, (int) $usu_id], $llave)
+        );
+
+        if ($this->db->affectedRows() !== 1) {
+            return null;
+        }
+
+        return $this->habilitacion($empresa, $numero)['vence'] ?? null;
+    }
+
+    protected function usarHabilitacion(int $id, ?int $usu_id): bool
+    {
+        if ($id <= 0) {
+            return true;
+        }
+
+        $this->db->query(
+            'UPDATE aTransaccionHabilitacion SET IdUsuarioUso = ?, FechaUso = GETDATE() WHERE Id = ? AND FechaUso IS NULL AND FechaVence > GETDATE()',
+            [$usu_id, $id]
+        );
+
+        return $this->db->affectedRows() === 1;
+    }
+
+    protected function habilitacionSql(string $alias): string
+    {
+        if (! $this->tablaHabilitaciones()) {
+            return ", NULL AS habilitadaVence, '' AS habilitadaPor";
+        }
+
+        $vigente = "FROM aTransaccionHabilitacion h LEFT JOIN Usuarios u ON u.Id = h.IdUsuarioHabilita
+                     WHERE h.empresa = {$alias}.empresa AND h.tipo = {$alias}.tipo AND h.numero = LTRIM(RTRIM({$alias}.numero))
+                       AND h.FechaUso IS NULL AND h.FechaVence > GETDATE() ORDER BY h.Id DESC";
+
+        return ", (SELECT TOP 1 CONVERT(varchar(19), h.FechaVence, 120) {$vigente}) AS habilitadaVence,"
+            . " ISNULL((SELECT TOP 1 ISNULL(NULLIF(LTRIM(RTRIM(CONCAT(u.Nombre, ' ', u.Apellido))), ''), u.Usuario) {$vigente}), '') AS habilitadaPor";
     }
 
     public function planeacionDisponible(): bool
@@ -993,13 +1074,20 @@ class ProduccionModel extends Model
 
             $this->conservarLiquidacion($liquidacion, $llave);
 
+            if (! $this->usarHabilitacion((int) ($antes['habilitacion'] ?? 0), $usu_id)) {
+                $this->db->transRollback();
+
+                return ['success' => false, 'message' => 'La habilitación para editar la transacción ' . $numero . ' venció o ya fue usada.'];
+            }
+
             $auditoria = $this->insertarAuditoria('UPDATE', [
                 'empresa' => $empresa,
                 'tipo'    => static::TIPO,
                 'numero'  => $numero,
-                'antes'   => $antes + ['liquidada' => $liquidacion !== []],
+                'antes'   => array_merge($antes, ['liquidada' => (int) ($liquidacion['aTransaccionTercero']['ejecutado'] ?? 0) === 1, 'habilitacion' => null]),
                 'despues' => [
-                    'liquidada'    => $liquidacion !== [],
+                    'liquidada'    => (int) ($liquidacion['aTransaccionTercero']['ejecutado'] ?? 0) === 1,
+                    'habilitacion' => $antes['habilitacion'] ?? null,
                     'año'          => $anio,
                     'mes'          => $mes,
                     'fecha'        => $fecha,
@@ -1169,7 +1257,7 @@ class ProduccionModel extends Model
                 return 'No se pudo registrar la línea ' . $orden . ' de la transacción.';
             }
 
-            foreach ($linea['trabajadores'] as $trabajador) {
+            foreach ($this->repartirCantidades((float) $cantidad, $linea['trabajadores']) as $trabajador) {
                 $this->db->query(
                     'INSERT INTO aTransaccionTercero (empresa, [año], mes, tipo, numero, novedad, registro,
                                                       registroNovedad, finca, lote, tercero, cantidad, jornales,
@@ -1219,6 +1307,60 @@ class ProduccionModel extends Model
         }
 
         return ['lineas' => $resultado, 'trabajadores' => $secuencia];
+    }
+
+    private function repartirCantidades(float $kilos, array $trabajadores): array
+    {
+        $centavos = (int) round($kilos * 100);
+        $grupos   = [];
+
+        foreach ($trabajadores as $k => $trabajador) {
+            $grupos[trim((string) $trabajador['novedad'])][] = $k;
+        }
+
+        foreach ($grupos as $indices) {
+            $pesos = [];
+
+            foreach ($indices as $k) {
+                $pesos[$k] = max(0, (float) $trabajadores[$k]['cantidad']);
+            }
+
+            $suma = array_sum($pesos);
+
+            if ($suma <= 0) {
+                $pesos = array_fill_keys($indices, 1);
+                $suma  = count($indices);
+            }
+
+            $base   = [];
+            $restos = [];
+
+            foreach ($pesos as $k => $peso) {
+                $exacto     = $centavos > 0 ? $centavos * $peso / $suma : 0;
+                $base[$k]   = (int) floor($exacto);
+                $restos[$k] = $exacto - $base[$k];
+            }
+
+            $sobrante = $centavos - array_sum($base);
+            $orden    = $indices;
+
+            usort($orden, static fn ($a, $b) => ($restos[$b] <=> $restos[$a]) ?: ($a <=> $b));
+
+            foreach ($orden as $k) {
+                if ($sobrante <= 0) {
+                    break;
+                }
+
+                $base[$k]++;
+                $sobrante--;
+            }
+
+            foreach ($indices as $k) {
+                $trabajadores[$k]['cantidad'] = $base[$k] / 100;
+            }
+        }
+
+        return $trabajadores;
     }
 
     /**

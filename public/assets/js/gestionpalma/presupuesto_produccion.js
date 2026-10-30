@@ -21,18 +21,24 @@ const $id = (id) => document.getElementById(id);
 
 const escapar = (texto) => String(texto ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-const formatear = (numero) => new Intl.NumberFormat('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(numero);
+const redondear = (numero) => Number(Number(numero).toFixed(2));
 
-const canonico = (numero) => String(Number(Number(numero).toFixed(2)));
+const formatear = (numero) => {
+    const v = redondear(numero);
+    const d = Number.isInteger(v) ? 0 : 2;
+    return new Intl.NumberFormat('es-CO', { minimumFractionDigits: d, maximumFractionDigits: d }).format(v);
+};
 
-const parsear = (texto) => {
+const canonico = (numero) => String(redondear(numero));
+
+const parsear = (texto, dec = 2) => {
     const t = String(texto ?? '').replace(/\s/g, '');
     if (t === '') return '';
     let limpio = null;
     if (t.includes(',')) {
         const sinMiles = t.replace(/\./g, '');
-        if (/^\d+(,\d{1,2})?$/.test(sinMiles)) limpio = sinMiles.replace(',', '.');
-    } else if (/^\d+(\.\d{1,2})?$/.test(t)) {
+        if (new RegExp(`^(\\d+|\\d{1,3}(\\.\\d{3})+)(,\\d{1,${dec}})?$`).test(t)) limpio = sinMiles.replace(',', '.');
+    } else if (new RegExp(`^\\d+(\\.\\d{1,${dec}})?$`).test(t)) {
         limpio = t;
     } else if (/^\d{1,3}(\.\d{3})+$/.test(t)) {
         limpio = t.replace(/\./g, '');
@@ -41,22 +47,33 @@ const parsear = (texto) => {
 };
 
 const estado = {
-    anio: 0,
+    anio: Number($id('filtro_anio').value),
     tablaExiste: TABLA_EXISTE,
-    data: [],
-    anterior: {},
+    fincas: [],
+    finca: null,
+    anterior: null,
     cargado: false
 };
 
 const empresa = () => $id('filtro_empresa').value;
 
-const filaDe = (finca) => estado.data.find((f) => f.finca === finca);
+const nombreFinca = (f) => f.fincaNombre || f.finca;
 
-const tieneDatos = (fila) => !!fila && RANGO.some((m) => fila.meses[m] != null);
+const suma = (meses) => redondear(RANGO.reduce((s, m) => s + Number(meses[m] ?? 0), 0));
 
-const totalDe = (fila) => RANGO.reduce((s, m) => s + Number(fila.meses[m] ?? 0), 0);
+const activos = () => (estado.finca ? estado.finca.lotes.filter((l) => l.activo) : []);
 
-const nombreDe = (fila) => fila.fincaNombre || fila.finca;
+const loteDe = (codigo) => estado.finca?.lotes.find((l) => l.lote === codigo);
+
+const valorDe = (codigo, mes) => loteDe(codigo)?.meses[mes] ?? null;
+
+const bloqueado = (mes) => estado.finca?.historico[mes] != null;
+
+const mesesHistorico = () => RANGO.filter(bloqueado);
+
+const editable = () => !!estado.finca && estado.tablaExiste;
+
+const etiquetaLote = (l) => (l.loteNombre ? `${l.lote} — ${l.loteNombre}` : l.lote);
 
 const delta = (actual, anterior) => {
     const pct = anterior ? ((actual - anterior) / anterior) * 100 : 0;
@@ -67,12 +84,12 @@ const delta = (actual, anterior) => {
 
 const avisar = (status, mensaje) => {
     const titulos = { 401: 'Sesión expirada', 403: 'Acceso denegado' };
-    Alerta.fire({ icon: titulos[status] ? 'warning' : 'error', title: titulos[status] || 'No se pudo completar la operación', text: mensaje || '' });
+    Alerta.fire({ icon: [401, 403, 409, 422].includes(status) ? 'warning' : 'error', title: titulos[status] || 'No se pudo completar la operación', text: mensaje || '' });
 };
 
 const enviar = async (accion, datos) => {
     const body = new FormData();
-    Object.entries(datos).forEach(([clave, valor]) => body.append(clave, typeof valor === 'object' ? JSON.stringify(valor) : valor));
+    Object.entries(datos).forEach(([clave, valor]) => body.append(clave, valor));
     try {
         const response = await fetch(URL_PPTO + accion, { method: 'POST', body });
         const result = await response.json();
@@ -85,7 +102,7 @@ const enviar = async (accion, datos) => {
 const pedir = async (accion, datos) => {
     const envio = await enviar(accion, datos);
     if (!envio.ok) avisar(envio.status, envio.result.message);
-    return envio.ok;
+    return envio.ok ? envio.result : null;
 };
 
 const confirmar = async (opciones) => (await Alerta.fire({ showCancelButton: true, cancelButtonText: 'Cancelar', ...opciones })).isConfirmed;
@@ -108,6 +125,7 @@ const prepararInput = (input) => {
     input.addEventListener('input', () => {
         input.value = input.value.replace(/[^\d.,]/g, '');
         input.classList.toggle('is-invalid', parsear(input.value) === null);
+        if (parsear(input.value) === null) $id(input.id + '_error').textContent = MSG_INVALIDO;
     });
 };
 
@@ -119,476 +137,950 @@ const flash = (el) => {
     setTimeout(() => el.classList.remove('gp-ppto-flash'), 1300);
 };
 
+const anunciar = (texto) => {
+    $id('ppto_anuncio').textContent = '';
+    setTimeout(() => { $id('ppto_anuncio').textContent = texto; }, 50);
+};
+
 const escCss = (texto) => (window.CSS && CSS.escape ? CSS.escape(texto) : texto);
 
-const celdaEn = (finca, mes) => document.querySelector(`${window.innerWidth >= 768 ? '#cuerpo_ppto' : '#lista_ppto'} .gp-ppto-celda[data-finca="${escCss(finca)}"]${mes ? `[data-mes="${mes}"]` : ''}`);
+const celdaEn = (lote, mes) => document.querySelector(`#cuerpo_ppto td[data-lote="${escCss(lote)}"][data-mes="${mes}"]`);
 
-
-const claseValor = (v) => (v == null ? 'vacio' : (Number(v) === 0 ? 'cero' : ''));
-
-const tituloCelda = (v, mes) => (!estado.tablaExiste ? 'Edición deshabilitada: tabla no existe' : v == null ? 'Sin presupuesto. Clic para registrar' : `${MESES[mes - 1]} ${estado.anio}: ${formatear(v)} kg`);
-
-const celdaTabla = (fila, mes) => {
-    const v = fila.meses[mes];
-    return `<td class="gp-ppto-celda ${claseValor(v)}" data-finca="${escapar(fila.finca)}" data-mes="${mes}" title="${tituloCelda(v, mes)}"><i class="bi bi-pencil gp-ppto-lapiz"></i>${v == null ? '–' : formatear(v)}</td>`;
+const recalcular = () => {
+    const f = estado.finca;
+    f.lotes.forEach((l) => { l.total = suma(l.meses); });
+    RANGO.forEach((m) => {
+        const valores = [f.historico[m], ...f.lotes.map((l) => l.meses[m])].filter((v) => v != null);
+        f.meses[m] = valores.length ? redondear(valores.reduce((s, v) => s + Number(v), 0)) : null;
+    });
+    f.totalHistorico = suma(f.historico);
+    f.totalLotes = redondear(f.lotes.reduce((s, l) => s + l.total, 0));
+    f.total = suma(f.meses);
 };
 
-const celdaMini = (fila, mes) => {
-    const v = fila.meses[mes];
-    return `<div class="col-4"><div class="gp-ppto-celda gp-ppto-mini ${claseValor(v)}" data-finca="${escapar(fila.finca)}" data-mes="${mes}" title="${tituloCelda(v, mes)}"><span class="gp-etiqueta-mini">${MESES[mes - 1].slice(0, 3)}</span><span class="d-block">${v == null ? '–' : formatear(v)}</span></div></div>`;
+const btnEliminar = (tipo, lote, mes, etiqueta) => `<button type="button" class="btn btn-sm btn-link text-danger p-0 ms-2 gp-ppto-borrar" data-eliminar="${tipo}" data-lote="${escapar(lote)}" data-mes="${mes}" aria-label="${escapar(etiqueta)}" title="${escapar(etiqueta)}"><i class="bi bi-trash"></i></button>`;
+
+const celdaSolo = (v, boton) => `<td class="gp-ppto-celda solo ${v == null ? 'vacio' : ''}">${v == null ? '–' : `<span class="d-inline-flex align-items-center">${formatear(v)}${boton}</span>`}</td>`;
+
+const celdaLote = (l, m) => {
+    const v = l.meses[m];
+    if (!l.activo || !estado.tablaExiste) {
+        const boton = l.activo || !estado.tablaExiste ? '' : btnEliminar('lote', l.lote, m, `Eliminar presupuesto lote ${l.lote}, ${MESES[m - 1]} ${estado.anio}`);
+        return celdaSolo(v, boton).replace('<td class="', `<td data-lote="${escapar(l.lote)}" data-mes="${m}" class="`);
+    }
+    const bloq = bloqueado(m);
+    const aria = bloq
+        ? `Bloqueado: existe meta de finca en ${MESES[m - 1]}`
+        : (v == null ? `Registrar presupuesto lote ${l.lote}, ${MESES[m - 1]}` : `Editar presupuesto lote ${l.lote}, ${MESES[m - 1]}: ${formatear(v)} kg`);
+    return `<td class="gp-ppto-celda ${v == null ? 'vacio' : ''} ${bloq ? 'bloqueada' : ''}" data-lote="${escapar(l.lote)}" data-mes="${m}">
+        <button type="button" class="gp-ppto-celda-btn" data-lote="${escapar(l.lote)}" data-mes="${m}" aria-label="${escapar(aria)}" ${bloq ? `disabled aria-disabled="true" title="${escapar(aria)}"` : ''}>${bloq ? '' : '<i class="bi bi-pencil gp-ppto-lapiz" aria-hidden="true"></i>'}${v == null ? '–' : formatear(v)}</button></td>`;
 };
 
-const atributosAccion = (fila, accion) => {
-    if (!estado.tablaExiste) return 'disabled title="Edición deshabilitada: tabla no existe"';
-    if (accion === 'eliminar' && !tieneDatos(fila)) return 'disabled title="Eliminar año"';
-    return `title="${accion === 'editar' ? 'Editar año' : 'Eliminar año'}"`;
-};
+const filaLote = (l) => `
+    <tr class="${l.activo ? '' : 'gp-ppto-inactivo'}">
+        <th scope="row" class="gp-ppto-col-lote">
+            <div class="font-monospace fw-semibold">${escapar(l.lote)}${l.activo ? '' : '<span class="gp-chip-fila gris ms-1">Inactivo</span>'}</div>
+            <span class="gp-subtexto gp-truncar gp-ppto-nombre" title="${escapar(l.loteNombre)}">${escapar(l.loteNombre) || '–'}</span>
+        </th>
+        ${RANGO.map((m) => celdaLote(l, m)).join('')}
+        <td class="gp-ppto-col-total">${l.total > 0 ? formatear(l.total) : '–'}</td>
+    </tr>`;
 
-const botones = (fila, ancho) => `
-    <button type="button" class="btn btn-sm btn-outline-primary ${ancho}" data-accion="editar" data-finca="${escapar(fila.finca)}" ${atributosAccion(fila, 'editar')}><i class="bi bi-pencil-square"></i>${ancho ? '<span class="ms-1">Editar año</span>' : ''}</button>
-    <button type="button" class="btn btn-sm btn-outline-danger ${ancho}" data-accion="eliminar" data-finca="${escapar(fila.finca)}" ${atributosAccion(fila, 'eliminar')}><i class="bi bi-trash"></i>${ancho ? '<span class="ms-1">Eliminar</span>' : ''}</button>`;
-
-const encabezadoFinca = (fila) => {
-    const sin = !tieneDatos(fila);
-    return `<div class="gp-truncar gp-ppto-nombre fw-semibold ${sin ? 'text-muted' : ''}" title="${escapar(nombreDe(fila))}">${escapar(nombreDe(fila))}</div>
-        <span class="gp-subtexto font-monospace">${escapar(fila.finca)}${sin ? ' <span class="gp-chip-fila ambar ms-1">Sin presupuesto</span>' : ''}</span>`;
-};
-
-const totalesMes = () => RANGO.map((m) => {
-    const valores = estado.data.map((f) => f.meses[m]).filter((v) => v != null);
-    return valores.length ? valores.reduce((s, v) => s + Number(v), 0) : null;
-});
+const filaHistorico = (f) => `
+    <tr class="gp-ppto-historico">
+        <th scope="row" class="gp-ppto-col-lote">
+            <div class="fw-semibold"><i class="bi bi-clock-history me-1"></i>Meta de finca</div>
+            <span class="gp-chip-fila ambar">Histórico</span>
+        </th>
+        ${RANGO.map((m) => celdaSolo(f.historico[m], estado.tablaExiste ? btnEliminar('finca', '', m, `Eliminar meta de finca, ${MESES[m - 1]} ${estado.anio}`) : '')).join('')}
+        <td class="gp-ppto-col-total">${formatear(f.totalHistorico)}</td>
+    </tr>`;
 
 const pintarKpis = () => {
+    const f = estado.finca;
     $id('kpi_total_titulo').textContent = `Total presupuestado ${estado.anio}`;
-    if (!estado.tablaExiste) {
-        ['kpi_total', 'kpi_fincas', 'kpi_anterior'].forEach((id) => { $id(id).innerHTML = '–'; });
+    if (!f || !estado.tablaExiste) {
+        ['kpi_total', 'kpi_lotes', 'kpi_anterior'].forEach((id) => { $id(id).innerHTML = '–'; });
         return;
     }
-    const total = estado.data.reduce((s, f) => s + totalDe(f), 0);
-    const anteriores = Object.values(estado.anterior);
-    const totalAnt = anteriores.reduce((s, f) => s + totalDe(f), 0);
-    $id('kpi_total').innerHTML = `${formatear(total)} <small>kg</small>`;
-    $id('kpi_fincas').innerHTML = `${estado.data.filter(tieneDatos).length} <small>/ ${estado.data.length}</small>`;
-    $id('kpi_anterior').innerHTML = anteriores.some(tieneDatos)
-        ? `${formatear(totalAnt)} <small>kg</small>${delta(total, totalAnt)}`
-        : '<span class="text-muted fs-6">Sin datos</span>';
+    const lista = activos();
+    const ant = estado.anterior;
+    const meta = metaFinca();
+    const objetivo = meta && meta.finca === f.finca && metas.anio === estado.anio ? Number(meta.kilosAnual) : 0;
+    const pct = objetivo > 0 ? (f.total / objetivo) * 100 : null;
+    $id('kpi_total').innerHTML = `${formatear(f.total)} <small>kg</small>${pct === null ? '' : `<small class="d-block gp-ppto-kpi-meta ${pct >= 99.5 && pct <= 100.5 ? 'ok' : 'fuera'}">de meta ${nf(objetivo, 0)} kg · ${nf(pct, 1)} %</small>`}`;
+    $id('kpi_lotes').innerHTML = `${lista.filter((l) => l.total > 0).length} <small>/ ${lista.length}</small>`;
+    $id('kpi_anterior').innerHTML = ant && ant.total > 0 ? `${formatear(ant.total)} <small>kg</small>${delta(f.total, ant.total)}` : '<span class="text-muted fs-6">Sin datos</span>';
+};
+
+const mostrarVacio = (icono, titulo, texto) => {
+    $id('vacio_icono').className = `bi ${icono}`;
+    $id('vacio_titulo').textContent = titulo;
+    $id('vacio_texto').textContent = texto;
 };
 
 const pintar = () => {
+    const f = estado.finca;
     const anio = estado.anio;
     const hoy = new Date();
-    const vacio = estado.data.length === 0;
-    const totales = totalesMes();
-    const totalGeneral = totales.reduce((s, v) => s + Number(v ?? 0), 0);
+    const historicos = f ? mesesHistorico() : [];
+    const conMatriz = !!f && (f.lotes.length > 0 || historicos.length > 0);
 
-    $id('contador_ppto').innerHTML = `<i class="bi bi-calendar3 me-1"></i><strong>${anio}</strong> · ${estado.data.length} ${estado.data.length === 1 ? 'finca' : 'fincas'}`;
-    $id('ppto_zona').classList.toggle('gp-ppto-bloqueada', !estado.tablaExiste);
     $id('alerta_tabla').classList.toggle('d-none', estado.tablaExiste);
-    $id('ppto_contenido').classList.toggle('d-none', vacio);
-    $id('gp_estado_vacio').classList.toggle('d-none', !vacio);
     $id('gp_estado_error').classList.add('d-none');
+    $id('ppto_contenido').classList.toggle('d-none', !conMatriz);
+    $id('gp_estado_vacio').classList.toggle('d-none', conMatriz);
+    if (!f) mostrarVacio('bi-geo-alt', 'Seleccione una finca', 'Elija empresa, año y finca para ver y registrar el presupuesto por lote.');
+    else mostrarVacio('bi-grid-3x3', 'La finca no tiene lotes registrados', 'Registre lotes en Gestión Palma › Lotes para poder presupuestar.');
 
-    const sinDatos = !vacio && !estado.data.some(tieneDatos);
-    $id('nota_sin_datos').classList.toggle('d-none', !sinDatos);
-    $id('nota_sin_datos').innerHTML = `<i class="bi bi-info-circle me-1"></i>Aún no hay presupuesto para ${anio}. Haga clic en una celda o use el lápiz de una finca para registrarlo.`;
+    $id('contador_ppto').innerHTML = `<i class="bi bi-calendar3 me-1"></i><strong>${anio}</strong>${f ? ` · ${f.lotes.length} ${f.lotes.length === 1 ? 'lote' : 'lotes'}` : ''}`;
+    $id('sub_historico').classList.toggle('d-none', !historicos.length);
+    $id('leyenda_bloqueada').classList.toggle('d-none', !historicos.length);
+    $id('nota_historico').classList.toggle('d-none', !conMatriz || !historicos.length);
+    $id('nota_historico').innerHTML = `<i class="bi bi-exclamation-triangle me-1"></i><strong>Esta finca tiene metas registradas a nivel finca (histórico)</strong> en: ${historicos.map((m) => MESES[m - 1]).join(', ')}. Mientras existan, no se puede cargar presupuesto por lote en esos meses. Elimínelas para habilitarlos.`;
+    $id('nota_sin_datos').classList.toggle('d-none', !conMatriz || f.total > 0);
+    $id('nota_sin_datos').innerHTML = `<i class="bi bi-info-circle me-1"></i>Aún no hay presupuesto para ${anio}. Use el formulario o pulse una celda para registrarlo.`;
 
     document.querySelectorAll('.gp-ppto-matriz th[data-mes]').forEach((th) => {
-        th.classList.toggle('gp-ppto-mes-actual', anio === hoy.getFullYear() && Number(th.dataset.mes) === hoy.getMonth() + 1);
+        const m = Number(th.dataset.mes);
+        th.classList.toggle('gp-ppto-mes-actual', anio === hoy.getFullYear() && m === hoy.getMonth() + 1);
+        th.querySelector('.bi-lock-fill').classList.toggle('d-none', !historicos.includes(m));
     });
 
-    $id('cuerpo_ppto').innerHTML = estado.data.map((fila) => `
-        <tr data-finca="${escapar(fila.finca)}">
-            <td class="gp-ppto-col-finca">${encabezadoFinca(fila)}</td>
-            ${RANGO.map((m) => celdaTabla(fila, m)).join('')}
-            <td class="gp-ppto-col-total">${tieneDatos(fila) ? formatear(totalDe(fila)) : '–'}</td>
-            <td class="text-center gp-col-sticky"><div class="d-inline-flex gap-1">${botones(fila, '')}</div></td>
-        </tr>`).join('');
-
-    $id('pie_ppto').innerHTML = vacio ? '' : `<tr>
-        <td class="gp-ppto-col-finca">Total mes</td>
-        ${totales.map((v) => `<td>${v == null ? '–' : formatear(v)}</td>`).join('')}
-        <td class="gp-ppto-col-total">${formatear(totalGeneral)}</td>
-        <td class="gp-col-sticky"></td>
-    </tr>`;
-
-    $id('lista_ppto').innerHTML = estado.data.map((fila) => `
-        <div class="card mb-2 gp-ppto-tarjeta" data-finca="${escapar(fila.finca)}">
-            <div class="card-header bg-white d-flex justify-content-between align-items-start gap-2 py-2">
-                <div class="text-truncate">${encabezadoFinca(fila)}</div>
-                <span class="gp-ppto-total-valor fw-semibold">${tieneDatos(fila) ? formatear(totalDe(fila)) : '–'}</span>
-            </div>
-            <div class="card-body p-2"><div class="row g-1">${RANGO.map((m) => celdaMini(fila, m)).join('')}</div></div>
-            <div class="card-footer bg-white d-flex gap-2 p-2">${botones(fila, 'w-50')}</div>
-        </div>`).join('') + (vacio ? '' : `
-        <div class="card mb-0 gp-ppto-pie-card">
-            <div class="card-header d-flex justify-content-between align-items-center py-2">
-                <span class="fw-semibold">Total mes</span>
-                <span class="gp-ppto-total-valor fw-semibold">${formatear(totalGeneral)}</span>
-            </div>
-            <div class="card-body p-2"><div class="row g-1">${totales.map((v, i) => `<div class="col-4"><div class="gp-ppto-mini"><span class="gp-etiqueta-mini">${MESES[i].slice(0, 3)}</span><span class="d-block">${v == null ? '–' : formatear(v)}</span></div></div>`).join('')}</div></div>
-        </div>`);
-
-    pintarKpis();
-};
-
-
-const cargando = (activo) => {
-    $id('ppto_cargando').classList.toggle('d-none', !activo || !estado.cargado);
-    ['filtro_empresa', 'filtro_anio', 'btn_consultar'].forEach((id) => { $id(id).disabled = activo; });
-};
-
-const cargar = async () => {
-    cerrarEditor();
-    cargando(true);
-    const anio = Number($id('filtro_anio').value);
-    const envio = await enviar('listar', { empresa: empresa(), anio });
-    cargando(false);
-
-    if (!envio.ok) {
-        if (envio.status === 401 || envio.status === 403) avisar(envio.status, envio.result.message);
-        $id('ppto_contenido').classList.add('d-none');
-        $id('gp_estado_vacio').classList.add('d-none');
-        $id('nota_sin_datos').classList.add('d-none');
-        $id('gp_estado_error').classList.remove('d-none');
-        $id('error_mensaje').textContent = envio.result.message || '';
-        return;
+    if (conMatriz) {
+        $id('caption_ppto').textContent = `Presupuesto de producción por lote, ${nombreFinca(f)}, ${anio}`;
+        $id('cuerpo_ppto').innerHTML = (historicos.length ? filaHistorico(f) : '') + f.lotes.map(filaLote).join('');
+        $id('pie_ppto').innerHTML = `<tr>
+            <th scope="row" class="gp-ppto-col-lote">Total mes</th>
+            ${RANGO.map((m) => `<td>${f.meses[m] == null ? '–' : formatear(f.meses[m])}</td>`).join('')}
+            <td class="gp-ppto-col-total">${formatear(f.total)}</td>
+        </tr>`;
+    } else {
+        $id('cuerpo_ppto').innerHTML = '';
+        $id('pie_ppto').innerHTML = '';
     }
 
-    estado.anio = anio;
-    estado.tablaExiste = envio.result.tablaExiste !== false;
-    estado.data = envio.result.data || [];
-    estado.anterior = Object.fromEntries((envio.result.anterior || []).map((f) => [f.finca, f]));
-    estado.cargado = true;
-    pintar();
+    pintarKpis();
+    pintarForm();
 };
 
-$id('btn_consultar').addEventListener('click', cargar);
-$id('filtro_empresa').addEventListener('change', cargar);
-$id('filtro_anio').addEventListener('change', cargar);
-$id('btn_reintentar').addEventListener('click', cargar);
-
-
-const guardarMeses = async (fila, meses) => {
-    if (!(await pedir('guardar', { empresa: empresa(), anio: estado.anio, finca: fila.finca, meses }))) return false;
-    Object.entries(meses).forEach(([m, v]) => { fila.meses[m] = v === '' ? null : Number(v); });
-    pintar();
-    return true;
+const form = {
+    card: $id('ppto_form'),
+    mes: $id('form_mes'),
+    lote: $id('form_lote'),
+    kilos: $id('form_kilos'),
+    guardar: $id('form_guardar'),
+    limpiar: $id('form_limpiar'),
+    eliminar: $id('form_eliminar')
 };
 
-const eliminarAnio = async (fila) => {
-    const ok = await confirmarBorrado(
-        '¿Eliminar presupuesto del año?',
-        `Se eliminarán los 12 meses de ${estado.anio} para «${nombreDe(fila)}» (${formatear(totalDe(fila))} kg). Esta acción no se puede deshacer.`,
-        'Sí, eliminar'
-    );
-    if (!ok || !(await pedir('eliminar', { empresa: empresa(), anio: estado.anio, finca: fila.finca }))) return false;
-    RANGO.forEach((m) => { fila.meses[m] = null; });
-    pintar();
-    Toast.fire({ icon: 'success', title: 'Presupuesto del año eliminado.' });
-    return true;
+const $lote = $(form.lote);
+
+let edicion = null;
+let guardando = false;
+
+$lote.select2({ theme: 'bootstrap-5', width: '100%', placeholder: 'Buscar lote…', language: { noResults: () => 'Sin resultados' } });
+
+const mesDefecto = () => {
+    const base = estado.anio === new Date().getFullYear() ? new Date().getMonth() + 1 : 1;
+    return bloqueado(base) ? (RANGO.find((m) => !bloqueado(m)) ?? base) : base;
 };
 
-const confirmarQuitarMes = (fila, mes) => confirmarBorrado(
-    '¿Quitar presupuesto del mes?',
-    `Se eliminará el presupuesto de «${MESES[mes - 1]} ${estado.anio}» para «${nombreDe(fila)}». Esta acción no se puede deshacer.`,
-    'Sí, quitar'
-);
-
-
-let editor = null;
-
-const modalMes = () => bootstrap.Modal.getOrCreateInstance($id('modalPresupuestoMes'));
-
-const cerrarEditor = () => {
-    if (!editor) return;
-    if (editor.modal) modalMes().hide();
-    else editor.contenedor.remove();
-    editor = null;
+const marcar = (campo, mensaje) => {
+    form[campo].classList.toggle('is-invalid', !!mensaje);
+    $id(`form_${campo}_error`).textContent = mensaje || '';
+    if (campo === 'lote') $lote.next('.select2-container').find('.select2-selection').toggleClass('is-invalid', !!mensaje);
 };
 
-const editorHtml = (fila, mes) => {
-    const v = fila.meses[mes];
-    const ant = estado.anterior[fila.finca]?.meses[mes];
-    return `<div class="gp-subseccion">${escapar(nombreDe(fila))} · ${MESES[mes - 1]} ${estado.anio}</div>
-        <div class="input-group input-group-sm has-validation">
-            <input type="text" class="form-control gp-input-precio" inputmode="decimal" autocomplete="off" placeholder="Sin presupuesto" value="${v == null ? '' : formatear(v)}">
-            <span class="input-group-text bg-light">kg</span>
-            <div class="invalid-feedback">${MSG_INVALIDO}</div>
-        </div>
-        ${ant != null ? `<div class="form-text">Año anterior: ${formatear(ant)} kg</div>` : ''}
-        <div class="d-flex gap-2 justify-content-end mt-2">
-            ${v != null ? '<button type="button" class="btn btn-sm btn-outline-danger" data-editor="quitar" title="Quitar mes"><i class="bi bi-trash"></i></button>' : ''}
-            <button type="button" class="btn btn-sm btn-outline-secondary" data-editor="cancelar">Cancelar</button>
-            <button type="button" class="btn btn-sm btn-primary" data-editor="guardar"><i class="bi bi-check-lg me-1"></i>Guardar</button>
-        </div>`;
+const limpiarMarcas = () => ['mes', 'lote', 'kilos'].forEach((c) => marcar(c, ''));
+
+const refrescarForm = (precargar) => {
+    const mes = Number(form.mes.value);
+    const lote = form.lote.value;
+    const bloq = !!estado.finca && bloqueado(mes);
+    marcar('mes', bloq ? `${MESES[mes - 1]} tiene meta de finca (histórico). Elimínela antes de cargar por lote.` : '');
+    const actual = lote ? valorDe(lote, mes) : null;
+    if (precargar && !edicion && actual != null) {
+        form.kilos.value = formatear(actual);
+        marcar('kilos', '');
+    }
+    const v = parsear(form.kilos.value);
+    const ayuda = v === 0 && actual != null ? 'Guardar 0 elimina el presupuesto del lote en ese mes.' : (!edicion && actual != null ? `Ya registrado: ${formatear(actual)} kg. Se reemplazará.` : '');
+    $id('form_ayuda').textContent = ayuda;
+    $id('form_ayuda_col').classList.toggle('d-none', !ayuda);
+    form.guardar.disabled = !editable() || bloq || guardando;
 };
 
-const posicionar = (pop, celda) => {
-    const r = celda.getBoundingClientRect();
-    const left = Math.min(Math.max(r.left + r.width / 2 - 120, 8), window.innerWidth - 248);
-    const arriba = r.bottom + pop.offsetHeight + 8 > window.innerHeight;
-    pop.style.left = `${left + window.scrollX}px`;
-    pop.style.top = `${(arriba ? r.top - pop.offsetHeight - 4 : r.bottom + 4) + window.scrollY}px`;
+const modoForm = () => {
+    const editando = !!edicion;
+    form.card.classList.toggle('gp-ppto-form-editando', editando);
+    $id('form_titulo').innerHTML = editando
+        ? `<i class="bi bi-pencil-square"></i>Editando: ${escapar(edicion.lote)} · ${MESES[edicion.mes - 1]}`
+        : '<i class="bi bi-plus-circle"></i>Registrar presupuesto';
+    if (!guardando) form.guardar.innerHTML = `<i class="bi bi-floppy me-1"></i>${editando ? 'Actualizar' : 'Guardar'}`;
+    form.limpiar.textContent = editando ? 'Cancelar edición' : 'Limpiar';
+    form.eliminar.classList.toggle('d-none', !editando);
+    refrescarForm(false);
+};
+
+const pintarForm = () => {
+    const f = estado.finca;
+    const habil = editable();
+    const mesPrevio = form.mes.value;
+    const lotePrevio = form.lote.value;
+    $id('form_contexto').textContent = !f ? 'Seleccione una finca para registrar' : (estado.tablaExiste ? `Finca ${nombreFinca(f)} · ${estado.anio}` : 'Edición deshabilitada: la tabla no existe');
+    RANGO.forEach((m) => {
+        const opcion = form.mes.options[m - 1];
+        opcion.disabled = !!f && bloqueado(m);
+        opcion.textContent = MESES[m - 1] + (opcion.disabled ? ' (meta de finca)' : '');
+    });
+    form.mes.value = mesPrevio;
+    form.lote.innerHTML = '<option value=""></option>' + activos().map((l) => `<option value="${escapar(l.lote)}">${escapar(etiquetaLote(l))}</option>`).join('');
+    $lote.val(loteDe(lotePrevio)?.activo ? lotePrevio : '').trigger('change.select2');
+    if (edicion && !loteDe(edicion.lote)?.activo) edicion = null;
+    [form.mes, form.lote, form.kilos, form.limpiar, form.eliminar].forEach((el) => { el.disabled = !habil || guardando; });
+    modoForm();
+};
+
+const reiniciarForm = () => {
+    edicion = null;
+    form.mes.value = String(mesDefecto());
+    $lote.val('').trigger('change.select2');
+    form.kilos.value = '';
+    limpiarMarcas();
+    modoForm();
 };
 
 const ocupado = (activo) => {
-    const btn = editor.contenedor.querySelector('[data-editor="guardar"]');
-    editor.input.readOnly = activo;
-    editor.contenedor.querySelectorAll('button').forEach((b) => { b.disabled = activo; });
-    btn.innerHTML = activo ? '<span class="spinner-border spinner-border-sm me-1"></span>Guardar' : '<i class="bi bi-check-lg me-1"></i>Guardar';
+    guardando = activo;
+    [form.mes, form.lote, form.kilos, form.limpiar, form.eliminar].forEach((el) => { el.disabled = activo || !editable(); });
+    form.guardar.innerHTML = activo ? '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>Guardando…' : '';
+    modoForm();
 };
 
-const guardarEditor = async (siguiente) => {
-    const { fila, mes, input } = editor;
-    const v = parsear(input.value);
-    if (v === null) {
-        input.classList.add('is-invalid');
-        return;
-    }
-    const nuevo = v === '' ? '' : canonico(v);
-    const original = fila.meses[mes] == null ? '' : canonico(fila.meses[mes]);
-    const abrirSiguiente = () => {
-        cerrarEditor();
-        if (siguiente && mes < 12) abrirEditor(fila.finca, mes + 1);
-    };
-
-    if (nuevo === original) {
-        abrirSiguiente();
-        return;
-    }
-    if (nuevo === '' && !(await confirmarQuitarMes(fila, mes))) return;
-
-    const actual = editor;
-    ocupado(true);
-    const ok = await guardarMeses(fila, { [mes]: nuevo });
-    if (editor !== actual) return;
-    if (!ok) {
-        ocupado(false);
-        return;
-    }
-    Toast.fire({ icon: 'success', title: 'Presupuesto guardado.' });
-    abrirSiguiente();
-    flash(celdaEn(fila.finca, mes));
+const enfocarForm = () => {
+    form.card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setTimeout(() => form.kilos.focus({ preventScroll: true }), 300);
 };
 
-const quitarEditor = async () => {
-    const { fila, mes } = editor;
-    if (!(await confirmarQuitarMes(fila, mes))) return;
-    const actual = editor;
-    ocupado(true);
-    const ok = await pedir('eliminar', { empresa: empresa(), anio: estado.anio, finca: fila.finca, mes });
-    if (editor !== actual) return;
-    if (!ok) {
-        ocupado(false);
-        return;
-    }
-    fila.meses[mes] = null;
+const seleccionarCelda = (lote, mes) => {
+    const v = valorDe(lote, mes);
+    edicion = v == null ? null : { lote, mes };
+    form.mes.value = String(mes);
+    $lote.val(lote).trigger('change.select2');
+    form.kilos.value = v == null ? '' : formatear(v);
+    limpiarMarcas();
+    modoForm();
+    enfocarForm();
+};
+
+const validarForm = () => {
+    const mes = Number(form.mes.value);
+    const v = parsear(form.kilos.value);
+    limpiarMarcas();
+    let ok = true;
+    if (!mes) { marcar('mes', 'Seleccione el mes'); ok = false; }
+    else if (bloqueado(mes)) { marcar('mes', `${MESES[mes - 1]} tiene meta de finca (histórico). Elimínela antes de cargar por lote.`); ok = false; }
+    if (!form.lote.value) { marcar('lote', 'Seleccione el lote'); ok = false; }
+    if (v === '') { marcar('kilos', 'Ingrese los kilos'); ok = false; }
+    else if (v === null) { marcar('kilos', MSG_INVALIDO); ok = false; }
+    else if (v === 0 && ok && valorDe(form.lote.value, mes) == null) { marcar('kilos', 'No hay presupuesto que eliminar en ese mes.'); ok = false; }
+    return ok ? { mes, lote: form.lote.value, v } : null;
+};
+
+const textoLote = (codigo) => {
+    const l = loteDe(codigo);
+    return l?.loteNombre ? `${codigo} — ${l.loteNombre}` : codigo;
+};
+
+const confirmarLote = (lote, mes) => confirmarBorrado(
+    '¿Eliminar presupuesto del lote?',
+    `Se eliminará el presupuesto de «${textoLote(lote)}» en ${MESES[mes - 1]} ${estado.anio} (${formatear(valorDe(lote, mes) ?? 0)} kg). Esta acción no se puede deshacer.`,
+    'Sí, eliminar'
+);
+
+const tras = (mensaje, lote, mes) => {
+    Toast.fire({ icon: 'success', title: mensaje });
+    anunciar(mensaje);
+    recalcular();
     pintar();
-    cerrarEditor();
-    Toast.fire({ icon: 'success', title: 'Presupuesto del mes eliminado.' });
+    flash(lote ? celdaEn(lote, mes) : null);
 };
 
-const abrirEditor = (finca, mes) => {
-    const fila = filaDe(finca);
-    const celda = celdaEn(finca, mes);
-    if (!fila || !celda) return;
-    cerrarEditor();
+const guardarForm = async () => {
+    if (!editable() || guardando) return;
+    const datos = validarForm();
+    if (!datos) return;
+    const { mes, lote, v } = datos;
+    if (v === 0 && !(await confirmarLote(lote, mes))) return;
+    const finca = estado.finca;
+    ocupado(true);
+    const result = await pedir('guardar', { empresa: empresa(), anio: estado.anio, finca: finca.finca, mes, lote, kilos: canonico(v) });
+    ocupado(false);
+    if (!result || estado.finca !== finca) return;
+    loteDe(lote).meses[mes] = v > 0 ? v : null;
+    edicion = null;
+    form.kilos.value = '';
+    tras(result.message || 'Presupuesto guardado correctamente.', lote, mes);
+};
 
-    const movil = window.innerWidth < 576;
-    const contenedor = movil ? $id('editor_mes_modal') : document.createElement('div');
-    contenedor.innerHTML = editorHtml(fila, mes);
-    const input = contenedor.querySelector('input');
-    editor = { fila, mes, input, contenedor, modal: movil };
+const eliminarLote = async (lote, mes) => {
+    if (!(await confirmarLote(lote, mes))) return;
+    const finca = estado.finca;
+    const result = await pedir('eliminar', { empresa: empresa(), anio: estado.anio, finca: finca.finca, mes, lote });
+    if (!result || estado.finca !== finca) return;
+    loteDe(lote).meses[mes] = null;
+    if (edicion && edicion.lote === lote && edicion.mes === mes) {
+        edicion = null;
+        form.kilos.value = '';
+    }
+    tras(result.message || 'Presupuesto del lote eliminado correctamente.', lote, mes);
+};
 
-    prepararInput(input);
-    input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            guardarEditor(false);
-        } else if (e.key === 'Escape') {
-            e.preventDefault();
-            cerrarEditor();
-        } else if (e.key === 'Tab' && !e.shiftKey) {
-            e.preventDefault();
-            guardarEditor(true);
-        }
-    });
-    contenedor.querySelector('[data-editor="guardar"]').addEventListener('click', () => guardarEditor(false));
-    contenedor.querySelector('[data-editor="cancelar"]').addEventListener('click', cerrarEditor);
-    contenedor.querySelector('[data-editor="quitar"]')?.addEventListener('click', quitarEditor);
+const eliminarMeta = async (mes) => {
+    const finca = estado.finca;
+    const ok = await confirmarBorrado(
+        '¿Eliminar meta de finca?',
+        `Se eliminará la meta histórica de «${nombreFinca(finca)}» en ${MESES[mes - 1]} ${estado.anio} (${formatear(finca.historico[mes])} kg). Al eliminarla podrá cargar presupuesto por lote en ese mes.`,
+        'Sí, eliminar'
+    );
+    if (!ok) return;
+    const result = await pedir('eliminar', { empresa: empresa(), anio: estado.anio, finca: finca.finca, mes, lote: '' });
+    if (!result || estado.finca !== finca) return;
+    finca.historico[mes] = null;
+    tras(result.message || 'Meta de finca eliminada correctamente.', null, mes);
+};
 
-    if (movil) {
-        modalMes().show();
+let peticion = 0;
+
+const cargando = (activo) => {
+    $id('ppto_zona').setAttribute('aria-busy', activo ? 'true' : 'false');
+    $id('ppto_cargando').classList.toggle('d-none', !activo);
+    ['filtro_empresa', 'filtro_anio', 'filtro_finca', 'btn_consultar'].forEach((id) => { $id(id).disabled = activo; });
+};
+
+const mostrarError = (envio) => {
+    if (envio.status === 401 || envio.status === 403) avisar(envio.status, envio.result.message);
+    ['ppto_contenido', 'gp_estado_vacio', 'nota_sin_datos', 'nota_historico'].forEach((id) => $id(id).classList.add('d-none'));
+    $id('gp_estado_error').classList.remove('d-none');
+    $id('error_mensaje').textContent = envio.result.message || '';
+};
+
+const consultar = async (finca) => {
+    const id = ++peticion;
+    const anio = Number($id('filtro_anio').value);
+    cargando(true);
+    const envio = await enviar('listar', { empresa: empresa(), anio, finca });
+    if (id !== peticion) return null;
+    cargando(false);
+    if (!envio.ok) {
+        mostrarError(envio);
+        return null;
+    }
+    estado.anio = anio;
+    estado.tablaExiste = envio.result.tablaExiste !== false;
+    return envio.result;
+};
+
+const cargar = async () => {
+    const codigo = $id('filtro_finca').value;
+    previos = leerFiltros();
+    cargarMetas();
+    if (!codigo) {
+        estado.anio = Number($id('filtro_anio').value);
+        estado.finca = null;
+        estado.anterior = null;
+        pintar();
+        reiniciarForm();
         return;
     }
-    contenedor.className = 'gp-ppto-popover gp-revelar';
-    document.body.appendChild(contenedor);
-    posicionar(contenedor, celda);
-    input.focus();
+    const result = await consultar(codigo);
+    if (!result) return;
+    estado.finca = (result.data || [])[0] || null;
+    estado.anterior = (result.anterior || [])[0] || null;
+    estado.cargado = true;
+    pintar();
+    reiniciarForm();
 };
 
-$id('modalPresupuestoMes').addEventListener('shown.bs.modal', () => editor?.input.focus());
-$id('modalPresupuestoMes').addEventListener('hidden.bs.modal', () => {
-    if (editor?.modal) editor = null;
-});
+const cargarFincas = async () => {
+    const result = await consultar('');
+    if (!result) return;
+    estado.fincas = result.data || [];
+    estado.cargado = true;
+    const select = $id('filtro_finca');
+    const previa = select.value;
+    select.innerHTML = '<option value="">Seleccione una finca</option>' + estado.fincas.map((f) => `<option value="${escapar(f.finca)}">${escapar(f.fincaNombre ? `${f.finca} — ${f.fincaNombre}` : f.finca)}</option>`).join('');
+    select.value = estado.fincas.some((f) => f.finca === previa) ? previa : '';
+    cargar();
+};
 
-document.addEventListener('mousedown', (e) => {
-    if (editor && !editor.modal && !e.target.closest('.gp-ppto-popover, .gp-ppto-celda, .swal2-container')) cerrarEditor();
-});
-window.addEventListener('resize', () => {
-    if (editor && !editor.modal) cerrarEditor();
-});
-document.querySelector('.gp-ppto-matriz').closest('.table-responsive').addEventListener('scroll', () => {
-    if (editor && !editor.modal) cerrarEditor();
-});
+const nf = (numero, d) => new Intl.NumberFormat('es-CO', { minimumFractionDigits: d, maximumFractionDigits: d }).format(numero);
 
+const metas = { datos: null, empresa: '', anio: 0, finca: '', clave: '', curva: Array(13).fill(''), cache: {}, sucioEmp: false, sucioFinca: false, ocupado: false, peticion: 0, grafica: null, kilos: 0, generacion: null, guardandoGen: false };
 
-let anual = null;
-let cerrarForzado = false;
+let previos = null;
 
-const modalAnual = () => bootstrap.Modal.getOrCreateInstance($id('modalPresupuestoAnual'));
+const leerFiltros = () => ({ empresa: $id('filtro_empresa').value, anio: $id('filtro_anio').value, finca: $id('filtro_finca').value });
 
-const inputMes = (m) => $id('anual_mes_' + m);
+const metaFinca = () => (metas.finca ? metas.datos?.fincas?.find((x) => x.finca === metas.finca) : undefined);
 
-const actualizarAnual = () => {
-    let total = 0;
-    let n = 0;
-    let invalido = false;
-    anual.cambios = false;
-    RANGO.forEach((m) => {
-        const input = inputMes(m);
-        const v = parsear(input.value);
-        if (v === null) invalido = true;
-        if (typeof v === 'number') {
-            total += v;
-            n += 1;
+const colapso = bootstrap.Collapse.getOrCreateInstance($id('metas_cuerpo'), { toggle: false });
+
+const modalGenerar = bootstrap.Modal.getOrCreateInstance($id('modal_generar'));
+
+const CAMPOS_FINCA = ['meta_finca_kilos', 'meta_finca_tonha', ...RANGO.map((m) => `curva_${m}`)];
+
+const CAMPOS_EMP = ['meta_emp_tonha', 'meta_emp_kilos'];
+
+const numeroDe = (id) => {
+    const v = parsear($id(id).value);
+    return typeof v === 'number' ? v : null;
+};
+
+const enviarNum = (id) => {
+    const v = numeroDe(id);
+    return v === null ? '' : canonico(v);
+};
+
+const valorInput = (v) => (v == null ? '' : formatear(v));
+
+const marcarCampo = (id, mensaje) => {
+    $id(id).classList.toggle('is-invalid', !!mensaje);
+    $id(`${id}_error`).textContent = mensaje || '';
+};
+
+const errorCampo = (id) => {
+    const pct = id.startsWith('curva_');
+    const v = parsear($id(id).value, pct ? 4 : 2);
+    if (v === null) return pct ? 'Entre 0 y 100, máx. 4 decimales' : MSG_INVALIDO;
+    if (pct && v > 100) return 'Entre 0 y 100';
+    if (id.includes('tonha') && v > 60) return 'Valor fuera de rango (0–60 t/ha)';
+    return '';
+};
+
+const revisar = (id) => {
+    const mensaje = errorCampo(id);
+    marcarCampo(id, mensaje);
+    return !mensaje;
+};
+
+const sumaCurva = () => Number(RANGO.reduce((s, m) => s + (typeof metas.curva[m] === 'number' ? metas.curva[m] : 0), 0).toFixed(4));
+
+const curvaVacia = () => RANGO.every((m) => metas.curva[m] === '');
+
+const curvaOk = () => Math.abs(sumaCurva() - 100) <= 0.01;
+
+const cargandoBoton = (boton, activo, texto) => {
+    if (activo) {
+        boton.dataset.html = boton.innerHTML;
+        boton.innerHTML = `<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>${texto}`;
+    } else if (boton.dataset.html) {
+        boton.innerHTML = boton.dataset.html;
+    }
+    boton.disabled = activo;
+};
+
+let tGrafica = null;
+
+const grafica = () => {
+    clearTimeout(tGrafica);
+    tGrafica = setTimeout(() => {
+        const data = RANGO.map((m) => (typeof metas.curva[m] === 'number' ? redondear(metas.curva[m]) : 0));
+        $id('curva_grafica').setAttribute('aria-label', `Curva de estacionalidad: ${RANGO.map((m) => `${MESES[m - 1].slice(0, 3)} ${nf(data[m - 1], 1)} %`).join(', ')}`);
+        if (metas.grafica) {
+            metas.grafica.updateSeries([{ name: 'Curva', data }]);
+            return;
         }
-        const editado = v !== null && (v === '' ? '' : canonico(v)) !== anual.originales[m];
-        input.classList.toggle('gp-editado', editado);
-        if (editado || v === null) anual.cambios = true;
-    });
-    const ant = estado.anterior[anual.fila.finca];
-    $id('anual_total').textContent = formatear(total);
-    $id('anual_conteo').textContent = `${n} de 12 meses con valor`;
-    $id('anual_delta').innerHTML = tieneDatos(ant) ? delta(total, totalDe(ant)) : '';
-    $id('btn_guardar_anual').disabled = invalido || !anual.cambios;
+        metas.grafica = new ApexCharts($id('curva_grafica'), {
+            chart: { type: 'bar', height: 90, toolbar: { show: false }, zoom: { enabled: false }, animations: { enabled: false }, parentHeightOffset: 0, fontFamily: 'inherit' },
+            series: [{ name: 'Curva', data }],
+            colors: ['#41a867'],
+            plotOptions: { bar: { columnWidth: '62%', borderRadius: 2 } },
+            dataLabels: { enabled: false },
+            grid: { show: false, padding: { top: -16, bottom: -4, left: 4, right: 4 } },
+            xaxis: { categories: MESES.map((m) => m[0]), labels: { style: { colors: '#5c6b7a', fontSize: '10px' } }, axisTicks: { show: false }, axisBorder: { show: false }, tooltip: { enabled: false } },
+            yaxis: { show: false, min: 0 },
+            legend: { show: false },
+            states: { hover: { filter: { type: 'darken', value: 0.85 } } },
+            tooltip: {
+                custom: ({ series, dataPointIndex }) => {
+                    const p = series[0][dataPointIndex];
+                    return `<div class="px-2 py-1 small">${MESES[dataPointIndex].slice(0, 3)} · ${nf(p, 1)} %${metas.kilos > 0 ? ` · ${nf((metas.kilos * p) / 100, 0)} kg` : ''}</div>`;
+                }
+            }
+        });
+        metas.grafica.render();
+    }, 150);
 };
 
-const ponerValoresAnual = (valores) => {
+const pintarResumen = () => {
+    const d = metas.datos;
+    const f = metaFinca();
+    const badge = $id('metas_badge');
+    const kg = (v) => (Number(v) > 0 ? `${nf(Number(v), 0)} kg` : 'sin definir');
+    $id('metas_anio').textContent = metas.anio || $id('filtro_anio').value;
+    $id('metas_resumen').textContent = !d?.tablasMetas ? '' : (f ? `Meta finca ${kg(f.kilosAnual)} · Curva ${nf(Number(f.suma || 0), 1)} %` : `Meta empresa ${kg(d.empresa?.kilosAnual)}`);
+    if (f) {
+        badge.className = `gp-chip-fila ${f.curvaCompleta ? 'verde' : 'ambar'}`;
+        badge.textContent = f.curvaCompleta ? 'Curva completa' : (f.curva ? `Curva ${nf(Number(f.suma || 0), 1)} %` : 'Sin curva');
+    }
+    badge.classList.toggle('d-none', !f || !d?.tablasMetas);
+    $id('metas_sucio').classList.toggle('d-none', !(metas.sucioEmp || metas.sucioFinca));
+};
+
+const vivo = () => {
+    const d = metas.datos;
+    const f = metaFinca();
+    const haEmp = Number(d?.empresa?.hectareas || 0);
+    const kEmp = numeroDe('meta_emp_kilos');
+    const tEmp = numeroDe('meta_emp_tonha');
+    const equiv = kEmp > 0 && haEmp > 0 ? kEmp / 1000 / haEmp : null;
+    const sumaFincas = (d?.fincas || []).reduce((s, x) => s + Number(x.kilosAnual || 0), 0);
+    $id('meta_emp_lectura').textContent = d ? `${kEmp > 0 ? `≈ ${nf(kEmp / 1000, 1)} t · ` : ''}${nf(haEmp, 2)} ha netas (activas)` : '';
+    $id('meta_emp_equiv').textContent = equiv ? `Equivale a ${nf(equiv, 2)} t/ha` : '';
+    $id('meta_emp_difiere').classList.toggle('d-none', !(equiv && tEmp > 0 && Math.abs(equiv - tEmp) / tEmp > 0.05));
+    $id('meta_emp_fincas').textContent = kEmp > 0 && sumaFincas > 0 ? `Fincas: ${nf(sumaFincas, 0)} kg de ${nf(kEmp, 0)} kg · ${nf((sumaFincas / kEmp) * 100, 1)} %` : '';
+    $id('meta_emp_guardar').disabled = metas.ocupado || !CAMPOS_EMP.every((id) => !errorCampo(id));
+
+    const kF = numeroDe('meta_finca_kilos');
+    const tF = numeroDe('meta_finca_tonha');
+    const ha = Number(f?.hectareas || 0);
+    metas.kilos = kF || 0;
+    $id('meta_finca_lectura').textContent = f ? [kF > 0 ? `≈ ${nf(kF / 1000, 1)} t` : '', `${nf(ha, 2)} ha netas`, kF > 0 && ha > 0 ? `${nf(kF / 1000 / ha, 2)} t/ha` : ''].filter(Boolean).join(' · ') : '';
+    $id('meta_calcular').classList.toggle('d-none', !(f && tF > 0 && !(kF > 0) && ha > 0));
+    if (!errorCampo('meta_finca_kilos')) marcarCampo('meta_finca_kilos', f && !curvaVacia() && !(kF > 0) ? 'Ingrese la meta anual en kg' : '');
+
+    const total = sumaCurva();
+    const ok = curvaOk();
+    const dif = Math.abs(100 - total);
+    $id('curva_total').className = `gp-chip-fila gp-ppto-total font-monospace ${ok ? 'verde' : (total < 100 ? 'ambar' : 'rojo')}`;
+    $id('curva_total').textContent = ok ? 'Total 100,0 %' : `${total < 100 ? 'Faltan' : 'Sobra'} ${nf(dif, dif < 0.05 ? 2 : 1)} %`;
     RANGO.forEach((m) => {
-        const v = valores[m];
-        inputMes(m).value = v == null || v === '' ? '' : formatear(v);
-        inputMes(m).classList.remove('is-invalid');
+        const p = metas.curva[m];
+        $id(`curva_kg_${m}`).textContent = kF > 0 && typeof p === 'number' ? `${nf((kF * p) / 100, 0)} kg` : '–';
     });
-    actualizarAnual();
+    grafica();
+
+    const errorCurva = !curvaVacia() && !ok;
+    const motivo = !f ? '' : (!d.tablaPresupuesto ? 'La tabla de presupuesto no existe en la base de datos'
+        : (errorCurva ? 'La curva debe sumar 100 %'
+            : (metas.sucioFinca ? 'Guarde la meta y la curva antes de generar'
+                : (!(Number(f.kilosAnual) > 0) ? 'Ingrese la meta anual en kg'
+                    : (!f.curvaCompleta ? 'La curva debe sumar 100 %' : '')))));
+    $id('meta_finca_guardar').disabled = !f || metas.ocupado || errorCurva || CAMPOS_FINCA.some((id) => errorCampo(id));
+    $id('meta_generar').disabled = !f || metas.ocupado || !!motivo;
+    $id('meta_motivo').textContent = motivo;
+    pintarResumen();
 };
 
-const hayDigitados = () => RANGO.some((m) => inputMes(m).value.trim() !== '');
-
-const reemplazarSiHace = async (valores) => {
-    if (hayDigitados() && !(await confirmar({ icon: 'question', title: '¿Reemplazar los valores actuales?', confirmButtonText: 'Sí, reemplazar' }))) return;
-    ponerValoresAnual(valores);
+const menuCopiar = () => {
+    const f = metaFinca();
+    const otras = (metas.datos?.fincas || []).filter((x) => x.finca !== f?.finca && x.curva);
+    const item = (clave, texto) => `<li><button type="button" class="dropdown-item" data-copiar="${escapar(clave)}">${escapar(texto)}</button></li>`;
+    $id('curva_copiar_menu').innerHTML = (f ? item('', `${nombreFinca(f)} – ${metas.anio - 1}`) : '')
+        + (otras.length ? `<li><hr class="dropdown-divider"></li><li><h6 class="dropdown-header">Otras fincas ${metas.anio}</h6></li>${otras.map((x) => item(x.finca, `${nombreFinca(x)} – ${metas.anio}`)).join('')}` : '');
 };
 
-const abrirAnual = (finca) => {
-    const fila = filaDe(finca);
-    if (!fila || !estado.tablaExiste) return;
-    cerrarEditor();
-    const ant = estado.anterior[finca];
-    const conAnt = tieneDatos(ant);
-    anual = { fila, cambios: false, originales: Object.fromEntries(RANGO.map((m) => [m, fila.meses[m] == null ? '' : canonico(fila.meses[m])])) };
-
-    $id('titulo_modal_anual').innerHTML = `<i class="bi bi-calendar3-range me-1"></i>Presupuesto ${estado.anio}`;
-    $id('subtitulo_modal_anual').textContent = `${fila.finca} · ${nombreDe(fila)}`;
-    $id('anual_distribuir').value = '';
-    $id('anual_distribuir').classList.remove('is-invalid');
-    $id('btn_copiar_anterior').disabled = !conAnt;
-    $id('anual_total_anterior').textContent = conAnt ? `Total ${estado.anio - 1}: ${formatear(totalDe(ant))} kg` : 'Sin datos del año anterior';
-    $id('btn_eliminar_anual').classList.toggle('d-none', !tieneDatos(fila));
+const ponerCurva = (curva) => {
     RANGO.forEach((m) => {
-        const v = ant?.meses[m];
-        $id('anual_ant_' + m).textContent = v != null ? `Ant.: ${formatear(v)}` : '';
+        const p = curva?.[m - 1];
+        metas.curva[m] = p == null ? '' : Number(p);
+        $id(`curva_${m}`).value = valorInput(p);
+        marcarCampo(`curva_${m}`, '');
     });
-    ponerValoresAnual(fila.meses);
-    modalAnual().show();
 };
 
-const cerrarAnual = () => {
-    cerrarForzado = true;
-    modalAnual().hide();
+const pintarMetas = () => {
+    const d = metas.datos;
+    const f = metaFinca();
+    const e = d?.empresa || {};
+    const habil = !!d?.tablasMetas;
+    $id('metas_sin_tablas').classList.toggle('d-none', !d || habil);
+    $id('metas_error').classList.add('d-none');
+    $id('metas_emp_campos').disabled = !habil;
+    $id('metas_finca_campos').disabled = !habil || !f;
+    $id('meta_finca_nota').classList.toggle('d-none', !!f);
+    $id('meta_finca_nombre').textContent = f ? `· ${nombreFinca(f)}` : '';
+    $id('meta_emp_tonha').value = e.metaTonHa == null ? '' : nf(e.metaTonHa, 2);
+    $id('meta_emp_kilos').value = valorInput(e.kilosAnual);
+    $id('meta_finca_kilos').value = valorInput(f?.kilosAnual);
+    $id('meta_finca_tonha').value = f?.metaTonHa == null ? '' : nf(f.metaTonHa, 2);
+    [...CAMPOS_EMP, 'meta_finca_kilos', 'meta_finca_tonha'].forEach((id) => marcarCampo(id, ''));
+    ponerCurva(f?.curva);
+    metas.sucioEmp = false;
+    metas.sucioFinca = false;
+    menuCopiar();
+    vivo();
+    pintarKpis();
 };
+
+const metasCargando = (activo) => {
+    $id('ppto_metas').setAttribute('aria-busy', activo ? 'true' : 'false');
+    $id('metas_cargando').classList.toggle('d-none', !activo);
+};
+
+const cargarMetas = async () => {
+    const id = ++metas.peticion;
+    const datos = { empresa: empresa(), anio: Number($id('filtro_anio').value) };
+    const finca = $id('filtro_finca').value;
+    metasCargando(true);
+    const envio = await enviar('metas', datos);
+    if (id !== metas.peticion) return;
+    metasCargando(false);
+    Object.assign(metas, datos, { finca });
+    if (!envio.ok) {
+        if (envio.status === 401 || envio.status === 403) avisar(envio.status, envio.result.message);
+        metas.datos = null;
+        pintarMetas();
+        $id('metas_error').classList.remove('d-none');
+        $id('metas_error_texto').textContent = envio.result.message || '';
+        return;
+    }
+    metas.datos = envio.result;
+    metas.cache[`${datos.empresa}|${datos.anio}`] = envio.result;
+    pintarMetas();
+    const clave = `${datos.empresa}|${datos.anio}|${finca}`;
+    if (clave !== metas.clave) {
+        metas.clave = clave;
+        const f = metaFinca();
+        if (f && Number(f.kilosAnual) > 0 && f.curvaCompleta) colapso.hide();
+        else colapso.show();
+    }
+};
+
+const ensuciar = (bandera) => {
+    metas[bandera] = true;
+    vivo();
+};
+
+const guardia = (accion) => async () => {
+    if (metas.sucioEmp || metas.sucioFinca) {
+        const ok = await confirmar({ icon: 'warning', title: '¿Descartar cambios sin guardar?', text: 'La meta o la curva de estacionalidad tienen cambios sin guardar. Si continúa se perderán.', confirmButtonText: 'Descartar y continuar' });
+        if (!ok) {
+            if (previos) Object.entries(previos).forEach(([clave, valor]) => { $id(`filtro_${clave}`).value = valor; });
+            return;
+        }
+        metas.sucioEmp = false;
+        metas.sucioFinca = false;
+    }
+    accion();
+};
+
+const guardarEmpresa = async () => {
+    if (metas.ocupado || !CAMPOS_EMP.map(revisar).every(Boolean)) return;
+    const boton = $id('meta_emp_guardar');
+    const datos = metas.datos;
+    metas.ocupado = true;
+    cargandoBoton(boton, true, 'Guardando…');
+    const result = await pedir('guardarMeta', { empresa: metas.empresa, anio: metas.anio, finca: '', kilosAnual: enviarNum('meta_emp_kilos'), metaTonHa: enviarNum('meta_emp_tonha') });
+    metas.ocupado = false;
+    cargandoBoton(boton, false);
+    if (result && metas.datos === datos) {
+        Object.assign(datos.empresa, { kilosAnual: result.meta.kilosAnual, metaTonHa: result.meta.metaTonHa });
+        $id('meta_emp_tonha').value = result.meta.metaTonHa == null ? '' : nf(result.meta.metaTonHa, 2);
+        $id('meta_emp_kilos').value = valorInput(result.meta.kilosAnual);
+        metas.sucioEmp = false;
+        Toast.fire({ icon: 'success', title: result.message || 'Meta de la empresa guardada correctamente.' });
+        anunciar(result.message || 'Meta de la empresa guardada correctamente.');
+    }
+    vivo();
+};
+
+const guardarFinca = async () => {
+    const f = metaFinca();
+    if (!f || metas.ocupado || !CAMPOS_FINCA.map(revisar).every(Boolean) || (!curvaVacia() && !curvaOk())) return vivo();
+    const boton = $id('meta_finca_guardar');
+    const curva = curvaVacia() ? '' : JSON.stringify(RANGO.map((m) => (typeof metas.curva[m] === 'number' ? metas.curva[m] : 0)));
+    metas.ocupado = true;
+    cargandoBoton(boton, true, 'Guardando…');
+    const result = await pedir('guardarMeta', { empresa: metas.empresa, anio: metas.anio, finca: f.finca, kilosAnual: enviarNum('meta_finca_kilos'), metaTonHa: enviarNum('meta_finca_tonha'), curva });
+    metas.ocupado = false;
+    cargandoBoton(boton, false);
+    if (result && metaFinca() === f) {
+        const c = result.meta.curva;
+        Object.assign(f, { kilosAnual: result.meta.kilosAnual, metaTonHa: result.meta.metaTonHa, curva: c ? RANGO.map((m) => c[m] ?? null) : null, suma: result.meta.suma, curvaCompleta: result.meta.completa });
+        $id('meta_finca_kilos').value = valorInput(f.kilosAnual);
+        $id('meta_finca_tonha').value = f.metaTonHa == null ? '' : nf(f.metaTonHa, 2);
+        ponerCurva(f.curva);
+        metas.sucioFinca = false;
+        menuCopiar();
+        pintarKpis();
+        Toast.fire({ icon: 'success', title: result.message || 'Meta de la finca guardada correctamente.' });
+        anunciar(result.message || 'Meta de la finca guardada correctamente.');
+    }
+    vivo();
+};
+
+const actualDe = (matriz, lote, m) => (matriz ? (matriz.lotes.find((l) => l.lote === lote)?.meses[m] ?? null) : null);
+
+const celdaPrevia = (actual, nuevo) => {
+    const cambia = actual != null && Math.abs(actual - (nuevo ?? 0)) >= 0.005;
+    const titulo = cambia ? `Actual: ${nf(actual, 0)} kg → Nuevo: ${nuevo == null ? '–' : `${nf(nuevo, 0)} kg`}` : '';
+    return `<td class="gp-ppto-celda solo ${cambia ? 'gp-ppto-cambia' : ''} ${nuevo == null && !cambia ? 'vacio' : ''}" ${cambia ? `title="${escapar(titulo)}"` : ''}>${nuevo == null ? '–' : nf(nuevo, 0)}${cambia ? `<span class="visually-hidden"> (${escapar(titulo)})</span>` : ''}</td>`;
+};
+
+const confirmarHabil = () => {
+    const g = metas.generacion;
+    const marca = $id('generar_entiendo');
+    $id('generar_confirmar').disabled = !g || metas.guardandoGen || (!!marca && !marca.checked);
+};
+
+const pintarPrevia = (r, f) => {
+    const meses = (r.meses || []).map(Number);
+    const hist = (r.mesesHistorico || []).map(Number);
+    const matriz = estado.finca?.finca === f.finca && estado.anio === metas.anio ? estado.finca : null;
+    const enReparto = new Set(r.lotes.map((l) => l.lote));
+    const fuera = (matriz?.lotes || []).filter((l) => !enReparto.has(l.lote) && meses.some((m) => l.meses[m] != null));
+    const filas = [
+        ...r.lotes.map((l) => ({ lote: l.lote, nombre: l.loteNombre, ha: l.hNetas, valor: (m) => (meses.includes(m) ? (l.meses?.[m] ?? null) : actualDe(matriz, l.lote, m)) })),
+        ...fuera.map((l) => ({ lote: l.lote, nombre: l.loteNombre, ha: null, valor: (m) => (meses.includes(m) ? null : (l.meses[m] ?? null)) }))
+    ];
+    const totales = RANGO.map((m) => filas.reduce((s, x) => s + Number(x.valor(m) ?? 0), 0));
+    const sobre = Number(r.celdasSobrescritas || 0);
+    const mini = (etiqueta, valor, sub, extra = '') => `<div class="col-12 col-md-4"><div class="gp-ppto-mini h-100 ${extra}"><div class="gp-etiqueta-mini">${etiqueta}</div><div class="gp-ppto-kpi">${valor}</div>${sub ? `<span class="gp-subtexto">${sub}</span>` : ''}</div></div>`;
+
+    $id('generar_titulo').textContent = `Previsualización · ${nombreFinca(f)} · ${metas.anio}`;
+    $id('generar_caption').textContent = `Presupuesto por lote a generar, ${nombreFinca(f)}, ${metas.anio}`;
+    $id('generar_kpis').innerHTML = mini('Total a generar', `${nf(Number(r.total || 0), 0)} <small>kg</small>`, `${meses.length} ${meses.length === 1 ? 'mes' : 'meses'} · meta ${nf(Number(r.kilosAnual || 0), 0)} kg`)
+        + mini('Lotes', `${r.lotes.length} <small>· ${nf(Number(r.hectareas || 0), 2)} ha netas</small>`, fuera.length ? (fuera.length === 1 ? '1 lote fuera del reparto perderá su presupuesto' : `${fuera.length} lotes fuera del reparto perderán su presupuesto`) : '')
+        + mini('Celdas a sobrescribir', `${sobre} <small>de ${Number(r.celdasExistentes || 0)}</small>`, sobre > 0 ? 'Resaltadas en la tabla' : 'Sin cambios sobre valores existentes', sobre > 0 ? 'ambar' : '');
+    $id('generar_historico').innerHTML = hist.length ? `<div class="gp-nota-alerta mb-3"><div class="d-flex gap-2"><i class="bi bi-exclamation-triangle"></i><div>
+        <div>Hay metas históricas de finca en ${hist.map((m) => MESES[m - 1].slice(0, 3)).join(', ')}. Al generar se reemplazarán por el detalle por lote.</div>
+        <div class="form-check mt-2 mb-0"><input class="form-check-input" type="checkbox" id="generar_entiendo"><label class="form-check-label fw-semibold" for="generar_entiendo">Entiendo que se reemplazarán las metas históricas</label></div>
+    </div></div></div>` : '';
+    $id('generar_cuerpo').innerHTML = filas.map((x) => `<tr class="${x.ha == null ? 'gp-ppto-fuera' : ''}">
+        <th scope="row" class="gp-ppto-col-lote">
+            <div class="font-monospace fw-semibold">${escapar(x.lote)}</div>
+            <span class="gp-subtexto gp-truncar gp-ppto-nombre" title="${escapar(x.nombre)}">${escapar(x.nombre) || '–'}</span>
+            ${x.ha == null ? '<span class="gp-chip-fila ambar">Fuera del reparto</span>' : `<span class="gp-subtexto font-monospace">${nf(x.ha, 2)} ha netas</span>`}
+        </th>
+        ${RANGO.map((m) => celdaPrevia(meses.includes(m) ? actualDe(matriz, x.lote, m) : null, x.valor(m))).join('')}
+        <td class="gp-ppto-col-total">${nf(RANGO.reduce((s, m) => s + Number(x.valor(m) ?? 0), 0), 0)}</td>
+    </tr>`).join('');
+    $id('generar_pie').innerHTML = `<tr><th scope="row" class="gp-ppto-col-lote">Total mes</th>${totales.map((t) => `<td>${nf(t, 0)}</td>`).join('')}<td class="gp-ppto-col-total">${nf(totales.reduce((s, t) => s + t, 0), 0)}</td></tr>`;
+    confirmarHabil();
+};
+
+const abrirGenerar = async () => {
+    const f = metaFinca();
+    if (!f || metas.ocupado) return;
+    if (!Number(f.lotesConArea)) {
+        Alerta.fire({ icon: 'warning', title: 'La finca no tiene lotes activos con hectáreas netas' });
+        return;
+    }
+    const boton = $id('meta_generar');
+    metas.ocupado = true;
+    cargandoBoton(boton, true, 'Calculando…');
+    const result = await pedir('generar', { empresa: metas.empresa, anio: metas.anio, finca: f.finca, simular: 1 });
+    metas.ocupado = false;
+    cargandoBoton(boton, false);
+    vivo();
+    if (!result || metaFinca() !== f) return;
+    metas.generacion = { ...result, finca: f.finca, empresa: metas.empresa, anio: metas.anio };
+    pintarPrevia(result, f);
+    modalGenerar.show();
+};
+
+const confirmarGenerar = async () => {
+    const g = metas.generacion;
+    if (!g || metas.guardandoGen) return;
+    const boton = $id('generar_confirmar');
+    const cierres = [$id('generar_cancelar'), $id('generar_cerrar')];
+    metas.guardandoGen = true;
+    cierres.forEach((b) => { b.disabled = true; });
+    cargandoBoton(boton, true, 'Guardando…');
+    const envio = await enviar('generar', { empresa: g.empresa, anio: g.anio, finca: g.finca, reemplazarHistorico: (g.mesesHistorico || []).length ? 1 : 0 });
+    metas.guardandoGen = false;
+    cierres.forEach((b) => { b.disabled = false; });
+    cargandoBoton(boton, false);
+    confirmarHabil();
+    if (!envio.ok) {
+        Alerta.fire({ icon: 'error', title: 'No se pudo generar el presupuesto', text: envio.result.message || '' });
+        return;
+    }
+    const r = envio.result;
+    const mensaje = `Presupuesto generado: ${r.meses.length} meses × ${r.lotes.length} lotes (${r.meses.length * r.lotes.length} celdas)`;
+    metas.generacion = null;
+    modalGenerar.hide();
+    Toast.fire({ icon: 'success', title: mensaje });
+    if ($id('filtro_finca').value === g.finca && Number($id('filtro_anio').value) === g.anio && empresa() === g.empresa) {
+        await cargar();
+        r.lotes.forEach((l) => r.meses.forEach((m) => flash(celdaEn(l.lote, m))));
+        $id('ppto_zona').scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+    }
+    anunciar(mensaje);
+};
+
+CAMPOS_EMP.forEach((id) => {
+    prepararInput($id(id));
+    $id(id).addEventListener('input', () => {
+        revisar(id);
+        ensuciar('sucioEmp');
+    });
+});
+
+['meta_finca_kilos', 'meta_finca_tonha'].forEach((id) => {
+    prepararInput($id(id));
+    $id(id).addEventListener('input', () => {
+        revisar(id);
+        ensuciar('sucioFinca');
+    });
+});
+
+let tAnuncio = null;
+
+const anunciarTotal = () => {
+    clearTimeout(tAnuncio);
+    anunciar(`Curva de estacionalidad: ${$id('curva_total').textContent}`);
+};
+
+$id('metas_copiar_ruta').addEventListener('click', async () => {
+    const ruta = 'Documentacion/BaseDeDatos/crear_presupuesto_metas.sql';
+    let ok = false;
+    try {
+        await navigator.clipboard.writeText(ruta);
+        ok = true;
+    } catch (error) {
+        const area = document.createElement('textarea');
+        area.value = ruta;
+        area.readOnly = true;
+        area.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0';
+        document.body.appendChild(area);
+        area.select();
+        try {
+            ok = document.execCommand('copy');
+        } catch (e) {
+            ok = false;
+        }
+        area.remove();
+    }
+    Toast.fire(ok ? { icon: 'success', title: 'Ruta copiada' } : { icon: 'error', title: 'No se pudo copiar la ruta' });
+});
 
 RANGO.forEach((m) => {
-    prepararInput(inputMes(m));
-    inputMes(m).addEventListener('input', actualizarAnual);
+    const input = $id(`curva_${m}`);
+    input.addEventListener('focus', () => {
+        if (typeof metas.curva[m] === 'number') input.value = String(Number(metas.curva[m].toFixed(4))).replace('.', ',');
+        input.select();
+    });
+    input.addEventListener('blur', () => {
+        if (typeof metas.curva[m] === 'number') input.value = formatear(metas.curva[m]);
+    });
+    input.addEventListener('input', () => {
+        input.value = input.value.replace(/[^\d.,]/g, '');
+        metas.curva[m] = parsear(input.value, 4);
+        revisar(input.id);
+        ensuciar('sucioFinca');
+        clearTimeout(tAnuncio);
+        tAnuncio = setTimeout(anunciarTotal, 600);
+    });
+    input.addEventListener('blur', anunciarTotal);
+    input.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        (m < 12 ? $id(`curva_${m + 1}`) : $id('meta_finca_guardar')).focus();
+    });
 });
-prepararInput($id('anual_distribuir'));
 
-$id('btn_distribuir').addEventListener('click', () => {
-    const total = parsear($id('anual_distribuir').value);
-    if (typeof total !== 'number') {
-        $id('anual_distribuir').classList.add('is-invalid');
+$id('meta_calcular').addEventListener('click', () => {
+    const kilos = redondear(numeroDe('meta_finca_tonha') * Number(metaFinca()?.hectareas || 0) * 1000);
+    $id('meta_finca_kilos').value = formatear(kilos);
+    marcarCampo('meta_finca_kilos', '');
+    ensuciar('sucioFinca');
+    $id('meta_finca_kilos').focus();
+});
+
+$id('curva_uniforme').addEventListener('click', () => {
+    ponerCurva(RANGO.map((m) => (m < 12 ? 8.33 : redondear(100 - 8.33 * 11))));
+    ensuciar('sucioFinca');
+});
+
+$id('curva_copiar_menu').addEventListener('click', async (e) => {
+    const boton = e.target.closest('[data-copiar]');
+    const f = metaFinca();
+    if (!boton || !f) return;
+    let curva = null;
+    if (boton.dataset.copiar === '') {
+        const clave = `${metas.empresa}|${metas.anio - 1}`;
+        if (!metas.cache[clave]) {
+            const result = await pedir('metas', { empresa: metas.empresa, anio: metas.anio - 1 });
+            if (!result) return;
+            metas.cache[clave] = result;
+        }
+        curva = metas.cache[clave].fincas?.find((x) => x.finca === f.finca)?.curva;
+    } else {
+        curva = metas.datos.fincas.find((x) => x.finca === boton.dataset.copiar)?.curva;
+    }
+    if (metaFinca() !== f) return;
+    if (!curva) {
+        Toast.fire({ icon: 'info', title: 'No hay curva para copiar' });
         return;
     }
-    const centavos = Math.round(total * 100);
-    const base = Math.floor(centavos / 12);
-    reemplazarSiHace(Object.fromEntries(RANGO.map((m) => [m, (m === 12 ? centavos - base * 11 : base) / 100])));
+    ponerCurva(curva);
+    ensuciar('sucioFinca');
+    Toast.fire({ icon: 'success', title: 'Curva copiada, revise y guarde' });
 });
 
-$id('btn_copiar_anterior').addEventListener('click', () => {
-    const ant = estado.anterior[anual.fila.finca];
-    if (tieneDatos(ant)) reemplazarSiHace(ant.meses);
+$id('meta_emp_guardar').addEventListener('click', guardarEmpresa);
+$id('meta_finca_guardar').addEventListener('click', guardarFinca);
+$id('meta_generar').addEventListener('click', abrirGenerar);
+$id('metas_reintentar').addEventListener('click', cargarMetas);
+$id('generar_confirmar').addEventListener('click', confirmarGenerar);
+$id('generar_historico').addEventListener('change', confirmarHabil);
+$id('modal_generar').addEventListener('hide.bs.modal', (e) => {
+    if (metas.guardandoGen) e.preventDefault();
 });
+$id('metas_cuerpo').addEventListener('shown.bs.collapse', () => window.dispatchEvent(new Event('resize')));
 
-$id('btn_limpiar_anual').addEventListener('click', () => ponerValoresAnual({}));
+$id('btn_consultar').addEventListener('click', guardia(cargar));
+$id('filtro_empresa').addEventListener('change', guardia(() => {
+    $id('filtro_finca').value = '';
+    cargarFincas();
+}));
+$id('filtro_anio').addEventListener('change', guardia(cargar));
+$id('filtro_finca').addEventListener('change', guardia(cargar));
+$id('btn_reintentar').addEventListener('click', () => (estado.cargado ? cargar() : cargarFincas()));
 
-$id('btn_guardar_anual').addEventListener('click', async (e) => {
-    const btn = e.currentTarget;
-    const meses = Object.fromEntries(RANGO.map((m) => {
-        const v = parsear(inputMes(m).value);
-        return [m, v === '' || v === null ? '' : canonico(v)];
-    }).filter(([m, v]) => v !== anual.originales[m]));
-    const original = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Guardando...';
-    const ok = await guardarMeses(anual.fila, meses);
-    btn.innerHTML = original;
-    btn.disabled = false;
-    if (!ok) return;
-    Toast.fire({ icon: 'success', title: 'Presupuesto guardado.' });
-    const finca = anual.fila.finca;
-    cerrarAnual();
-    flash(document.querySelector(window.innerWidth >= 768
-        ? `#cuerpo_ppto tr[data-finca="${escCss(finca)}"]`
-        : `#lista_ppto .gp-ppto-tarjeta[data-finca="${escCss(finca)}"]`));
+prepararInput(form.kilos);
+
+const cambioSeleccion = () => {
+    if (edicion && (edicion.lote !== form.lote.value || edicion.mes !== Number(form.mes.value))) edicion = null;
+    marcar('lote', '');
+    modoForm();
+    refrescarForm(true);
+};
+
+form.mes.addEventListener('change', cambioSeleccion);
+$lote.on('change', cambioSeleccion);
+form.kilos.addEventListener('input', () => {
+    if (parsear(form.kilos.value) !== null) marcar('kilos', '');
+    refrescarForm(false);
 });
-
-$id('btn_eliminar_anual').addEventListener('click', async () => {
-    if (await eliminarAnio(anual.fila)) cerrarAnual();
-});
-
-$id('modalPresupuestoAnual').addEventListener('hide.bs.modal', async (e) => {
-    if (cerrarForzado || !anual?.cambios) {
-        cerrarForzado = false;
-        return;
+form.kilos.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        form.kilos.blur();
+        guardarForm();
     }
-    e.preventDefault();
-    if (await confirmar({ icon: 'question', title: '¿Descartar cambios?', text: 'Los valores modificados no se guardarán.', confirmButtonText: 'Sí, descartar' })) cerrarAnual();
 });
-
+form.guardar.addEventListener('click', guardarForm);
+form.limpiar.addEventListener('click', reiniciarForm);
+form.eliminar.addEventListener('click', () => {
+    if (edicion) eliminarLote(edicion.lote, edicion.mes);
+});
 
 $id('ppto_zona').addEventListener('click', (e) => {
-    if (!estado.tablaExiste || !estado.cargado) return;
-    const boton = e.target.closest('[data-accion]');
-    if (boton) {
-        const fila = filaDe(boton.dataset.finca);
-        if (boton.dataset.accion === 'editar') abrirAnual(boton.dataset.finca);
-        if (boton.dataset.accion === 'eliminar' && fila) eliminarAnio(fila);
+    if (!editable() || guardando) return;
+    const borrar = e.target.closest('[data-eliminar]');
+    if (borrar) {
+        const mes = Number(borrar.dataset.mes);
+        if (borrar.dataset.eliminar === 'finca') eliminarMeta(mes);
+        else eliminarLote(borrar.dataset.lote, mes);
         return;
     }
-    const celda = e.target.closest('.gp-ppto-celda');
-    if (celda) abrirEditor(celda.dataset.finca, Number(celda.dataset.mes));
+    const celda = e.target.closest('.gp-ppto-celda-btn');
+    if (celda && !celda.disabled) seleccionarCelda(celda.dataset.lote, Number(celda.dataset.mes));
 });
 
-document.addEventListener('DOMContentLoaded', cargar);
+document.addEventListener('DOMContentLoaded', cargarFincas);

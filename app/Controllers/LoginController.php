@@ -2,6 +2,7 @@
 
 namespace App\Controllers;
 
+use App\Models\RolesModel;
 use App\Models\UsuariosModel;
 use CodeIgniter\HTTP\RedirectResponse;
 use DateTime;
@@ -36,7 +37,7 @@ class LoginController extends BaseController
             return redirect()->to(base_url('losetas'));
         }
 
-        $data = ['title' => 'Hecarse'];
+        $data = ['title' => sitio('nombre_app')];
         $data['welcome_message'] = lang('Login.welcome_login');
         $data['subtitle_login'] = lang('Login.subtitle_login');
         $data['username'] = lang('Login.username');
@@ -118,7 +119,7 @@ class LoginController extends BaseController
 
                     $session->set('id_auditoria_sesion', $idAuditoria);
 
-                    return $this->response->setJSON(['success' => true]);
+                    return $this->response->setJSON(['success' => true, 'redirect' => base_url((new RolesModel())->destinoInicio((int) $user['Id']))]);
                 } else {
                     // Contraseña incorrecta: incrementar intentos
                     $this->usuarios_model->incrementarIntentos($user['Id']);

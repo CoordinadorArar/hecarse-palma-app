@@ -73,3 +73,44 @@
   height: .65rem;
   border-radius: 2px;
 }
+
+.tb-calor-1, .tb-calor-2, .tb-calor-3, .tb-calor-4, .tb-calor-5 {
+  --bs-table-color: #2f3b48;
+  color: #2f3b48;
+}
+
+.tb-calor-1 { --bs-table-bg: #f4faf6; background-color: #f4faf6; }
+.tb-calor-2 { --bs-table-bg: #e3f2e8; background-color: #e3f2e8; }
+.tb-calor-3 { --bs-table-bg: #cfe9d8; background-color: #cfe9d8; }
+.tb-calor-4 { --bs-table-bg: #b5dcc3; background-color: #b5dcc3; }
+.tb-calor-5 { --bs-table-bg: #8fc9a3; background-color: #8fc9a3; }
+
+.tb-tabla-historico .tb-col-total {
+  border-left: 1px solid #dfe5ea;
+}
+
+.tb-tabla-historico .tb-anio-actual {
+  border-left: 3px solid #2f7a4b;
+}
+
+.tb-tabla-historico tbody th {
+  vertical-align: middle;
+}
+
+@media (max-width: 1199.98px) {
+  .tb-tabla-historico > table {
+    min-width: 1100px;
+  }
+
+  .tb-tabla-historico .tb-col-anio {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background-color: #fff;
+    box-shadow: inset -6px 0 6px -6px rgba(58, 75, 92, .18);
+  }
+
+  .tb-tabla-historico thead .tb-col-anio {
+    background-color: #eaf6ef;
+  }
+}

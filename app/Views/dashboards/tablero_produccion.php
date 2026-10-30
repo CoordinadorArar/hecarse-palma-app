@@ -29,6 +29,15 @@
     <div class="card gp-filtros mb-3">
         <div class="card-body py-3 px-4">
             <form id="form_filtros" class="row g-2 align-items-end" novalidate>
+                <div class="col-12 col-md-auto">
+                    <span class="form-label mb-1 small fw-semibold text-muted d-block">Vista</span>
+                    <div class="btn-group btn-group-sm w-100 tb-vista" role="group" aria-label="Vista del tablero">
+                        <input type="radio" class="btn-check" name="vista" id="vista_actual" value="actual" checked>
+                        <label class="btn btn-outline-success text-nowrap" for="vista_actual"><i class="bi bi-calendar3 me-1" aria-hidden="true"></i>Año actual</label>
+                        <input type="radio" class="btn-check" name="vista" id="vista_historico" value="historico">
+                        <label class="btn btn-outline-success text-nowrap" for="vista_historico"><i class="bi bi-clock-history me-1" aria-hidden="true"></i>Histórico</label>
+                    </div>
+                </div>
                 <div class="col-12 col-md-6 col-lg-3<?= count($empresas) > 1 ? '' : ' d-none' ?>">
                     <label class="form-label mb-1 small fw-semibold text-muted" for="filtro_empresa">Empresa</label>
                     <div class="input-group">
@@ -89,6 +98,9 @@
                 </div>
                 <div class="col-12 col-lg text-lg-end">
                     <button type="submit" class="btn btn-success ig-consultar" id="btn_consultar"><i class="bi bi-search me-1" aria-hidden="true"></i>Consultar</button>
+                </div>
+                <div class="col-12 d-none" id="nota_vista">
+                    <span class="gp-subtexto"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Año y mes de corte no aplican al histórico</span>
                 </div>
             </form>
         </div>

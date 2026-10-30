@@ -205,6 +205,15 @@ class FertilizacionController extends LaboresController
         );
     }
 
+    public function habilitar(): ResponseInterface
+    {
+        if ($this->tipoPedido() === PlanFertilizacionModel::TIPO && $this->permisos()['habilitar']) {
+            return $this->error('Los planes de fertilización no se liquidan en nómina y no requieren habilitación.');
+        }
+
+        return parent::habilitar();
+    }
+
     private function resultadoPlan(callable $accion, string $verbo): ResponseInterface
     {
         try {

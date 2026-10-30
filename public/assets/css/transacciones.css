@@ -439,6 +439,26 @@
   text-decoration: line-through;
 }
 
+.tx-tabla-consulta > tbody > tr.tx-fila-habilitada > td:first-child {
+  box-shadow: inset 3px 0 0 #e0a422;
+}
+
+.tx-btn-habilitar {
+  --bs-btn-color: #8a6100;
+  --bs-btn-border-color: #e9c46a;
+  --bs-btn-hover-color: #6b4b00;
+  --bs-btn-hover-bg: #fff6e5;
+  --bs-btn-hover-border-color: #d9a92e;
+  --bs-btn-active-color: #6b4b00;
+  --bs-btn-active-bg: #ffedc7;
+  --bs-btn-active-border-color: #d9a92e;
+  --bs-btn-focus-shadow-rgb: 224, 164, 34;
+}
+
+.tx-icono-habilitada {
+  color: #8a6100;
+}
+
 .tx-ficha {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));

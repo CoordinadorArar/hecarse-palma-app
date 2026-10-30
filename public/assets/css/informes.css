@@ -238,7 +238,8 @@ table.dataTable.inf-tabla-fija > thead > tr > th:first-child {
   font-size: 1.1rem;
 }
 
-#zona_resultados .card-header .gp-seccion {
+#zona_resultados .card-header .gp-seccion,
+#panel_siesa .card-header .gp-seccion {
   border-bottom: 0;
   padding-bottom: 0;
 }
@@ -301,4 +302,19 @@ table.dataTable.inf-tabla-fija > thead > tr > th:first-child {
   white-space: normal;
   width: 0;
   min-width: 100%;
+}
+
+.inf-badge-facturado {
+  background-color: #e8f1fb;
+  color: #1f5f99;
+  border: 1px solid #c5dbf2;
+}
+
+.inf-dif-alerta {
+  color: #a62c2c;
+  font-weight: 600;
+}
+
+.inf-tabla > tbody > tr.inf-fila-diferencia > td:first-child {
+  box-shadow: inset 3px 0 0 #e0a422, inset 0 0 0 9999px var(--bs-table-bg-state, transparent);
 }

@@ -1243,7 +1243,18 @@ const alertaBloqueo = (fila, accion) => {
     }
 
     if (accion === 'eliminar' && Number(fila.bloqueada) === 1) {
-        Swal.fire({ icon: 'warning', title: 'Transacción liquidada', html: 'Ya fue liquidada en nómina; no se puede eliminar.', confirmButtonText: 'Entendido' });
+        Swal.fire({ icon: 'warning', title: 'Transacción liquidada', html: `Ya fue liquidada en nómina; no se puede eliminar.${Number(fila.habilitada) === 1 ? ' La habilitación solo permite editarla.' : ''}`, confirmButtonText: 'Entendido' });
+
+        return true;
+    }
+
+    if (Number(fila.bloqueada) === 1 && Number(fila.habilitada) !== 1) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Transacción liquidada',
+            html: `La transacción <b class="font-monospace">${numero}</b> ya fue liquidada en nómina y no se puede editar.<br>${PERMISOS.habilitar ? 'Puede habilitarla con el botón <i class="bi bi-unlock"></i> de la consulta.' : 'Solicite a su superior que la habilite para edición.'}`,
+            confirmButtonText: 'Entendido'
+        });
 
         return true;
     }
@@ -1288,7 +1299,8 @@ const cargarEdicion = async (numero, tipo = '') => {
 
     if (alertaBloqueo({ ...encabezado, numero }, 'editar')) return;
 
-    const avisoLiquidada = () => Number(encabezado.bloqueada) === 1 && Toast.fire({ icon: 'info', title: 'Transacción liquidada en nómina: los cambios quedarán registrados en auditoría.' });
+    const vence = texto(encabezado.habilitadaVence);
+    const avisoLiquidada = () => Number(encabezado.habilitada) === 1 && Toast.fire({ icon: 'info', title: 'Edición habilitada · un solo uso', text: `Al guardar, la transacción quedará bloqueada de nuevo. Vence el ${fechaCorta(vence)} a las ${vence.substring(11, 16)}.`, timer: 8000 });
 
     limpiarTodo();
     ['pestanas', 'item_registro'].forEach((id) => $id(id)?.classList.remove('d-none'));

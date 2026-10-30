@@ -1,6 +1,6 @@
 const URL_TB = BASE_URL + 'dashboards/';
 const MESES = TABLERO.meses;
-const COLOR = { real: '#2f7a4b', meta: '#b6c0cb', anterior: '#8fc9a3', tonHa: '#1f5f8b', ppr: '#41a867' };
+const COLOR = { real: '#2f7a4b', meta: '#b6c0cb', anterior: '#8fc9a3', tonHa: '#1f5f8b', metaTonHa: '#4f7fa6', ppr: '#41a867' };
 const COLOR_SEMAFORO = { verde: '#2f7a4b', ambar: '#e0a800', rojo: '#dc3545' };
 const CLASE_KPI = { verde: 'ok', ambar: 'alerta', rojo: 'critico' };
 const CLIC = 'Clic en una finca para ver detalle';
@@ -20,6 +20,7 @@ const FORMATOS = {
     pctSigno: new Intl.NumberFormat('es-CO', { style: 'percent', minimumFractionDigits: 1, maximumFractionDigits: 1, signDisplay: 'exceptZero' }),
     ppr: new Intl.NumberFormat('es-CO', { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
     tonHa: new Intl.NumberFormat('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+    kg: new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }),
     compacto: new Intl.NumberFormat('es-CO', { notation: 'compact', maximumFractionDigits: 1 })
 };
 
@@ -31,7 +32,9 @@ const semaforoAnterior = (valor) => (valor >= 0 ? 'verde' : (valor >= -0.1 ? 'am
 const movil = () => window.innerWidth < 768;
 const alto = () => (movil() ? 260 : 320);
 
-const estado = { turno: 0, respuesta: null, filtros: null, textos: null, graficas: {} };
+const estado = { turno: 0, respuesta: null, filtros: null, textos: null, graficas: {}, meta: null };
+const SCRIPT_HISTORICO = 'crear_produccion_historica.sql';
+const FUENTE = { bascula: ['verde', 'Báscula', ''], historico: ['gris', 'Excel', ' · Histórico Excel'], mixto: ['ambar', 'Mixto', ' · Báscula/Excel'] };
 
 const estadoVacio = (icono, titulo, cuerpo, extra = '') => `
     <div class="gp-estado-vacio text-center py-5">
@@ -74,7 +77,8 @@ const valores = () => ({
     mes: $id('filtro_mes').value,
     modo: 'acumulado',
     finca: $id('filtro_finca').value,
-    siembra: $id('filtro_siembra').value
+    siembra: $id('filtro_siembra').value,
+    vista: document.querySelector('input[name="vista"]:checked').value
 });
 
 const textoSeleccion = (id) => $id(id).selectedOptions[0]?.text || '';
@@ -99,7 +103,7 @@ const ocupado = (activo) => {
 const tarjetaEsqueleto = (col) => `<div class="${col}"><div class="card mb-0 h-100"><div class="card-body pt-3"><span class="placeholder col-5 mb-3"></span><span class="placeholder w-100 rounded ig-esqueleto"></span></div></div></div>`;
 
 const skeleton = () => `<div class="placeholder-glow" aria-hidden="true">
-    <div class="row g-3 mb-3">${'<div class="col-12 col-sm-6 col-xl-3"><div class="inf-kpi d-block"><span class="placeholder col-6 mb-2"></span><span class="placeholder col-8 placeholder-lg"></span><span class="placeholder col-10 mt-2"></span></div></div>'.repeat(4)}</div>
+    <div class="row g-3 mb-3">${'<div class="col-12 col-sm-6 col-lg-4 col-xxl min-w-0"><div class="inf-kpi d-block"><span class="placeholder col-6 mb-2"></span><span class="placeholder col-8 placeholder-lg"></span><span class="placeholder col-10 mt-2"></span></div></div>'.repeat(5)}</div>
     <div class="row g-3 mb-3">${tarjetaEsqueleto('col-12 col-xl-8')}${tarjetaEsqueleto('col-12 col-xl-4')}</div>
     <div class="row g-3 mb-3">${tarjetaEsqueleto('col-12 col-lg-6 col-xl-4').repeat(3)}</div>
 </div>`;
@@ -121,19 +125,43 @@ const variacion = (valor, etiqueta, color) => {
 
 const progreso = (valor, color) => `<div class="progress ig-progreso mt-1" role="progressbar" aria-valuenow="${Math.round(Number(valor) * 100)}" aria-valuemin="0" aria-valuemax="100" aria-label="Cumplimiento"><div class="progress-bar ig-barra-${color}" style="width:${Math.min(Math.max(Number(valor), 0) * 100, 100)}%"></div></div>`;
 
-const kpi = (icono, etiqueta, valor, sub, extra = '', clase = '') => `<div class="col-12 col-sm-6 col-xl-3">
+const kpi = (icono, etiqueta, valor, sub, extra = '', clase = '') => `<div class="col-12 col-sm-6 col-lg-4 col-xxl min-w-0">
     <div class="inf-kpi ${clase}">
         <span class="gp-icono rounded-circle d-inline-flex align-items-center justify-content-center"><i class="bi ${icono}" aria-hidden="true"></i></span>
         <div class="min-w-0 flex-grow-1">
             <span class="gp-etiqueta-mini d-block">${etiqueta}</span>
             <div class="inf-kpi-valor" title="${escaparHtml(valor.replace(/<[^>]+>/g, ''))}">${valor}</div>
             ${extra}
-            ${sub ? `<div class="gp-subtexto">${sub}</div>` : ''}
+            ${sub ? `<div class="gp-subtexto text-truncate" title="${escaparHtml(sub.replace(/<[^>]+>/g, ''))}">${sub}</div>` : ''}
         </div>
     </div>
 </div>`;
 
-const pintarKpis = (kpis, corte) => {
+const metaTonHaCorte = (kpis, mes) => {
+    if (nulo(kpis.metaTonHa)) return null;
+
+    const factor = !nulo(kpis.meta) && Number(kpis.metaAnual) > 0 ? Number(kpis.meta) / Number(kpis.metaAnual) : mes / 12;
+
+    return Number(kpis.metaTonHa) * factor;
+};
+
+const kpiTonHa = (kpis, mes, porFinca) => {
+    const real = escaparHtml(f('tonHa', kpis.tonHa, ' t/ha'));
+    const corte = metaTonHaCorte(kpis, mes);
+
+    if (corte === null) return kpi('bi-speedometer2', 'Rendimiento t/ha', real, 'Sin meta t/ha cargada');
+
+    const sub = escaparHtml(`${kpis.metaTonHaOrigen === 'finca' ? 'Meta finca' : 'Meta empresa'}: ${f('tonHa', kpis.metaTonHa)} t/ha anual · ${f('tonHa', corte)} t/ha al corte`);
+
+    if (!(corte > 0) || nulo(kpis.tonHa)) return kpi('bi-speedometer2', 'Rendimiento t/ha', real, sub);
+
+    const cumple = Number(kpis.tonHa) / corte;
+    const color = semaforo(cumple);
+
+    return kpi('bi-speedometer2', 'Rendimiento t/ha', real, sub, `${variacion(cumple - 1, 'vs meta al corte', color)}${progreso(cumple, color)}`, `ig-kpi-${CLASE_KPI[color]}`);
+};
+
+const pintarKpis = (kpis, corte, mes, porFinca) => {
     const conMeta = !nulo(kpis.meta) && Number(kpis.meta) > 0;
     const cumple = conMeta && !nulo(kpis.cumplimiento);
     const color = cumple ? semaforo(Number(kpis.cumplimiento)) : null;
@@ -152,6 +180,7 @@ const pintarKpis = (kpis, corte) => {
         ${kpi('bi-calendar2-range', 'Real vs Año anterior', `<span class="${colorAnt ? `ig-texto-${colorAnt}` : ''}">${escaparHtml(f('tonSigno', kpis.difAnterior, ' t'))}</span>`, nulo(kpis.vsAnterior) ? 'Sin producción el año anterior' : escaparHtml(`Año anterior: ${f('ton', kpis.anterior, ' t')}`),
             `${variacion(kpis.vsAnterior, 'vs año anterior', colorAnt || 'verde')}<div class="tb-sparkline" id="spark_anterior" role="img" aria-label="Producción real y del año anterior por mes"></div>`,
             colorAnt ? `ig-kpi-${CLASE_KPI[colorAnt]}` : '')}
+        ${kpiTonHa(kpis, mes, porFinca)}
     </div>`;
 };
 
@@ -200,25 +229,31 @@ const opcionesMensual = (r, porFinca) => {
         { name: 'Presupuesto', type: 'column', data: serie(r.meses, 'meta') }
     ];
 
+    const kpis = r.kpis || {};
+    const conMetaTonHa = porFinca && !nulo(kpis.metaTonHa) && Number(kpis.metaAnual) > 0 && r.meses.some((mes) => !nulo(mes.meta));
+
     if (porFinca) series.push({ name: 'Ton/Ha', type: 'line', data: serie(r.meses, 'tonHa') });
+    if (conMetaTonHa) series.push({ name: 'Meta t/ha', type: 'line', data: r.meses.map((mes) => (nulo(mes.meta) ? null : (Number(kpis.metaTonHa) * Number(mes.meta)) / Number(kpis.metaAnual))) });
 
     return {
         ...base,
         chart: { ...base.chart, type: 'line' },
         series,
-        colors: [COLOR.real, COLOR.meta, COLOR.tonHa],
-        stroke: { width: [0, 0, 3], curve: 'straight' },
-        markers: { size: [0, 0, 4], strokeColors: '#fff', strokeWidth: 2 },
+        colors: [COLOR.real, COLOR.meta, COLOR.tonHa, COLOR.metaTonHa],
+        stroke: { width: [0, 0, 3, 2], curve: 'straight', dashArray: [0, 0, 0, 6] },
+        markers: { size: [0, 0, 4, 0], strokeColors: '#fff', strokeWidth: 2 },
+        legend: { ...base.legend, formatter: (nombre) => escaparHtml(nombre) },
         xaxis: { ...base.xaxis, categories: MESES },
         yaxis: porFinca
             ? [
                 { ...base.yaxis, seriesName: 'Ton ejecutadas' },
                 { seriesName: 'Ton ejecutadas', show: false },
-                { seriesName: 'Ton/Ha', opposite: true, min: 0, labels: { style: { colors: COLOR.tonHa }, formatter: (valor) => f('tonHa', valor) } }
+                { seriesName: 'Ton/Ha', opposite: true, min: 0, labels: { style: { colors: COLOR.tonHa }, formatter: (valor) => f('tonHa', valor) } },
+                ...(conMetaTonHa ? [{ seriesName: 'Ton/Ha', show: false }] : [])
             ]
             : base.yaxis,
         annotations: { xaxis: corte >= 1 && corte <= 12 ? [anotacion(MESES[corte - 1], 'Corte')] : [] },
-        tooltip: { shared: true, intersect: false, y: { formatter: (valor, { seriesIndex }) => (seriesIndex === 2 ? f('tonHa', valor, ' t/ha') : f('ton', valor, ' t')) } }
+        tooltip: { shared: true, intersect: false, y: { formatter: (valor, { seriesIndex }) => (seriesIndex >= 2 ? f('tonHa', valor, ' t/ha') : f('ton', valor, ' t')) } }
     };
 };
 
@@ -292,8 +327,11 @@ const opcionesGauge = (cumplimiento) => {
 
 const pintarContexto = () => {
     const r = estado.respuesta;
-    const ultimo = Number(r.filtros?.ultimoMes);
-    const chips = [`Corte: Ene – ${estado.textos.mes} ${texto(r.filtros?.anio)}`];
+    const historico = estado.filtros.vista === 'historico';
+    const ultimo = historico ? 0 : Number(r.filtros?.ultimoMes);
+    const chips = [historico ? `Vista: Histórico ${texto(r.desde)}–${texto(r.hasta)}` : `Corte: Ene – ${estado.textos.mes} ${texto(r.filtros?.anio)}`];
+    const fuentes = historico ? [] : [r.kpis?.fuentes?.real, r.kpis?.fuentes?.anterior].filter(Boolean);
+    const mixto = fuentes.includes('mixto') || (fuentes.includes('historico') && fuentes.includes('bascula'));
 
     if ($id('filtro_empresa').options.length > 1) chips.push(`Empresa: ${estado.textos.empresa}`);
 
@@ -305,6 +343,7 @@ const pintarContexto = () => {
 
     if (estado.filtros.siembra) html.push(`<span class="gp-chip-fila inf-chip-filtro">Siembra: ${escaparHtml(estado.filtros.siembra)}</span>`);
     if (ultimo >= 1 && ultimo <= 12) html.push(`<span class="gp-chip-fila ${Number(r.filtros?.mes) > ultimo ? 'ambar' : 'inf-chip-filtro'}">Último mes facturado: ${escaparHtml(MESES[ultimo - 1])}</span>`);
+    if (mixto || fuentes.includes('historico')) html.push(`<span class="gp-chip-fila ${mixto ? 'ambar' : 'gris'}" title="Parte de los datos proviene del histórico cargado desde Excel"><i class="bi bi-database me-1" aria-hidden="true"></i>Datos: ${mixto ? 'Mixto' : 'Histórico Excel'}</span>`);
 
     $id('chips_contexto').innerHTML = html.join('');
 };
@@ -386,7 +425,7 @@ const pintar = () => {
     const participan = fincas.filter((finca) => Number(finca.real) > 0);
     const resumen = `Real ${f('ton', kpis.real, ' t')} de Meta ${f('ton', kpis.meta, ' t')}`;
 
-    let html = avisosHtml(r.avisos) + pintarKpis(kpis, corte) + `<div class="row g-3 mb-3">
+    let html = avisosHtml(r.avisos) + pintarKpis(kpis, corte, r.filtros?.modo === 'mes' ? 1 : (Number(r.filtros?.mes) || 12), porFinca) + `<div class="row g-3 mb-3">
         ${tarjeta('col-12 col-xl-8', 'bi-bar-chart-line', 'Producción mensual vs presupuesto', porFinca ? 't · t/ha' : 't', conMeses ? lienzo('grafica_mensual', `Producción mensual: ${resumen} al corte de ${corte}`) : vacioGrafica())}
         ${tarjeta('col-12 col-xl-4', 'bi-speedometer2', 'Cumplimiento al corte', '%', conMeta
             ? `<div class="tb-gauge" id="grafica_gauge" role="img" aria-label="${escaparHtml(`Cumplimiento ${f('pct', kpis.cumplimiento)}. ${resumen}`)}"></div><div class="gp-subtexto tb-gauge-texto">${escaparHtml(resumen)}</div>`
@@ -416,6 +455,120 @@ const pintar = () => {
     if (!porFinca && participan.length) crear('participacion', 'grafica_participacion', opcionesDonut(participan, kpis.real));
 };
 
+const mezclar = (desde, hasta, t) => '#' + [1, 3, 5].map((i) => Math.round(parseInt(desde.substr(i, 2), 16) * (1 - t) + parseInt(hasta.substr(i, 2), 16) * t).toString(16).padStart(2, '0')).join('');
+
+const leyendaFuentes = (anios) => [['verde', 'Báscula del sistema'], ['gris', 'Histórico Excel'], ...(anios.some((anio) => anio.fuente === 'mixto') ? [['ambar', 'Mixto']] : [])]
+    .map(([clase, nombre]) => `<span class="gp-chip-fila ${clase} text-nowrap">${nombre}</span>`).join('');
+
+const opcionesHistorico = (anios) => {
+    const base = opcionesBase(alto());
+    const grises = Math.max(anios.length - 2, 0);
+
+    return {
+        ...base,
+        chart: { ...base.chart, type: 'line' },
+        series: anios.map((anio) => ({ name: String(anio.anio), data: anio.meses.map((valor) => (valor === null ? null : valor / 1000)) })),
+        colors: anios.map((_, i) => (i === 0 ? COLOR.real : (i === 1 ? COLOR.anterior : mezclar('#8795a4', '#d3dae1', grises > 1 ? (i - 2) / (grises - 1) : 0)))),
+        stroke: { width: anios.map((_, i) => [3.5, 2.5][i] ?? 1.5), curve: 'straight' },
+        markers: { size: anios.map((_, i) => (i === 0 ? 4 : 0)), strokeColors: '#fff', strokeWidth: 2 },
+        legend: { ...base.legend, formatter: (nombre) => escaparHtml(nombre), onItemClick: { toggleDataSeries: true }, onItemHover: { highlightDataSeries: true } },
+        xaxis: { ...base.xaxis, categories: MESES },
+        tooltip: { shared: true, intersect: false, y: { formatter: (valor, { seriesIndex }) => f('ton', valor, ' t') + (FUENTE[anios[seriesIndex]?.fuente]?.[2] || '') } }
+    };
+};
+
+const opcionesTonHaAnual = (anios, meta, parcial) => {
+    const base = opcionesBase(alto());
+
+    return {
+        ...base,
+        chart: { ...base.chart, type: 'bar' },
+        series: [{ name: 't/ha', data: serie(anios, 'tonHa') }],
+        colors: [({ dataPointIndex }) => (anios[dataPointIndex]?.anio === parcial ? 'rgba(31, 95, 139, .55)' : COLOR.tonHa)],
+        plotOptions: { bar: { ...base.plotOptions.bar, dataLabels: { position: 'top' } } },
+        dataLabels: { enabled: !movil(), offsetY: -18, formatter: (valor) => f('tonHa', valor), style: { fontSize: '11px', fontWeight: 600, colors: ['#3a4b5c'] } },
+        legend: { show: false },
+        xaxis: { ...base.xaxis, categories: anios.map((anio) => (anio.anio === parcial ? `${anio.anio}*` : String(anio.anio))), labels: { ...base.xaxis.labels, rotate: 0, hideOverlappingLabels: true } },
+        yaxis: { ...base.yaxis, max: (maximo) => Math.max(maximo, meta || 0) * 1.15, labels: { ...base.yaxis.labels, formatter: (valor) => f('tonHa', valor) } },
+        annotations: { yaxis: meta ? [{ y: meta, borderColor: COLOR.metaTonHa, strokeDashArray: 6, label: { text: `Meta ${f('tonHa', meta)} t/ha`, borderColor: COLOR.metaTonHa, style: { color: '#fff', background: COLOR.metaTonHa, fontSize: '11px' } } }] : [] },
+        tooltip: { y: { formatter: (valor) => f('tonHa', valor, ' t/ha') } }
+    };
+};
+
+const tablaHistorico = (anios, reciente, parcial, ultimoMes, periodo) => {
+    const todos = anios.flatMap((anio) => anio.meses).filter((valor) => valor !== null).sort((a, b) => a - b);
+    const umbrales = [0.2, 0.4, 0.6, 0.8].map((p) => todos[Math.floor(p * (todos.length - 1))]);
+    const celda = (valor) => (valor === null ? `<td class="inf-num">${NULO}</td>` : `<td class="inf-num tb-calor-${1 + umbrales.filter((umbral) => valor > umbral).length}">${f('kg', valor)}</td>`);
+    const filas = anios.map((anio) => {
+        const actual = anio.anio === reciente;
+        const esParcial = anio.anio === parcial;
+        const fuente = FUENTE[anio.fuente];
+
+        return `<tr>
+            <th scope="row" class="tb-col-anio${actual ? ' tb-anio-actual fw-semibold' : ' fw-normal'}">${anio.anio}${esParcial ? `<span class="gp-subtexto d-block text-nowrap">Parcial a ${escaparHtml(MESES[ultimoMes])}</span>` : ''}${fuente ? `<span class="d-block mt-1"><span class="gp-chip-fila ${fuente[0]}">${fuente[1]}</span></span>` : ''}</th>
+            ${anio.meses.map(celda).join('')}
+            <td class="inf-num fw-semibold tb-col-total"${esParcial ? ' title="parcial"' : ''}>${nulo(anio.total) ? NULO : f('kg', anio.total)}</td>
+        </tr>`;
+    }).join('');
+
+    return `<div class="row g-3 mb-3">${tarjeta('col-12', 'bi-table', 'Producción histórica mensual', `<span class="d-inline-flex flex-wrap align-items-center gap-1">${leyendaFuentes(anios)}<span class="ms-1">· kg</span></span>`, `<div class="table-responsive ig-ciclo-scroll tb-tabla-historico">
+        <table class="table table-sm align-middle mb-0 gp-tabla inf-tabla">
+            <caption class="visually-hidden">${escaparHtml(`Producción histórica mensual en kg por año, ${periodo}. Finca: ${estado.textos.finca}`)}</caption>
+            <thead class="gp-thead">
+                <tr><th scope="col" class="tb-col-anio">Año</th>${MESES.map((mes) => `<th scope="col" class="text-end">${escaparHtml(mes)}</th>`).join('')}<th scope="col" class="text-end tb-col-total">Total</th></tr>
+            </thead>
+            <tbody>${filas}</tbody>
+        </table>
+    </div>`)}</div>`;
+};
+
+const pintarHistorico = () => {
+    const r = estado.respuesta;
+    const avisos = r.avisos || [];
+    const sinTabla = avisos.some((aviso) => texto(aviso).includes(SCRIPT_HISTORICO));
+    const anios = (r.anios || []).map((anio) => ({ ...anio, anio: Number(anio.anio), meses: Array.from({ length: 12 }, (_, i) => (nulo(anio.meses?.[i]) ? null : Number(anio.meses[i]))) })).sort((a, b) => b.anio - a.anio);
+    const conLineas = anios.filter((anio) => anio.meses.some((valor) => valor !== null));
+
+    destruirGraficas();
+    pintarContexto();
+
+    if (!conLineas.length) {
+        $id('resultado_cuerpo').innerHTML = sinTabla
+            ? avisosHtml(avisos.filter((aviso) => !texto(aviso).includes(SCRIPT_HISTORICO))) + `<div class="card mb-3">${estadoVacio('bi-database-exclamation', 'Histórico no disponible', `<p class="text-muted mb-0">La tabla de producción histórica aún no está creada. Solicite al administrador ejecutar <code>Documentacion/BaseDeDatos/${SCRIPT_HISTORICO}</code> y <code>Documentacion/BaseDeDatos/cargar_produccion_historica.sql</code>.</p>`)}</div>`
+            : avisosHtml(avisos) + `<div class="card mb-3">${estadoVacio('bi-bar-chart', 'Sin histórico para los filtros seleccionados', '<p class="text-muted mb-0">Ajuste la finca o el año de siembra.</p>')}</div>`;
+        return;
+    }
+
+    const actual = conLineas[0];
+    const ultimoMes = actual.meses.findLastIndex((valor) => valor !== null);
+    const parcial = ultimoMes < 11 ? actual.anio : null;
+    const ton = (anio) => (nulo(anio.total) ? anio.meses.reduce((suma, valor) => suma + (valor || 0), 0) : Number(anio.total)) / 1000;
+    const completos = conLineas.filter((anio) => anio.anio !== parcial);
+    const mejor = (completos.length ? completos : conLineas).reduce((a, b) => (ton(b) > ton(a) ? b : a));
+    const meta = Number(r.metaTonHa) > 0 ? Number(r.metaTonHa) : null;
+    const asc = [...anios].reverse();
+    const conTonHa = asc.some((anio) => !nulo(anio.tonHa));
+    const periodo = `${texto(r.desde)}–${texto(r.hasta)}`;
+
+    $id('resultado_cuerpo').innerHTML = avisosHtml(avisos) + `<div class="row g-3 mb-3">
+        ${tarjeta('col-12 col-xl-8', 'bi-graph-up', 'Producción mensual por año', 't', `${lienzo('grafica_historico', `Producción mensual ${periodo}. Año actual ${f('ton', ton(actual), ' t')} a ${MESES[ultimoMes]}; mejor año ${mejor.anio} con ${f('ton', ton(mejor), ' t')}`)}`)}
+        ${tarjeta('col-12 col-xl-4', 'bi-bar-chart', 'Toneladas por hectárea anual', 't/ha', conTonHa
+            ? lienzo('grafica_tonha_anual', `t/ha anual por año; meta ${meta ? f('tonHa', meta) : 'sin meta'}; año actual ${f('tonHa', actual.tonHa)}${parcial ? ' parcial' : ''}`) + (parcial ? `<div class="gp-subtexto mt-2">* Parcial a ${escaparHtml(MESES[ultimoMes])}</div>` : '')
+            : vacioGrafica('t/ha histórico no disponible para el filtro seleccionado'))}
+    </div>${tablaHistorico(anios, actual.anio, parcial, ultimoMes, periodo)}`;
+
+    crear('historico', 'grafica_historico', opcionesHistorico(conLineas));
+    if (conTonHa) crear('tonHaAnual', 'grafica_tonha_anual', opcionesTonHaAnual(asc, meta, parcial));
+};
+
+const claveMeta = (filtros) => [filtros.empresa, filtros.finca, filtros.siembra].join('|');
+
+const guardarMeta = (r, filtros) => (estado.meta = { clave: claveMeta(filtros), valor: r?.kpis?.metaTonHa });
+
+const metaHistorico = (filtros) => (estado.meta?.clave === claveMeta(filtros)
+    ? Promise.resolve(estado.meta)
+    : pedir('produccion/datos', { ...filtros, vista: '' }).then((r) => guardarMeta(r, filtros)).catch(() => null));
+
 const consultar = async () => {
     const turno = ++estado.turno;
     const filtros = valores();
@@ -429,9 +582,14 @@ const consultar = async () => {
     $id('resultado_cuerpo').innerHTML = skeleton();
 
     let respuesta;
+    let meta = null;
 
     try {
-        respuesta = await pedir('produccion/datos', filtros);
+        if (filtros.vista === 'historico') {
+            [respuesta, meta] = await Promise.all([pedir('produccion/historico', { empresa: filtros.empresa, finca: filtros.finca, siembra: filtros.siembra }), metaHistorico(filtros)]);
+        } else {
+            respuesta = await pedir('produccion/datos', filtros);
+        }
     } catch (error) {
         if (turno !== estado.turno) return;
 
@@ -448,6 +606,14 @@ const consultar = async () => {
 
     ocupado(false);
     estado.respuesta = respuesta;
+
+    if (filtros.vista === 'historico') {
+        if (nulo(respuesta.metaTonHa)) respuesta.metaTonHa = meta?.valor;
+        pintarHistorico();
+        return;
+    }
+
+    guardarMeta(respuesta, filtros);
     pintar();
 };
 
@@ -483,6 +649,14 @@ $('#filtro_finca, #filtro_siembra').select2({
 
 ['filtro_anio', 'filtro_mes'].forEach((id) => $id(id).addEventListener('change', revisarVigencia));
 $id('filtro_empresa').addEventListener('change', cargarEmpresa);
+
+document.querySelectorAll('input[name="vista"]').forEach((radio) => radio.addEventListener('change', () => {
+    const historico = radio.value === 'historico';
+
+    ['filtro_anio', 'filtro_mes'].forEach((id) => { $id(id).disabled = historico; });
+    mostrar($id('nota_vista'), historico);
+    consultar();
+}));
 
 $id('form_filtros').addEventListener('submit', (evento) => {
     evento.preventDefault();

@@ -19,7 +19,7 @@
 
                         <div class="d-flex justify-content-center py-4">
                             <a href="#" class="logo d-flex align-items-center">
-                                <img src="public/assets/img/logo_hecarse.png" width="300" height="130" alt="Hecarse">
+                                <img src="<?= esc(sitio_img('logo'), 'attr') ?>" class="app-logo-acceso" alt="<?= esc(sitio('nombre_app'), 'attr') ?>">
                             </a>
                         </div>
 
@@ -129,7 +129,7 @@
             const result = await response.json();
 
             if (result.success) {
-                window.location.href = 'losetas/';
+                window.location.href = result.redirect || 'losetas/';
             } else {
                 document.getElementById('username').value = '';
                 document.getElementById('password').value = '';

@@ -5,6 +5,7 @@ $pRegistrar  = ! empty($permisos['registrar']);
 $pConsultar  = ! empty($permisos['consultar']);
 $pEditar     = $pConsultar && ! empty($permisos['editar']);
 $pEliminar   = $pConsultar && ! empty($permisos['eliminar']);
+$pHabilitar  = $pConsultar && ! empty($permisos['habilitar']);
 $conRegistro = $pRegistrar || $pEditar;
 $conPestanas = $conRegistro && $pConsultar;
 $etiqueta    = static fn ($valor) => ucfirst(mb_strtolower(trim(preg_replace('/\s+/', ' ', (string) $valor))));
@@ -560,7 +561,7 @@ $etiqueta    = static fn ($valor) => ucfirst(mb_strtolower(trim(preg_replace('/\
                     <table class="table table-hover align-middle mb-0 gp-tabla tx-tabla-consulta">
                         <thead class="gp-thead">
                             <tr>
-                                <th class="text-center" style="width:90px">Acciones</th>
+                                <th class="text-center" style="width:<?= $pHabilitar ? 130 : 90 ?>px">Acciones</th>
                                 <th style="width:70px">Tipo</th>
                                 <th style="width:140px">Número</th>
                                 <th style="width:110px">Fecha</th>
@@ -636,7 +637,7 @@ $etiqueta    = static fn ($valor) => ucfirst(mb_strtolower(trim(preg_replace('/\
 <script>
     const BASE_URL = "<?= base_url() ?>";
     const MODULO_TX = { ruta: 'fertilizacion', jornales: false, referencia: true, items: <?= json_encode($items ?? []) ?> };
-    const PERMISOS = <?= json_encode(['registrar' => $pRegistrar, 'consultar' => $pConsultar, 'editar' => $pEditar, 'eliminar' => $pEliminar]) ?>;
+    const PERMISOS = <?= json_encode(['registrar' => $pRegistrar, 'consultar' => $pConsultar, 'editar' => $pEditar, 'eliminar' => $pEliminar, 'habilitar' => $pHabilitar]) ?>;
 </script>
 <script src="<?= asset_url('public/assets/js/transacciones/labores.js') ?>"></script>
 <script src="<?= asset_url('public/assets/js/transacciones/labores_consulta.js') ?>"></script>

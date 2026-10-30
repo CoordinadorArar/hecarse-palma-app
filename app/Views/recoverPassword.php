@@ -18,7 +18,7 @@
 
                         <div class="d-flex justify-content-center py-4">
                             <a href="#" class="logo d-flex align-items-center w-auto">
-                                <img src="<?= base_url('public/assets/img/logo_hecarse.png') ?>" width="300" height="130" alt="Hecarse">
+                                <img src="<?= esc(sitio_img('logo'), 'attr') ?>" class="app-logo-acceso" alt="<?= esc(sitio('nombre_app'), 'attr') ?>">
                             </a>
                         </div>
 
