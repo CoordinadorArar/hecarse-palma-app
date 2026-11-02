@@ -405,6 +405,59 @@ class LaboresController extends BaseController
         return $this->response->setJSON($resultado);
     }
 
+    public function habilitar(): ResponseInterface
+    {
+        if ($sinSesion = $this->sesionRequerida(['habilitar'], 'habilitar para edición transacciones de ' . static::NOMBRE)) {
+            return $sinSesion;
+        }
+
+        $empresa = $this->empresaValida();
+
+        if ($empresa === null) {
+            return $this->error('Debe seleccionar una empresa válida.');
+        }
+
+        $numero = trim($this->campo('numero'));
+
+        if ($numero === '' || strlen($numero) > 50) {
+            return $this->error('El campo "Número" es obligatorio y admite máximo 50 caracteres.');
+        }
+
+        $motivo = trim($this->campo('motivo'));
+
+        if ($motivo === '' || mb_strlen($motivo) > 250) {
+            return $this->error('El campo "Motivo" es obligatorio y admite máximo 250 caracteres.');
+        }
+
+        if (! $this->laboresModel->tablaHabilitaciones()) {
+            return $this->error('La habilitación de transacciones no está disponible: falta ejecutar el script crear_habilitacion_transacciones.sql.', 500);
+        }
+
+        $antes = $this->transaccionEditable($empresa, $numero, 'habilitar');
+
+        if ($antes instanceof ResponseInterface) {
+            return $antes;
+        }
+
+        try {
+            $vence = $this->laboresModel->habilitar($empresa, $numero, $motivo, $this->session->get('usu_id'));
+        } catch (\Throwable $e) {
+            log_message('error', 'Error habilitando la transacción de ' . static::NOMBRE . ': ' . $e->getMessage());
+
+            return $this->error('No se pudo habilitar la transacción.', 500);
+        }
+
+        if ($vence === null) {
+            return $this->error('La transacción ' . $numero . ' ya tiene una habilitación vigente para edición.');
+        }
+
+        return $this->response->setJSON([
+            'success' => true,
+            'message' => 'Transacción ' . $numero . ' habilitada para edición hasta ' . $vence . '.',
+            'vence'   => $vence,
+        ]);
+    }
+
     protected function listado(callable $consulta, string $nombre): ResponseInterface
     {
         try {
@@ -441,8 +494,22 @@ class LaboresController extends BaseController
             return $this->error('La transacción ' . $numero . ' está anulada y no se puede ' . $accion . '.');
         }
 
-        if ($accion !== 'editar' && $this->laboresModel->liquidada($empresa, $numero)) {
-            return $this->error('La transacción ' . $numero . ' ya fue liquidada o ejecutada en nómina y no se puede ' . $accion . '.');
+        $liquidada = $this->laboresModel->liquidada($empresa, $numero);
+
+        if ($accion === 'habilitar' && ! $liquidada) {
+            return $this->error('La transacción ' . $numero . ' no está liquidada en nómina: se puede editar sin habilitación.');
+        }
+
+        if ($accion !== 'habilitar' && $liquidada) {
+            $habilitacion = $accion === 'editar' ? $this->laboresModel->habilitacion($empresa, $numero) : null;
+
+            if ($habilitacion === null) {
+                return $this->error($accion === 'editar'
+                    ? 'La transacción ' . $numero . ' ya fue liquidada en nómina y no se puede editar. Solicite a su superior que la habilite para edición.'
+                    : 'La transacción ' . $numero . ' ya fue liquidada o ejecutada en nómina y no se puede ' . $accion . '.');
+            }
+
+            $antes['habilitacion'] = $habilitacion['id'];
         }
 
         if ($antes['encabezado']['cerrado'] === 1) {
@@ -814,7 +881,7 @@ class LaboresController extends BaseController
             $modulo   = $this->laboresModel->idModulo();
             $acciones = $modulo > 0 ? $this->laboresModel->accionesPermitidas((int) $this->session->get('usu_id'), $modulo) : [];
 
-            foreach (['registrar', 'consultar', 'editar', 'eliminar'] as $accion) {
+            foreach (['registrar', 'consultar', 'editar', 'eliminar', 'habilitar'] as $accion) {
                 $this->permisos[$accion] = in_array($accion . '-' . static::PERMISO, $acciones, true);
             }
         }

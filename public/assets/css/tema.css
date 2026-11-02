@@ -1,0 +1,97 @@
+:root {
+  --bs-primary: var(--app-primary);
+  --bs-primary-rgb: var(--app-primary-rgb);
+  --bs-primary-text-emphasis: var(--app-primary-emphasis);
+  --bs-primary-bg-subtle: var(--app-primary-subtle);
+  --bs-primary-border-subtle: var(--app-primary-border);
+  --bs-link-color: var(--app-primary);
+  --bs-link-color-rgb: var(--app-primary-rgb);
+  --bs-link-hover-color: var(--app-primary-hover);
+  --bs-link-hover-color-rgb: var(--app-primary-rgb);
+  --bs-focus-ring-color: rgba(var(--app-primary-rgb), .25);
+}
+
+.btn-primary {
+  --bs-btn-bg: var(--app-primary);
+  --bs-btn-border-color: var(--app-primary);
+  --bs-btn-hover-bg: var(--app-primary-hover);
+  --bs-btn-hover-border-color: var(--app-primary-hover);
+  --bs-btn-active-bg: var(--app-primary-active);
+  --bs-btn-active-border-color: var(--app-primary-active);
+  --bs-btn-disabled-bg: var(--app-primary);
+  --bs-btn-disabled-border-color: var(--app-primary);
+  --bs-btn-focus-shadow-rgb: var(--app-primary-rgb);
+}
+
+.btn-outline-primary {
+  --bs-btn-color: var(--app-primary);
+  --bs-btn-border-color: var(--app-primary);
+  --bs-btn-hover-color: #fff;
+  --bs-btn-hover-bg: var(--app-primary);
+  --bs-btn-hover-border-color: var(--app-primary);
+  --bs-btn-active-color: #fff;
+  --bs-btn-active-bg: var(--app-primary-hover);
+  --bs-btn-active-border-color: var(--app-primary-hover);
+  --bs-btn-disabled-color: var(--app-primary);
+  --bs-btn-disabled-border-color: var(--app-primary);
+  --bs-btn-focus-shadow-rgb: var(--app-primary-rgb);
+}
+
+.nav-pills {
+  --bs-nav-pills-link-active-bg: var(--app-primary);
+}
+
+.pagination {
+  --bs-pagination-color: var(--app-primary);
+  --bs-pagination-hover-color: var(--app-primary-hover);
+  --bs-pagination-focus-color: var(--app-primary-hover);
+  --bs-pagination-focus-box-shadow: 0 0 0 .25rem rgba(var(--app-primary-rgb), .25);
+  --bs-pagination-active-bg: var(--app-primary);
+  --bs-pagination-active-border-color: var(--app-primary);
+}
+
+.dataTables_wrapper .pagination .page-item.active .page-link {
+  background-color: var(--app-primary);
+  border-color: var(--app-primary);
+  color: #fff;
+}
+
+.dataTables_wrapper .pagination .page-link:focus {
+  box-shadow: 0 0 0 .25rem rgba(var(--app-primary-rgb), .25);
+}
+
+.dropdown-menu {
+  --bs-dropdown-link-active-bg: var(--app-primary);
+}
+
+.list-group {
+  --bs-list-group-active-bg: var(--app-primary);
+  --bs-list-group-active-border-color: var(--app-primary);
+}
+
+.progress,
+.progress-stacked {
+  --bs-progress-bar-bg: var(--app-primary);
+}
+
+.form-control:focus,
+.form-select:focus {
+  border-color: var(--app-primary);
+  box-shadow: 0 0 0 .25rem rgba(var(--app-primary-rgb), .25);
+}
+
+.form-check-input:checked {
+  background-color: var(--app-primary);
+  border-color: var(--app-primary);
+}
+
+.form-check-input:focus {
+  border-color: var(--app-primary);
+  box-shadow: 0 0 0 .25rem rgba(var(--app-primary-rgb), .25);
+}
+
+.app-logo-acceso {
+  width: 220px;
+  height: auto;
+  max-width: 70vw;
+}

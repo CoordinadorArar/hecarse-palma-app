@@ -11,6 +11,9 @@
      Fase A: borra en AppPalma las filas cuya llave primaria no está en Infos
              (incluye las transacciones de prueba de desarrollo03 y versiones
              viejas de registros que luego se editaron en Infos). Hijos primero.
+             Excepción: con @ConservarPesosSoloAppPalma = 1 NO borra las filas
+             de aLotePesosPeriodo que solo existen en AppPalma (proyección
+             CGL10-22 a CGL14-22, finca 003, nov-2026 a dic-2030).
      Fase B: actualiza las filas que cambiaron e inserta las que faltan.
              Padres primero.
      Las demás tablas comunes ya eran idénticas al 07-oct-2026 (verificarlo el
@@ -22,12 +25,21 @@
      cuántas filas tocaría por tabla y hace ROLLBACK. No queda ningún cambio.
      @Aplicar = 1: lo mismo pero hace COMMIT.
      Cualquier error (por ejemplo una llave foránea) revierte TODO.
+     @ConservarPesosSoloAppPalma = 1 (por defecto): conserva en AppPalma las
+     filas de aLotePesosPeriodo que no existen en Infos (0 eliminadas); las
+     de Infos se actualizan e insertan igual.
+     @ConservarPesosSoloAppPalma = 0: también las elimina (Infos manda).
 
    REQUISITOS
    ----------
      - Infos congelada (sin usuarios registrando) y respaldos de ambas bases.
      - Nadie usando AppPalma para registrar transacciones reales: lo que exista
-       solo en AppPalma en estas tablas se ELIMINA.
+       solo en AppPalma en estas tablas se ELIMINA (salvo aLotePesosPeriodo
+       con @ConservarPesosSoloAppPalma = 1).
+     - Ninguna actividad de planeación vinculada a transacciones
+       (pPlaneacionLinea.numeroTransaccion IS NOT NULL). Si existe alguna, el
+       script se detiene con error 50001 antes de abrir la transacción y no
+       cambia nada.
      - Ejecutar conectado a AppPalma con un usuario que lea Infos.
 
    CODIFICACIÓN / FORMA DE EJECUTAR
@@ -40,9 +52,12 @@ SET NOCOUNT ON;
 SET XACT_ABORT ON;
 
 DECLARE @Aplicar BIT = 0;
+DECLARE @ConservarPesosSoloAppPalma BIT = 1;
 DECLARE @log TABLE (orden INT IDENTITY(1,1), tabla SYSNAME, accion NVARCHAR(20), filas INT);
 
 BEGIN TRY
+
+    IF EXISTS (SELECT 1 FROM AppPalma.dbo.pPlaneacionLinea WHERE numeroTransaccion IS NOT NULL) THROW 50001, N'Hay actividades de planeación vinculadas a transacciones; resolver antes de sincronizar.', 1;
 
     BEGIN TRAN;
 
@@ -73,7 +88,7 @@ BEGIN TRY
     INSERT @log VALUES (N'aTransaccion', N'eliminadas', @@ROWCOUNT);
 
     DELETE d FROM AppPalma.dbo.[aLotePesosPeriodo] d
-    WHERE NOT EXISTS (SELECT 1 FROM Infos.dbo.[aLotePesosPeriodo] s WHERE d.[empresa] = s.[empresa] AND d.[año] = s.[año] AND d.[mes] = s.[mes] AND d.[finca] = s.[finca] AND d.[lote] = s.[lote]);
+    WHERE @ConservarPesosSoloAppPalma = 0 AND NOT EXISTS (SELECT 1 FROM Infos.dbo.[aLotePesosPeriodo] s WHERE d.[empresa] = s.[empresa] AND d.[año] = s.[año] AND d.[mes] = s.[mes] AND d.[finca] = s.[finca] AND d.[lote] = s.[lote]);
     INSERT @log VALUES (N'aLotePesosPeriodo', N'eliminadas', @@ROWCOUNT);
 
     DELETE d FROM AppPalma.dbo.[aNovedadLotePrecio] d

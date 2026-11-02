@@ -44,6 +44,8 @@ class AdminController extends BaseController
             return $data;
         }
 
+        $data['resumen'] = $this->admin_model->resumen();
+
         return view('admin/onboarding', $data);
     }
 

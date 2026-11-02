@@ -7,6 +7,7 @@ use CodeIgniter\HTTP\RedirectResponse;
 use CodeIgniter\HTTP\ResponseInterface;
 
 use App\Models\LosetasModel;
+use App\Models\ReportesModel;
 use App\Models\RolesModel;
 
 class RolesController extends BaseController
@@ -54,13 +55,14 @@ class RolesController extends BaseController
     {
         $roles = $this->roles_model->getAllRoles();
 
-        $html = '<table id="tabla_roles" class="table table-striped table-hover" style="width:100%">
-                <thead>
+        $html = '<div class="table-responsive"><table id="tabla_roles" class="table table-striped table-hover gp-tabla" style="width:100%">
+                <thead class="gp-thead">
                     <tr>
                         <th>Nombre</th>
+                        <th>Vista de inicio</th>
                         <th>Fecha Creación</th>
                         <th>Usuario</th>
-                        <th>Acciones</th>
+                        <th class="text-end">Acciones</th>
                     </tr>
                 </thead>';
 
@@ -68,18 +70,23 @@ class RolesController extends BaseController
 
         foreach ($roles as $rol) {
             $estado = is_null($rol['FechaFinalizacion']) ? 'activo' : 'inactivo';
+            $texto = $rol['inicio_nombre'] ?? 'Menú principal';
+            $inicio = $rol['inicio_nombre'] === null
+                ? '<span class="rl-inicio-def"><i class="bi bi-grid-3x3-gap me-1"></i>Menú principal</span>'
+                : '<span class="gp-chip-fila verde rl-inicio" title="' . esc($texto, 'attr') . '"><i class="' . esc($rol['inicio_icono'] ?: 'bi bi-window', 'attr') . '"></i><span class="text-truncate">' . implode('<span class="gp-ruta-sep">›</span>', array_map('esc', explode(' › ', $texto))) . '</span></span>';
             $html .= '<tr class="' . $estado . '">
-                    <td>' . htmlspecialchars($rol['Nombre']) . '</td>
-                    <td>' . htmlspecialchars($rol['FechaInicio']) . '</td>
-                    <td>' . htmlspecialchars($rol['NombreUsuario'] . ' ' . $rol['ApellidoUsuario']) . '</td>
-                    <td>
-                        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#editRolModal" onclick="obtenerRol(' . $rol['Id'] . ')">Modificar</button>
+                    <td>' . esc($rol['Nombre']) . ($estado === 'inactivo' ? '<span class="gp-chip-fila gris ms-1">Inactivo</span>' : '') . '</td>
+                    <td data-order="' . esc($texto, 'attr') . '" data-search="' . esc($texto, 'attr') . '">' . $inicio . '</td>
+                    <td>' . esc($rol['FechaInicio']) . '</td>
+                    <td>' . esc($rol['NombreUsuario'] . ' ' . $rol['ApellidoUsuario']) . '</td>
+                    <td class="text-end">
+                        <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#editRolModal" onclick="obtenerRol(' . (int) $rol['Id'] . ')"><i class="bi bi-pencil me-1"></i>Modificar</button>
                     </td>
                 </tr>';
         }
 
         $html .= '</tbody>';
-        $html .= '</table>';
+        $html .= '</table></div>';
 
         return $html;
     }
@@ -170,7 +177,7 @@ class RolesController extends BaseController
             $html .= '
                 <li id="' . $modulo['Id'] . '" class="list-group-item d-flex justify-content-between align-items-center">
                     ' . $html_nombre_modulo . '
-                    <button id="asignar_' . esc($modulo['Id']) . '" type="button" class="btn btn-primary btn-sm" onclick="asginarModulo(' . esc($modulo['Id']) . ')">Asignar</button>
+                    <button id="asignar_' . esc($modulo['Id']) . '" type="button" class="btn btn-outline-primary btn-sm" onclick="asginarModulo(' . esc($modulo['Id']) . ')">Asignar</button>
                 </li>
             ';
         }
@@ -196,7 +203,7 @@ class RolesController extends BaseController
             $html .= '
                 <li id="' . $modulo['Id'] . '" class="list-group-item d-flex justify-content-between align-items-center">
                     ' . $html_nombre_modulo . '
-                    <button id="quitar_' . esc($modulo['Id']) . '" type="button" class="btn btn-primary btn-sm" onclick="quitarModulo(' . esc($modulo['Id']) . ')">Quitar</button>
+                    <button id="quitar_' . esc($modulo['Id']) . '" type="button" class="btn btn-outline-danger btn-sm" onclick="quitarModulo(' . esc($modulo['Id']) . ')">Quitar</button>
                 </li>
             ';
         }
@@ -218,6 +225,7 @@ class RolesController extends BaseController
         $fecha = explode(' ', $date)[0] . 'T' . explode(' ', $date)[1];
 
         $ok = $this->losetas_model->deleteRolModule($id_rol, $id_modulo, $fecha);
+        $this->roles_model->depurarInicio((int) $id_rol);
         $modulos_rol = $this->getModulesByRol($id_rol);
         $all_modulos = $this->getModulesNotRol($id_rol);
 
@@ -227,7 +235,8 @@ class RolesController extends BaseController
                 'success' => $ok,
                 'message' => $ok ? 'Módulo quitado correctamente.' : 'No se pudo quitar el módulo.',
                 'asignados' => $modulos_rol,
-                'todos' => $all_modulos
+                'todos' => $all_modulos,
+                'tabla' => $this->renderizarListaRoles()
             ]);
     }
 
@@ -327,6 +336,65 @@ class RolesController extends BaseController
         $this->roles_model->createRol($data);
         $table = $this->renderizarListaRoles();
         return $this->response->setBody($table);
+    }
+
+    public function opcionesInicio(): ResponseInterface
+    {
+        if (!$this->session->get('usu_id')) {
+            return $this->response->setStatusCode(401)->setJSON(['success' => false, 'message' => 'Sesión expirada.']);
+        }
+
+        if (!(new ReportesModel())->moduloPermitido((int) $this->session->get('usu_id'), 'admin/roles')) {
+            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => 'No tiene permiso para administrar los roles.']);
+        }
+
+        $id_rol = (int) $this->request->getPost('id_rol');
+        $rol = $this->roles_model->inicioRol($id_rol);
+        if (!$rol) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Rol no encontrado.']);
+        }
+
+        return $this->response->setJSON([
+            'success' => true,
+            'disponible' => $this->roles_model->columnaInicio(),
+            'actual' => $rol['IdModuloInicio'] === null ? null : (int) $rol['IdModuloInicio'],
+            'opciones' => $this->roles_model->opcionesInicio($id_rol)
+        ]);
+    }
+
+    public function actualizarInicio(): ResponseInterface
+    {
+        if (!$this->session->get('usu_id')) {
+            return $this->response->setStatusCode(401)->setJSON(['success' => false, 'message' => 'Sesión expirada.']);
+        }
+
+        if (!(new ReportesModel())->moduloPermitido((int) $this->session->get('usu_id'), 'admin/roles')) {
+            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => 'No tiene permiso para administrar los roles.']);
+        }
+
+        if (!$this->roles_model->columnaInicio()) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Falta ejecutar el script agregar_modulo_inicio_roles.sql']);
+        }
+
+        $id_rol = (int) $this->request->getPost('id_rol');
+        $valor = trim((string) $this->request->getPost('id_modulo'));
+        $id_modulo = $valor === '' ? null : (int) $valor;
+
+        if (!$this->roles_model->inicioRol($id_rol)) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Rol no encontrado.']);
+        }
+
+        if ($id_modulo !== null && !in_array($id_modulo, array_column($this->roles_model->opcionesInicio($id_rol), 'id'), true)) {
+            return $this->response->setJSON(['success' => false, 'message' => 'La vista seleccionada no está disponible para este rol.']);
+        }
+
+        $ok = $this->roles_model->guardarInicio($id_rol, $id_modulo);
+
+        return $this->response->setJSON([
+            'success' => $ok,
+            'message' => $ok ? 'Vista de inicio actualizada correctamente.' : 'No se pudo actualizar la vista de inicio.',
+            'tabla' => $this->renderizarListaRoles()
+        ]);
     }
 
     /**

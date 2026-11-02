@@ -29,7 +29,7 @@ function construirVista($usu_id, $id_loseta)
     $usuario = $usuarios_model->getUserById($usu_id);
 
     $data = [
-        'title' => 'Hecarse',
+        'title' => sitio('nombre_app'),
         'nombre_loseta' => $nombre_loseta,
         'nombres_apellidos' => $informacion_usuario['nombres_apellidos'],
         'nombres' => $informacion_usuario['nombres'],

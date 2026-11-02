@@ -88,7 +88,7 @@ $esActivo = function ($ruta) use ($url_actual) {
         <?php endforeach; ?>
     </ul>
     <div class="mt-4 text-center">
-        <small class="text-muted" style="font-size: .7em;">&copy; 2026 Derechos reservados Hecarse.</small>
+        <small class="sidebar-creditos">&copy; <?= date('Y') ?> ELAEIX · Desarrollado por Datapro Analítica S.A.S.<br>Licenciado para Agroinversiones Hecarse S.A.S.</small>
     </div>
 </aside>
 

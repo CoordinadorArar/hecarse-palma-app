@@ -5,9 +5,10 @@ $pRegistrar  = ! empty($permisos['registrar']);
 $pConsultar  = ! empty($permisos['consultar']);
 $pEditar     = $pConsultar && ! empty($permisos['editar']);
 $pEliminar   = $pConsultar && ! empty($permisos['eliminar']);
+$pHabilitar  = $pConsultar && ! empty($permisos['habilitar']);
 $conRegistro = $pRegistrar || $pEditar;
 $conPestanas = $conRegistro && $pConsultar;
-$anchoAcciones = [1 => 64, 2 => 98, 3 => 132][1 + (int) $pEditar + (int) $pEliminar];
+$anchoAcciones = max([1 => 64, 2 => 98, 3 => 132][1 + (int) $pEditar + (int) $pEliminar], $pHabilitar ? 132 : 0);
 ?>
 
 <?php echo $this->section('css'); ?>
@@ -387,7 +388,7 @@ $anchoAcciones = [1 => 64, 2 => 98, 3 => 132][1 + (int) $pEditar + (int) $pElimi
 
             </div>
 
-            <div class="card-footer bg-white py-3">
+            <div class="card-footer bg-white py-3" id="totales_detalle">
                 <div class="row g-2 text-end">
                     <div class="col-md-4">
                         <span class="gp-etiqueta-mini">Total Racimos</span>
@@ -603,9 +604,10 @@ $anchoAcciones = [1 => 64, 2 => 98, 3 => 132][1 + (int) $pEditar + (int) $pElimi
                             </div>
 
                             <div class="col-md-3">
-                                <label class="form-label mb-1 small fw-semibold text-muted" for="trab_cantidad">Cantidad (kg) <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control font-monospace text-end" id="trab_cantidad" inputmode="decimal" maxlength="14" autocomplete="off">
+                                <label class="form-label mb-1 small fw-semibold text-muted" for="trab_cantidad">Cantidad c/u (kg)</label>
+                                <input type="text" class="form-control font-monospace text-end tx-neto" id="trab_cantidad" inputmode="decimal" maxlength="14" autocomplete="off" placeholder="Automática" readonly aria-describedby="ayuda_cantidad">
                                 <div class="invalid-feedback d-block d-none" id="error_trab_cantidad"></div>
+                                <div class="form-text" id="ayuda_cantidad"></div>
                             </div>
 
                             <div class="col-md-4">
@@ -659,8 +661,9 @@ $anchoAcciones = [1 => 64, 2 => 98, 3 => 132][1 + (int) $pEditar + (int) $pElimi
 <?php echo $this->section('scripts'); ?>
 <script>
     const BASE_URL = "<?= base_url() ?>";
-    const PERMISOS = <?= json_encode(['registrar' => $pRegistrar, 'consultar' => $pConsultar, 'editar' => $pEditar, 'eliminar' => $pEliminar]) ?>;
+    const PERMISOS = <?= json_encode(['registrar' => $pRegistrar, 'consultar' => $pConsultar, 'editar' => $pEditar, 'eliminar' => $pEliminar, 'habilitar' => $pHabilitar]) ?>;
 </script>
 <script src="<?= asset_url('public/assets/js/transacciones/produccion.js') ?>"></script>
 <script src="<?= asset_url('public/assets/js/transacciones/produccion_consulta.js') ?>"></script>
+<script src="<?= asset_url('public/assets/js/tutoriales/modulos/produccion.js') ?>"></script>
 <?php echo $this->endSection(); ?>

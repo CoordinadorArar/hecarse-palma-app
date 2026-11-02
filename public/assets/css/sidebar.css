@@ -8,11 +8,19 @@
 
 .sidebar-nav .nav-content a.active,
 .sidebar-nav .nav-content a.active i {
-  color: #41a867;
+  color: var(--app-primary);
   background-color: transparent;
 }
 
 .sidebar-nav .nav-link.nav-link-pendiente {
   opacity: .6;
   cursor: default;
+}
+
+.sidebar-creditos {
+  display: block;
+  font-size: .75rem;
+  line-height: 1.35;
+  text-wrap: balance;
+  color: #6c757d;
 }

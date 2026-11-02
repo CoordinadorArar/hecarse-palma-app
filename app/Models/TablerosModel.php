@@ -10,6 +10,60 @@ class TablerosModel extends InformesGerencialesModel
             : " AND NOT EXISTS (SELECT 1 FROM aTransaccionEliminada el WHERE el.empresa = {$alias}.empresa AND el.tipo = {$alias}.tipo AND el.numero = LTRIM(RTRIM({$alias}.numero)))";
     }
 
+    private ?bool $historico = null;
+
+    public function historicoExiste(): bool
+    {
+        return $this->historico ??= $this->db->query("SELECT OBJECT_ID('dbo.aProduccionHistorica', 'U') AS id")->getRow()->id !== null;
+    }
+
+    public function historico(int $empresa, int $desde, int $hasta, string $finca = ''): array
+    {
+        if (! $this->historicoExiste()) {
+            return [];
+        }
+
+        return $this->db->query(
+            "SELECT LTRIM(RTRIM(finca)) AS finca, LTRIM(RTRIM(lote)) AS lote, anio, mes, kilos, ISNULL(hectareas, 0) AS hectareas
+               FROM dbo.aProduccionHistorica WHERE empresa = ? AND anio BETWEEN ? AND ?" . ($finca !== '' ? ' AND LTRIM(RTRIM(finca)) = ?' : ''),
+            array_merge([$empresa, $desde, $hasta], $finca !== '' ? [$finca] : [])
+        )->getResultArray();
+    }
+
+    public function aniosBascula(int $empresa): array
+    {
+        return array_map('intval', array_column($this->db->query(
+            "SELECT DISTINCT YEAR(fecha) AS anio FROM aTransaccion WHERE empresa = ? AND tipo = 'TLC' AND anulado = 0 AND fecha IS NOT NULL ORDER BY anio",
+            [$empresa]
+        )->getResultArray(), 'anio'));
+    }
+
+    public function aniosHistorico(int $empresa): array
+    {
+        return ! $this->historicoExiste() ? [] : array_map('intval', array_column($this->db->query(
+            'SELECT DISTINCT anio FROM dbo.aProduccionHistorica WHERE empresa = ? ORDER BY anio',
+            [$empresa]
+        )->getResultArray(), 'anio'));
+    }
+
+    public function getAnios(int $empresa): array
+    {
+        $anios = array_unique(array_merge(parent::getAnios($empresa), $this->aniosHistorico($empresa)));
+        rsort($anios);
+
+        return $anios;
+    }
+
+    public function ultimoMesFacturado(int $empresa, int $anio): int
+    {
+        $mes = parent::ultimoMesFacturado($empresa, $anio);
+
+        return ! $this->historicoExiste() ? $mes : max($mes, (int) $this->db->query(
+            'SELECT MAX(mes) AS mes FROM dbo.aProduccionHistorica WHERE empresa = ? AND anio = ?',
+            [$empresa, $anio]
+        )->getRow()->mes);
+    }
+
     public function lotes(int $empresa): array
     {
         return $this->db->query(
@@ -20,6 +74,20 @@ class TablerosModel extends InformesGerencialesModel
                FROM aLotes WHERE empresa = ? ORDER BY finca, numero, codigo",
             [$empresa]
         )->getResultArray();
+    }
+
+    public function metaTonHa(int $empresa, int $anio, string $finca): array
+    {
+        if ($this->db->query("SELECT OBJECT_ID('dbo.aPresupuestoMeta', 'U') AS id")->getRow()->id === null) {
+            return [null, null];
+        }
+
+        $r = $this->db->query(
+            "SELECT TOP 1 metaTonHa, finca FROM dbo.aPresupuestoMeta WHERE empresa = ? AND anio = ? AND finca IN (?, '') AND metaTonHa IS NOT NULL ORDER BY CASE WHEN finca = '' THEN 1 ELSE 0 END",
+            [$empresa, $anio, $finca]
+        )->getRowArray();
+
+        return $r === null ? [null, null] : [(float) $r['metaTonHa'], trim((string) $r['finca']) === '' ? 'empresa' : 'finca'];
     }
 
     public function racimos(int $empresa, int $anio): array

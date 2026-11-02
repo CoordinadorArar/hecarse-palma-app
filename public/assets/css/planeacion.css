@@ -630,7 +630,12 @@ a.pl-chip:hover {
   }
 
   .pl-imp-tabla th:nth-child(8) {
-    width: 20mm;
+    width: 24mm;
+  }
+
+  .pl-imp-tabla .pl-imp-horario {
+    line-height: 1.15;
+    white-space: normal;
   }
 
   .pl-imp-tabla .pl-imp-firma {

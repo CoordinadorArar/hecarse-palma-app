@@ -9,8 +9,8 @@
 
     <div class="d-flex align-items-center justify-content-between">
         <i class="bi bi-list toggle-sidebar-btn text-white"></i>
-        <a href="index.html" class="logo-header d-flex align-items-center">
-            <img src="<?= base_url() ?>public/assets/img/logo_hecarse_blanco.png" alt="Hecarse">
+        <a href="<?= base_url('losetas') ?>" class="logo-header d-flex align-items-center">
+            <img src="<?= esc(sitio_img('logo_claro'), 'attr') ?>" alt="<?= esc(sitio('nombre_app'), 'attr') ?>">
         </a>
     </div><!-- End Logo -->
 
@@ -51,6 +51,12 @@
                     </li>
                 </ul>
             </li> -->
+
+            <li class="nav-item d-none">
+                <button type="button" class="nav-link nav-icon tut-trigger-header" aria-label="Tutorial del módulo" data-bs-toggle="tooltip" data-bs-title="Tutorial del módulo" data-bs-placement="bottom">
+                    <i class="bi bi-question-circle" aria-hidden="true"></i>
+                </button>
+            </li>
 
             <?php if (alerta_labores_permitida()): ?>
             <li class="nav-item">

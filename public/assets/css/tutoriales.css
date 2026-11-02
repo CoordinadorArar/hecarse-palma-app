@@ -1,0 +1,163 @@
+.header-nav .nav-icon.tut-trigger-header {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    margin-right: 12px;
+    padding: 0;
+    font-size: 20px;
+    color: #fff;
+    background-color: transparent;
+    border: 0;
+    border-radius: 50%;
+    transition: background-color .2s ease-in-out;
+}
+
+.header-nav .nav-icon.tut-trigger-header:hover,
+.header-nav .nav-icon.tut-trigger-header:focus-visible {
+    background-color: rgba(255, 255, 255, .15);
+    color: #fff;
+}
+
+.header-nav .nav-icon.tut-trigger-header:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, .8);
+    outline-offset: 2px;
+    box-shadow: none;
+}
+
+.header-nav .nav-icon.tut-trigger-header:disabled {
+    opacity: .6;
+    cursor: default;
+}
+
+body.tut-activo * {
+    scroll-margin-top: 80px;
+}
+
+.driver-popover.app-tour {
+    background-color: #fff;
+    color: #444;
+    max-width: 340px;
+    padding: 16px 18px;
+    border: 0;
+    border-top: 4px solid #1dab4d;
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(1, 41, 112, .15);
+}
+
+.driver-popover.app-tour .driver-popover-title {
+    font-family: "Nunito", sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.35;
+    color: #012970;
+    padding-right: 24px;
+}
+
+.driver-popover.app-tour .driver-popover-description {
+    margin-top: 6px;
+    font-family: "Open Sans", sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #444;
+}
+
+.driver-popover.app-tour .driver-popover-footer {
+    margin-top: 14px;
+    gap: 8px;
+}
+
+.driver-popover.app-tour .driver-popover-progress-text {
+    font-family: "Open Sans", sans-serif;
+    font-size: 12px;
+    color: #6c757d;
+    margin-right: auto;
+}
+
+.driver-popover.app-tour .driver-popover-navigation-btns {
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.driver-popover.app-tour .driver-popover-navigation-btns button + button {
+    margin-left: 0;
+}
+
+.driver-popover.app-tour .driver-popover-footer button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 12px;
+    font-family: "Open Sans", sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.5;
+    text-shadow: none;
+    border-radius: 6px;
+    transition: background-color .15s ease-in-out, border-color .15s ease-in-out, color .15s ease-in-out;
+}
+
+.driver-popover.app-tour .driver-popover-prev-btn {
+    color: #6c757d;
+    background-color: #fff;
+    border: 1px solid #6c757d;
+}
+
+.driver-popover.app-tour .driver-popover-prev-btn:hover,
+.driver-popover.app-tour .driver-popover-prev-btn:focus-visible {
+    color: #fff;
+    background-color: #6c757d;
+}
+
+.driver-popover.app-tour .driver-popover-next-btn {
+    color: #fff;
+    background-color: #137a36;
+    border: 1px solid #137a36;
+}
+
+.driver-popover.app-tour .driver-popover-next-btn:hover,
+.driver-popover.app-tour .driver-popover-next-btn:focus-visible {
+    color: #fff;
+    background-color: #0f6a2e;
+    border-color: #0f6a2e;
+}
+
+.driver-popover.app-tour .driver-popover-footer button:focus-visible {
+    outline: 2px solid rgba(29, 171, 77, .45);
+    outline-offset: 2px;
+}
+
+.driver-popover.app-tour .driver-popover-arrow-side-bottom {
+    border-bottom-color: #1dab4d;
+}
+
+.driver-popover.app-tour .driver-popover-close-btn {
+    top: 8px;
+    right: 8px;
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    line-height: 1;
+    color: #6c757d;
+    border-radius: 50%;
+}
+
+.driver-popover.app-tour .driver-popover-close-btn:hover,
+.driver-popover.app-tour .driver-popover-close-btn:focus-visible {
+    color: #212529;
+    background-color: #f1f3f5;
+}
+
+@media (max-width: 767.98px) {
+    .driver-popover.app-tour {
+        max-width: calc(100vw - 24px);
+    }
+
+    .driver-popover.app-tour .driver-popover-footer button {
+        min-height: 36px;
+    }
+}

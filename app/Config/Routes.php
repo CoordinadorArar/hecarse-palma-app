@@ -41,6 +41,7 @@ $routes->get('admin/usuarios/(:num)', 'admin\UsuariosController::index/$1');
 $routes->get('admin/acciones/(:num)', 'admin\AccionesController::index/$1');
 $routes->get('admin/tabs/(:num)', 'admin\TabsController::index/$1');
 $routes->get('admin/sitio/(:num)', 'admin\SiteController::index/$1');
+$routes->post('admin/sitio/guardar', 'admin\SiteController::guardar');
 
 /** Rutas de módulo usuarios */
 $routes->post('admin/usuarios/(:num)', 'admin\UsuariosController::getUserById/$1');
@@ -69,6 +70,8 @@ $routes->post('admin/roles/quitarModuloRol', 'admin\RolesController::deleteRolMo
 $routes->post('admin/roles/asignarModuloRol', 'admin\RolesController::addRolModule');
 $routes->post('admin/roles/actualizarModuloRoles', 'admin\RolesController::addRolsModule');
 $routes->post('admin/roles/crearRol', 'admin\RolesController::createRol');
+$routes->post('admin/roles/opcionesInicio', 'admin\RolesController::opcionesInicio');
+$routes->post('admin/roles/actualizarInicio', 'admin\RolesController::actualizarInicio');
 
 /** Rutas de módulo administración de módulos */
 $routes->post('admin/modulos/(:num)', 'admin\ModulosController::getModuleById/$1');
@@ -188,6 +191,9 @@ $routes->get('gestion-palma/contabilidad/presupuesto/(:num)', 'gestionpalma\Pres
 $routes->post('gestion-palma/contabilidad/presupuesto/listar', 'gestionpalma\PresupuestoProduccionController::listar');
 $routes->post('gestion-palma/contabilidad/presupuesto/guardar', 'gestionpalma\PresupuestoProduccionController::guardar');
 $routes->post('gestion-palma/contabilidad/presupuesto/eliminar', 'gestionpalma\PresupuestoProduccionController::eliminar');
+$routes->post('gestion-palma/contabilidad/presupuesto/metas', 'gestionpalma\PresupuestoProduccionController::metas');
+$routes->post('gestion-palma/contabilidad/presupuesto/guardarMeta', 'gestionpalma\PresupuestoProduccionController::guardarMeta');
+$routes->post('gestion-palma/contabilidad/presupuesto/generar', 'gestionpalma\PresupuestoProduccionController::generar');
 $routes->get('gestion-palma/nomina/periodos/(:num)', 'gestionpalma\NominaController::periodos/$1');
 $routes->post('gestion-palma/nomina/periodos/listar', 'gestionpalma\NominaController::listarPeriodosNomina');
 $routes->post('gestion-palma/nomina/periodos/obtener', 'gestionpalma\NominaController::obtenerPeriodoNomina');
@@ -311,6 +317,7 @@ $routes->post('transacciones/produccion/detalle', 'transacciones\ProduccionContr
 $routes->post('transacciones/produccion/periodos', 'transacciones\ProduccionController::periodos');
 $routes->post('transacciones/produccion/eliminar', 'transacciones\ProduccionController::eliminar');
 $routes->post('transacciones/produccion/actualizar', 'transacciones\ProduccionController::actualizar');
+$routes->post('transacciones/produccion/habilitar', 'transacciones\ProduccionController::habilitar');
 $routes->get('transacciones/labores/(:num)', 'transacciones\LaboresController::index/$1');
 $routes->post('transacciones/labores/periodos', 'transacciones\LaboresController::periodos');
 $routes->post('transacciones/labores/secciones', 'transacciones\LaboresController::secciones');
@@ -322,6 +329,7 @@ $routes->post('transacciones/labores/actualizar', 'transacciones\LaboresControll
 $routes->post('transacciones/labores/consultar', 'transacciones\LaboresController::consultar');
 $routes->post('transacciones/labores/detalle', 'transacciones\LaboresController::detalle');
 $routes->post('transacciones/labores/eliminar', 'transacciones\LaboresController::eliminar');
+$routes->post('transacciones/labores/habilitar', 'transacciones\LaboresController::habilitar');
 $routes->get('transacciones/fertilizacion/(:num)', 'transacciones\FertilizacionController::index/$1');
 $routes->post('transacciones/fertilizacion/periodos', 'transacciones\FertilizacionController::periodos');
 $routes->post('transacciones/fertilizacion/secciones', 'transacciones\FertilizacionController::secciones');
@@ -335,6 +343,7 @@ $routes->post('transacciones/fertilizacion/actualizar', 'transacciones\Fertiliza
 $routes->post('transacciones/fertilizacion/consultar', 'transacciones\FertilizacionController::consultar');
 $routes->post('transacciones/fertilizacion/detalle', 'transacciones\FertilizacionController::detalle');
 $routes->post('transacciones/fertilizacion/eliminar', 'transacciones\FertilizacionController::eliminar');
+$routes->post('transacciones/fertilizacion/habilitar', 'transacciones\FertilizacionController::habilitar');
 $routes->get('transacciones/planeacion/(:num)', 'transacciones\PlaneacionController::index/$1');
 $routes->post('transacciones/planeacion/plan', 'transacciones\PlaneacionController::plan');
 $routes->post('transacciones/planeacion/pendientes', 'transacciones\PlaneacionController::pendientes');
@@ -367,6 +376,7 @@ $routes->post('dashboards/informes-gerenciales/palmas', 'dashboards\InformesGere
 $routes->get('dashboards/produccion/(:num)', 'dashboards\TablerosController::produccion/$1');
 $routes->get('dashboards/fertilizacion/(:num)', 'dashboards\TablerosController::fertilizacion/$1');
 $routes->post('dashboards/produccion/datos', 'dashboards\TablerosController::datosProduccion');
+$routes->post('dashboards/produccion/historico', 'dashboards\TablerosController::historicoProduccion');
 $routes->post('dashboards/fertilizacion/datos', 'dashboards\TablerosController::datosFertilizacion');
 $routes->post('dashboards/tableros/fincas', 'dashboards\TablerosController::fincas');
 
@@ -385,6 +395,9 @@ $routes->post('informes/procesar-reporte', 'informes\InformeController::procesar
 $routes->post('informes/actualizar-valores-temporal', 'informes\InformeController::actualizarValoresTemporal');
 $routes->post('informes/total-pagos', 'informes\InformeController::totalPagos');
 $routes->post('informes/pagos-labor', 'informes\InformeController::pagosLabor');
+$routes->post('informes/liquidacion-siesa/consultar', 'informes\InformeController::consultarLiquidacionSiesa');
+$routes->post('informes/liquidacion-siesa/marcar', 'informes\InformeController::marcarLiquidacionSiesa');
+$routes->post('informes/liquidacion-siesa/revertir', 'informes\InformeController::revertirLiquidacionSiesa');
 
 $routes->get('informes/generar-txt', 'informes\InformeController::generarTXT');
 

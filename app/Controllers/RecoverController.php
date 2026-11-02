@@ -25,7 +25,7 @@ class RecoverController extends BaseController
     public function index(): string|RedirectResponse
     {
         // Definición de las variables
-        $data = ['title' => 'Hecarse'];
+        $data = ['title' => sitio('nombre_app')];
         $data['welcome_message'] = lang('Recover.welcome_recover');
         $data['subtitle_recover'] = lang('Recover.subtitle_recover');
         $data['email_label'] = lang('Recover.email_label');
@@ -116,8 +116,8 @@ class RecoverController extends BaseController
                                                     border:1px solid #ABABAB; box-sizing:border-box; word-break:break-word;">
                                                 <div style="display: flex; align-items: center;">
                                                     <!-- Logo -->
-                                                    <img src="' . base_url('public/assets/img/logo_hecarse.png') . '"
-                                                        style="width: 150px; height: 80px; margin-right: 30px;">
+                                                    <img src="' . sitio_img('logo') . '" width="160"
+                                                        style="width: 160px; height: auto; margin-right: 30px;">
                                                     
                                                     <!-- Texto -->
                                                     <div style="color:#002451;">

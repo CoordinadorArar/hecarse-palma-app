@@ -14,7 +14,7 @@
     <!-- BARRA SUPERIOR -->
     <header class="losetas-topbar">
         <div class="losetas-topbar-brand">
-            <img src="public/assets/img/logo_hecarse_blanco.png" alt="Hecarse">
+            <img src="<?= esc(sitio_img('logo_claro'), 'attr') ?>" alt="<?= esc(sitio('nombre_app'), 'attr') ?>">
         </div>
         <div class="losetas-topbar-user">
             <?php if (!empty($nombre_usuario)): ?>
@@ -42,29 +42,25 @@
 
     <!-- ENCABEZADO DE BIENVENIDA -->
     <div class="losetas-hero text-center">
-        <h1 class="losetas-hero-title"><?= esc($title) ?></h1>
+        <h1 class="losetas-hero-title"><?= esc($empresa) ?></h1>
         <p class="losetas-hero-subtitle"><?= esc($subtitle) ?></p>
     </div>
 
     <!-- GRID DE MODULOS -->
     <?php if (!empty($losetas)): ?>
-        <div class="losetas-grid" id="losetas">
+        <nav class="losetas-grid" id="losetas" aria-label="Módulos disponibles">
             <?php foreach ($losetas as $loseta): ?>
                 <?php $ruta_loseta = preg_replace('#/\d+$#', '', trim((string) $loseta['Ruta'], '/')) . '/' . (int) $loseta['Id']; ?>
-                <div class="loseta-card"
-                    role="button"
-                    tabindex="0"
-                    aria-label="Ingresar a <?= esc($loseta['Nombre']) ?>"
-                    onclick="ingresarModulo('<?= esc($ruta_loseta) ?>')"
-                    onkeydown="if(event.key === 'Enter' || event.key === ' '){ event.preventDefault(); ingresarModulo('<?= esc($ruta_loseta) ?>'); }">
-                    <div class="loseta-card-icon">
-                        <i class="<?= esc($loseta['Icono']) ?>"></i>
-                    </div>
-                    <h4 class="loseta-card-title"><?= esc($loseta['Nombre']) ?></h4>
-                    <span class="loseta-card-link">Ingresar <i class="bi bi-arrow-right"></i></span>
-                </div>
+                <a class="loseta-card" href="<?= esc(base_url($ruta_loseta), 'attr') ?>">
+                    <span class="loseta-card-icon" aria-hidden="true"><i class="<?= esc($loseta['Icono'], 'attr') ?>"></i></span>
+                    <h2 class="loseta-card-title"><?= esc($loseta['Nombre']) ?></h2>
+                    <span class="loseta-card-pie" aria-hidden="true">
+                        <span class="loseta-card-acceder">Acceder</span>
+                        <span class="loseta-card-chevron"><i class="bi bi-chevron-right"></i></span>
+                    </span>
+                </a>
             <?php endforeach; ?>
-        </div>
+        </nav>
     <?php else: ?>
         <div class="losetas-empty text-center">
             <i class="bi bi-inboxes"></i>
@@ -73,7 +69,8 @@
     <?php endif; ?>
 
     <footer class="losetas-footer text-center">
-        <small>&copy; <?= date('Y') ?> Hecarse. Todos los derechos reservados.</small>
+        <small class="d-block">&copy; <?= date('Y') ?> <strong>ELAEIX</strong> · Desarrollado por <strong>Datapro Analítica S.A.S.</strong></small>
+        <small class="losetas-footer-uso d-block">Licenciado para Agroinversiones Hecarse S.A.S.</small>
     </footer>
 </main>
 
@@ -84,15 +81,6 @@
 <?php echo $this->section('scripts'); ?>
 <script>
     /**
-     * Metodo para redireccionar a la ruta del modulo seleccionado.
-     *
-     * @param {string} ruta Ruta del modulo seleccionado.
-     */
-    const ingresarModulo = (ruta) => {
-        window.location.href = ruta;
-    }
-
-    /**
      * Lógica de cierre de sesión en la vista de losetas
      */
     document.querySelector('.btn-logout').addEventListener('click', () => {
@@ -101,8 +89,8 @@
             text: 'Estás a punto de cerrar tu sesión',
             icon: 'warning',
             showCancelButton: true,
-            confirmButtonColor: '#3085d6',
-            cancelButtonColor: '#d33',
+            confirmButtonColor: getComputedStyle(document.documentElement).getPropertyValue('--app-primary').trim(),
+            cancelButtonColor: '#6c757d',
             confirmButtonText: 'Sí, cerrar sesión'
         }).then(async (result) => {
             if (result.isConfirmed) {

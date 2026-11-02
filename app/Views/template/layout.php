@@ -4,11 +4,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= $title ?></title>
+    <title><?= empty($title) || $title === sitio('nombre_app') ? '' : $title . ' · ' ?><?= esc(sitio('nombre_app')) ?></title>
 
     <!-- Favicons -->
-    <link href="<?= base_url() ?>public/assets/img/logo_hecarse.png" rel="icon">
-    <link href="assets/img/apple-touch-icon.png" rel="apple-touch-icon">
+    <link href="<?= esc(sitio_img('favicon'), 'attr') ?>" rel="icon">
+    <link href="<?= base_url('public/assets/img/elaeix_apple_touch_180.png') ?>" rel="apple-touch-icon">
 
     <!-- Google Fonts -->
     <link href="https://fonts.gstatic.com" rel="preconnect">
@@ -26,6 +26,8 @@
     <link rel="stylesheet" href="https://cdn.datatables.net/rowgroup/1.4.1/css/rowGroup.bootstrap5.min.css">
     <!-- Vendor CSS Files -->
     <link href="<?= base_url() ?>public/assets/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+    <?php $temaSitio = array_map(fn ($v) => preg_replace('/[^#0-9a-fA-F,]/', '', (string) $v), sitio_colores()); ?>
+    <style>:root{--app-primary:<?= $temaSitio['primary'] ?>;--app-primary-rgb:<?= $temaSitio['primary_rgb'] ?>;--app-primary-hover:<?= $temaSitio['hover'] ?>;--app-primary-active:<?= $temaSitio['active'] ?>;--app-primary-subtle:<?= $temaSitio['subtle'] ?>;--app-primary-border:<?= $temaSitio['border'] ?>;--app-primary-emphasis:<?= $temaSitio['emphasis'] ?>;--app-secundario:<?= $temaSitio['secundario'] ?>;--app-secundario-rgb:<?= $temaSitio['secundario_rgb'] ?>}</style>
     <link href="<?= base_url() ?>public/assets/vendor/bootstrap-icons/bootstrap-icons.css" rel="stylesheet">
     <link href="<?= base_url() ?>public/assets/vendor/boxicons/css/boxicons.min.css" rel="stylesheet">
     <link href="<?= base_url() ?>public/assets/vendor/quill/quill.snow.css" rel="stylesheet">
@@ -40,6 +42,8 @@
     <!-- Template Main CSS File -->
     <link href="<?= asset_url('public/assets/css/style.css') ?>" rel="stylesheet">
     <link href="<?= asset_url('public/assets/css/sidebar.css') ?>" rel="stylesheet">
+    <link href="<?= asset_url('public/assets/css/tema.css') ?>" rel="stylesheet">
+    <link href="<?= asset_url('public/assets/css/tutoriales.css') ?>" rel="stylesheet">
     <?php if (alerta_labores_permitida()): ?>
     <link href="<?= asset_url('public/assets/css/alerta_labores.css') ?>" rel="stylesheet">
     <?php endif; ?>
@@ -57,14 +61,16 @@
 
     $uri = service('uri');
 
-    if (
+    $conHeader = (
         $uri->getSegment(1) !== ''
         && $uri->getSegment(1) !== 'losetas'
         && $uri->getSegment(1) !== 'recover'
         && $uri->getSegment(1) != 'login'
         && $uri->getSegment(1) != 'resetPass'
         && $uri->getSegment(2) !== 'documentos'
-    ) {
+    );
+
+    if ($conHeader) {
         $this->include('template/sidebar');
         $this->include('template/header');
 
@@ -118,6 +124,10 @@
 
     <!-- RENDERIZAR CUSTOM SCRIPTS, SI EXISTEN -->
     <?php echo $this->renderSection("scripts"); ?>
+
+    <?php if ($conHeader): ?>
+    <script src="<?= asset_url('public/assets/js/tutoriales/tutorial-manager.js') ?>"></script>
+    <?php endif; ?>
 
     <?php if (alerta_labores_permitida()): ?>
     <script src="<?= asset_url('public/assets/js/alerta_labores.js') ?>"></script>

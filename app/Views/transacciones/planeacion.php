@@ -56,7 +56,7 @@ $verSugerencias = ! empty($permisos['consultar']) || ! empty($permisos['registra
                 <div class="col-12 col-md-6 col-lg-5">
                     <label class="form-label mb-1 small fw-semibold text-muted" for="fecha">Fecha del plan</label>
                     <div class="d-flex align-items-center gap-2">
-                        <div class="input-group pl-fecha-grupo">
+                        <div class="input-group pl-fecha-grupo" id="grupo_fecha">
                             <button type="button" class="btn btn-outline-secondary" id="btn_dia_anterior" title="Día anterior" aria-label="Día anterior"><i class="bi bi-chevron-left" aria-hidden="true"></i></button>
                             <input type="date" class="form-control text-center" id="fecha" value="<?= esc($fecha_defecto ?? '', 'attr') ?>">
                             <button type="button" class="btn btn-outline-secondary" id="btn_dia_siguiente" title="Día siguiente" aria-label="Día siguiente"><i class="bi bi-chevron-right" aria-hidden="true"></i></button>
@@ -65,7 +65,7 @@ $verSugerencias = ! empty($permisos['consultar']) || ! empty($permisos['registra
                     </div>
                 </div>
                 <div class="col-12 col-md-auto ms-md-auto">
-                    <ul class="nav nav-pills nav-fill flex-nowrap tx-pestanas" role="tablist">
+                    <ul class="nav nav-pills nav-fill flex-nowrap tx-pestanas" id="pestanas_vista" role="tablist">
                         <li class="nav-item" role="presentation">
                             <button type="button" class="nav-link active" data-vista="lote" role="tab" aria-selected="true"><i class="bi bi-geo-alt" aria-hidden="true"></i>Por lote</button>
                         </li>
@@ -91,21 +91,21 @@ $verSugerencias = ! empty($permisos['consultar']) || ! empty($permisos['registra
             </div>
             <div class="d-flex align-items-center gap-2 ms-auto">
                 <?php if ($verSugerencias): ?>
-                <button type="button" class="btn btn-outline-secondary d-none d-md-inline-flex align-items-center gap-1" data-accion="sugerencias">
+                <button type="button" class="btn btn-outline-secondary d-none d-md-inline-flex align-items-center gap-1" id="btn_sugerencias" data-accion="sugerencias">
                     <i class="bi bi-lightbulb" aria-hidden="true"></i>Sugerencias <span class="tx-chip-cont" data-cont="sugerencias">0</span>
                 </button>
                 <?php endif; ?>
-                <button type="button" class="btn btn-outline-secondary d-none d-md-inline-flex align-items-center gap-1" data-accion="pendientes">
+                <button type="button" class="btn btn-outline-secondary d-none d-md-inline-flex align-items-center gap-1" id="btn_pendientes" data-accion="pendientes">
                     <i class="bi bi-clock-history" aria-hidden="true"></i>Pendientes <span class="tx-chip-cont" data-cont="pendientes">0</span>
                 </button>
-                <button type="button" class="btn btn-outline-secondary d-none d-md-inline-flex align-items-center gap-1" data-accion="ausentes">
+                <button type="button" class="btn btn-outline-secondary d-none d-md-inline-flex align-items-center gap-1" id="btn_ausentes" data-accion="ausentes">
                     <i class="bi bi-person-x" aria-hidden="true"></i>Ausentes <span class="tx-chip-cont" data-cont="ausentes">0</span>
                 </button>
-                <button type="button" class="btn btn-outline-secondary d-none d-md-inline-flex align-items-center gap-1" data-accion="imprimir">
+                <button type="button" class="btn btn-outline-secondary d-none d-md-inline-flex align-items-center gap-1" id="btn_imprimir" data-accion="imprimir">
                     <i class="bi bi-printer" aria-hidden="true"></i>Imprimir
                 </button>
                 <div class="dropdown d-md-none">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Más opciones"><i class="bi bi-three-dots" aria-hidden="true"></i></button>
+                    <button type="button" class="btn btn-outline-secondary" id="btn_mas_opciones" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Más opciones"><i class="bi bi-three-dots" aria-hidden="true"></i></button>
                     <ul class="dropdown-menu dropdown-menu-end">
                         <?php if ($verSugerencias): ?>
                         <li><button type="button" class="dropdown-item" data-accion="sugerencias"><i class="bi bi-lightbulb me-2" aria-hidden="true"></i>Sugerencias <span class="tx-chip-cont" data-cont="sugerencias">0</span></button></li>
@@ -115,10 +115,10 @@ $verSugerencias = ! empty($permisos['consultar']) || ! empty($permisos['registra
                         <li><button type="button" class="dropdown-item" data-accion="imprimir"><i class="bi bi-printer me-2" aria-hidden="true"></i>Imprimir</button></li>
                     </ul>
                 </div>
-                <button type="button" class="btn btn-outline-success d-none" data-accion="planilla" aria-label="Planear finca">
+                <button type="button" class="btn btn-outline-success d-none" id="btn_planilla" data-accion="planilla" aria-label="Planear finca">
                     <i class="bi bi-table me-sm-1" aria-hidden="true"></i><span class="d-none d-sm-inline">Planear finca</span>
                 </button>
-                <button type="button" class="btn btn-success d-none" data-accion="agregar">
+                <button type="button" class="btn btn-success d-none" id="btn_agregar" data-accion="agregar">
                     <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Agregar actividad
                 </button>
             </div>
@@ -600,5 +600,6 @@ $verSugerencias = ! empty($permisos['consultar']) || ! empty($permisos['registra
     ]) ?>;
 </script>
 <script src="<?= asset_url('public/assets/js/transacciones/planeacion.js') ?>"></script>
+<script src="<?= asset_url('public/assets/js/tutoriales/modulos/planeacion.js') ?>"></script>
 <?php echo $this->endSection(); ?>
 <?php endif; ?>

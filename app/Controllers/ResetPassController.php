@@ -24,7 +24,7 @@ class ResetPassController extends BaseController
     public function index($token = null): string|RedirectResponse
     {
         // Definición de las variables
-        $data = ['title' => 'Hecarse'];
+        $data = ['title' => sitio('nombre_app')];
         $data['welcome_message'] = lang('ResetPass.welcome_login');
         $data['subtitle_login'] = lang('ResetPass.subtitle_login');
         $data['password'] = lang('ResetPass.password');

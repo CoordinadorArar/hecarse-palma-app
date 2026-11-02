@@ -3,6 +3,8 @@
 
 <!-- SECCION DE CSS -->
 <?php echo $this->section('css'); ?>
+<link rel="stylesheet" href="<?= asset_url('public/assets/css/gestionpalma.css') ?>">
+<link rel="stylesheet" href="<?= asset_url('public/assets/css/transacciones.css') ?>">
 <link rel="stylesheet" href="<?= asset_url('public/assets/css/informes.css') ?>">
 <?php echo $this->endSection(); ?>
 <!-- FIN SECCION DE CSS -->
@@ -12,20 +14,82 @@
 
 <main id="main" class="main">
 
+    <div class="pagetitle d-flex justify-content-between align-items-start">
+        <h1>Liquidación de nómina</h1>
+
+        <a href="<?= base_url() ?>public/documents/app/ManualLiquidacion.pdf?v-1.2" target="_blank"
+            class="btn btn-link" data-bs-toggle="tooltip" data-bs-placement="top"
+            title="Revisar Manual">
+            <i class="bi bi-question-circle-fill fs-4"></i>
+        </a>
+    </div>
+
+    <div class="card mb-3 gp-filtros">
+        <div class="card-body py-3 px-4">
+            <div class="row g-2 align-items-end">
+                <div class="col-6 col-md-3 col-lg-2">
+                    <label class="form-label mb-1 small fw-semibold text-muted" for="anio">Año</label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-calendar-event"></i></span>
+                        <select class="form-select" id="anio">
+                            <option disabled selected>Seleccione el año</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="col-6 col-md-3 col-lg-2">
+                    <label class="form-label mb-1 small fw-semibold text-muted" for="mes">Mes</label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-calendar-event"></i></span>
+                        <select class="form-select" id="mes">
+                            <option disabled selected>Seleccione el mes</option>
+                            <option value="01"> Enero </option>
+                            <option value="02"> Febrero </option>
+                            <option value="03"> Marzo </option>
+                            <option value="04"> Abril </option>
+                            <option value="05"> Mayo </option>
+                            <option value="06"> Junio </option>
+                            <option value="07"> Julio </option>
+                            <option value="08"> Agosto </option>
+                            <option value="09"> Septiembre </option>
+                            <option value="10"> Octubre </option>
+                            <option value="11"> Noviembre </option>
+                            <option value="12"> Diciembre </option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="col-12 col-md-auto">
+                    <button type="button" class="btn btn-primary w-100" id="consultar_liquidacion">
+                        <i class="bi bi-search me-1"></i> Consultar
+                    </button>
+                </div>
+
+                <div class="col-12 col-md-auto ms-md-auto">
+                    <ul class="nav nav-pills nav-fill flex-nowrap tx-pestanas" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button type="button" class="nav-link active" id="tab_temporales" data-bs-toggle="pill" data-bs-target="#panel_temporales" role="tab" aria-controls="panel_temporales" aria-selected="true">
+                                <i class="bi bi-people" aria-hidden="true"></i>Temporales
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button type="button" class="nav-link" id="tab_siesa" data-bs-toggle="pill" data-bs-target="#panel_siesa" role="tab" aria-controls="panel_siesa" aria-selected="false">
+                                <i class="bi bi-bank" aria-hidden="true"></i>Nómina Siesa
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="tab-content">
+    <div class="tab-pane fade show active" id="panel_temporales" role="tabpanel" aria-labelledby="tab_temporales">
+
     <div class="tab-content" id="moduleManagementTabs">
         <div class="tab-pane fade show active" id="moduleList" role="tabpanel" aria-labelledby="moduleList-tab">
             <div class="card mb-4">
-                <div class="card-body">
-                    &nbsp;
-                    <div class="d-flex justify-content-between align-items-start">
-                        <h4> Liquidación de Nómina </h4>
-
-                        <a href="<?= base_url() ?>public/documents/app/ManualLiquidacion.pdf?v-1.2" target="_blank"
-                            class="btn btn-link" data-bs-toggle="tooltip" data-bs-placement="top"
-                            title="Revisar Manual">
-                            <i class="bi bi-question-circle-fill fs-4"></i>
-                        </a>
-                    </div>
+                <div class="card-body pt-4">
 
                     <!-- <div class="d-flex align-items-start gap-3 mb-4 pt-4">
                         <i class="bi bi-info-circle fs-4 text-primary"></i>
@@ -39,45 +103,6 @@
                             </button>
                         </div>
                     </div> -->
-
-                    <div class="row g-3">
-                        <div class="col-md-4">
-                            <label class="form-label">Año</label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="bi bi-calendar-event"></i></span>
-                                <select class="form-select" id="anio">
-                                    <option disabled selected>Seleccione el año</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div class="col-md-4">
-                            <label class="form-label">Mes</label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="bi bi-calendar-event"></i></span>
-                                <select class="form-select" id="mes">
-                                    <option disabled selected>Seleccione el mes</option>
-                                    <option value="01"> Enero </option>
-                                    <option value="02"> Febrero </option>
-                                    <option value="03"> Marzo </option>
-                                    <option value="04"> Abril </option>
-                                    <option value="05"> Mayo </option>
-                                    <option value="06"> Junio </option>
-                                    <option value="07"> Julio </option>
-                                    <option value="08"> Agosto </option>
-                                    <option value="09"> Septiembre </option>
-                                    <option value="10"> Octubre </option>
-                                    <option value="11"> Noviembre </option>
-                                    <option value="12"> Diciembre </option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div class="col-md-4 d-flex align-items-end">
-                            <button class="btn btn-outline-primary" id="consultar_liquidacion">
-                                <i class="bi bi-search me-1"></i> Consultar
-                            </button>
-                        </div>
 
                         <div class="row g-3 mb-4">
                             <div class="col-md-4">
@@ -111,7 +136,6 @@
                                 </button>
                             </div>
                         </div>
-                    </div>
 
                     <!-- Modal empleados sin temporal -->
                     <div class="modal fade" id="modalSinTemporal" tabindex="-1">
@@ -265,6 +289,78 @@
         </div>
     </div>
 
+    </div>
+
+    <div class="tab-pane fade" id="panel_siesa" role="tabpanel" aria-labelledby="tab_siesa">
+
+        <div class="gp-nota d-flex align-items-start gap-2 mb-3">
+            <i class="bi bi-info-circle" aria-hidden="true"></i>
+            <span>El cruce se realiza por cédula y por el rango de fechas del documento de nómina (NNM) de Siesa, solo con transacciones no anuladas. El valor Siesa corresponde a los conceptos de labores 070 a 078. Siesa solo se consulta; no se modifica.</span>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
+                <div class="d-flex align-items-center gap-2">
+                    <h6 class="gp-seccion mb-0"><i class="bi bi-file-earmark-text" aria-hidden="true"></i>Documento de nómina</h6>
+                    <span class="tx-chip-cont verde d-none" id="siesa_num_docs"></span>
+                </div>
+                <div class="input-group d-none" id="siesa_selector" style="max-width:420px">
+                    <span class="input-group-text"><i class="bi bi-files" aria-hidden="true"></i></span>
+                    <select class="form-select" id="siesa_documento" aria-label="Documento de nómina"></select>
+                </div>
+            </div>
+            <div class="card-body pt-3" id="siesa_cuerpo">
+                <div class="gp-estado-vacio text-center py-4">
+                    <div class="gp-medallon chico d-inline-flex align-items-center justify-content-center rounded-circle mb-2"><i class="bi bi-calendar-check" aria-hidden="true"></i></div>
+                    <h6 class="mb-0">Seleccione el año y el mes, y pulse Consultar</h6>
+                </div>
+            </div>
+            <?php if (! empty($puedeMarcar)): ?>
+            <div class="card-footer bg-white d-none flex-wrap justify-content-between align-items-center gap-2 py-3" id="siesa_pie">
+                <span class="gp-subtexto" id="siesa_motivo" aria-live="polite"></span>
+                <div class="d-flex gap-2 flex-fill flex-md-grow-0">
+                    <button type="button" class="btn btn-outline-danger flex-fill" id="btn_siesa_revertir" disabled>
+                        <i class="bi bi-arrow-counterclockwise me-1" aria-hidden="true"></i>Revertir marca
+                    </button>
+                    <button type="button" class="btn btn-primary flex-fill" id="btn_siesa_marcar" disabled>
+                        <i class="bi bi-lock-fill me-1" aria-hidden="true"></i>Marcar como liquidado
+                    </button>
+                </div>
+            </div>
+            <?php endif; ?>
+        </div>
+
+        <div class="d-none" id="siesa_resultados">
+            <div class="row row-cols-2 row-cols-md-3 row-cols-xl-5 g-3 mb-3" id="siesa_kpis"></div>
+
+            <div class="card">
+                <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
+                    <span class="gp-contador" id="siesa_contador"></span>
+                    <span class="gp-subtexto">Diferencia = valor Siesa − valor AppPalma</span>
+                </div>
+                <div class="card-body p-0">
+                    <table id="tabla-siesa" class="table table-hover align-middle mb-0 gp-tabla inf-tabla w-100">
+                        <thead class="gp-thead">
+                            <tr>
+                                <th>Cédula</th>
+                                <th>Empleado</th>
+                                <th class="text-end">Valor Siesa</th>
+                                <th class="text-end">Valor AppPalma</th>
+                                <th class="text-end">Diferencia</th>
+                                <th class="text-center">Pendientes</th>
+                                <th class="text-center">Marcadas</th>
+                                <th class="text-center">Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </div>
+    </div>
+
 </main>
 
 <?php echo $this->endSection(); ?>
@@ -272,6 +368,17 @@
 
 <!-- SECCION DE SCRIPTS -->
 <?php echo $this->section('scripts'); ?>
+<script>
+    const CFG_SIESA = {
+        urls: {
+            consultar: "<?= base_url('informes/liquidacion-siesa/consultar') ?>",
+            marcar: "<?= base_url('informes/liquidacion-siesa/marcar') ?>",
+            revertir: "<?= base_url('informes/liquidacion-siesa/revertir') ?>"
+        },
+        puedeMarcar: <?= ! empty($puedeMarcar) ? 'true' : 'false' ?>
+    };
+</script>
+<script src="<?= asset_url('public/assets/js/informes/liquidacion_siesa.js') ?>"></script>
 <script>
 
     let InconsistenciasTemporal = false;
@@ -281,7 +388,7 @@
         cargarAnios();
 
         $('#anio, #mes').on('change', cargarTemporales);
-        $('#consultar_liquidacion').on('click', consultarReporte);
+        $('#consultar_liquidacion').on('click', () => $('#tab_siesa').hasClass('active') ? consultarSiesa() : consultarReporte());
         $('#actualizar_contratos').on('click', actualizarContratos);
         $('#limpiar_filtros').on('click', limpiarFiltros);
 
@@ -626,7 +733,7 @@
         tablaDetallado = $('#tabla-detallado').DataTable({
             data: dataPreparada,
             paging: false,
-            dom: "<'gp-dt-barra'if><'table-responsive't>",
+            dom: "<'tx-dt-barra'if><'table-responsive't>",
             language: { info: '_TOTAL_ registros', infoEmpty: '0 registros', infoFiltered: '(de _MAX_)' },
 
             columns: [

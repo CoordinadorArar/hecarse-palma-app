@@ -67,9 +67,14 @@ const filaConsulta = (fila) => {
     const observacion = texto(fila.observacion);
     const bloqueo = anulado ? '' : (Number(fila.cerrado) === 1 ? 'Periodo cerrado' : '');
     const liquidada = !anulado && !bloqueo && Number(fila.bloqueada) === 1;
-    const indicador = bloqueo || (liquidada ? 'Liquidada en nómina · solo edición' : '');
+    const habilitada = liquidada && Number(fila.habilitada) === 1;
+    const por = escaparHtml(texto(fila.habilitadaPor));
+    const indicador = bloqueo || (habilitada
+        ? `Habilitada para edición hasta ${fFechaHora(fila.habilitadaVence)}${por ? ` · por ${por}` : ''} · un solo uso`
+        : (liquidada ? `Liquidada en nómina · ${PERMISOS.habilitar ? 'Puede habilitarla para una edición' : 'Solicite a su superior que la habilite para editarla'}` : ''));
+    const icono = habilitada ? 'bi-unlock-fill tx-icono-habilitada' : (liquidada ? 'bi-lock-fill text-muted' : 'bi-lock text-muted');
 
-    return `<tr${anulado ? ' class="tx-fila-anulada"' : ''} data-numero="${escaparHtml(numero)}">
+    return `<tr${anulado ? ' class="tx-fila-anulada"' : (habilitada ? ' class="tx-fila-habilitada"' : '')} data-numero="${escaparHtml(numero)}">
         <td class="font-monospace fw-semibold" data-order="${escaparHtml(numero)}">${escaparHtml(numero)}</td>
         <td class="text-nowrap" data-order="${escaparHtml(texto(fila.fecha).substring(0, 10))}">${fFecha(fila.fecha)}</td>
         <td class="text-nowrap" data-order="${escaparHtml(texto(fila.tiquete))}"><span class="font-monospace">${escaparHtml(texto(fila.tiquete))}</span>${Number(fila.externo) === 1 ? ' <span class="gp-chip-fila ambar ms-1">Externo</span>' : ''}</td>
@@ -86,13 +91,16 @@ const filaConsulta = (fila) => {
                 <button type="button" class="btn btn-outline-primary" data-ver="${escaparHtml(numero)}" title="Ver transacción TLC ${escaparHtml(numero)}" aria-label="Ver transacción TLC ${escaparHtml(numero)}">
                     <i class="bi bi-eye" aria-hidden="true"></i>
                 </button>
-                ${anulado || bloqueo || !PERMISOS.editar ? '' : `<button type="button" class="btn btn-outline-secondary" data-editar="${escaparHtml(numero)}" title="Editar transacción TLC ${escaparHtml(numero)}" aria-label="Editar transacción TLC ${escaparHtml(numero)}">
+                ${anulado || bloqueo || (liquidada && !habilitada) || !PERMISOS.editar ? '' : `<button type="button" class="btn btn-outline-secondary" data-editar="${escaparHtml(numero)}" title="Editar transacción TLC ${escaparHtml(numero)}" aria-label="Editar transacción TLC ${escaparHtml(numero)}">
                     <i class="bi bi-pencil" aria-hidden="true"></i>
                 </button>`}
+                ${PERMISOS.habilitar && liquidada && !habilitada ? `<button type="button" class="btn tx-btn-habilitar" data-habilitar="${escaparHtml(numero)}" title="Habilitar edición de la transacción TLC ${escaparHtml(numero)}" aria-label="Habilitar edición de la transacción TLC ${escaparHtml(numero)}">
+                    <i class="bi bi-unlock" aria-hidden="true"></i>
+                </button>` : ''}
                 ${anulado || bloqueo || liquidada || !PERMISOS.eliminar ? '' : `<button type="button" class="btn btn-outline-danger" data-eliminar="${escaparHtml(numero)}" title="Eliminar transacción TLC ${escaparHtml(numero)}" aria-label="Eliminar transacción TLC ${escaparHtml(numero)}">
                     <i class="bi bi-trash" aria-hidden="true"></i>
                 </button>`}
-            </div>${indicador && (PERMISOS.editar || PERMISOS.eliminar) ? `<i class="bi ${liquidada ? 'bi-lock-half' : 'bi-lock'} text-muted ms-2" role="img" title="${indicador}" aria-label="${indicador}"></i>` : ''}
+            </div>${indicador && (PERMISOS.editar || PERMISOS.eliminar || PERMISOS.habilitar) ? `<i class="bi ${icono} ms-2" role="img" title="${indicador}" aria-label="${indicador}"></i>` : ''}
         </td>
     </tr>`;
 };
@@ -418,6 +426,46 @@ const eliminarTransaccion = async (numero) => {
     consultar();
 };
 
+const habilitarTransaccion = async (numero) => {
+    if (!PERMISOS.habilitar) return;
+
+    const fila = consulta.filas.find((item) => texto(item.numero) === numero) || {};
+
+    const respuesta = await Swal.fire({
+        icon: 'warning',
+        title: `¿Habilitar la transacción ${escaparHtml(numero)} para edición?`,
+        html: `<div class="gp-referencia mb-3">${fFecha(fila.fecha)} &middot; Tiquete <span class="font-monospace">${escaparHtml(texto(fila.tiquete))}</span> &middot; ${fmt(fila.pesoNeto)} kg neto</div>`
+            + '<p class="mb-0">Ya fue liquidada en nómina. La habilitación permite <b>una sola edición</b> y vence en <b>24 horas</b>. Al guardar los cambios, volverá a quedar bloqueada.</p>',
+        input: 'textarea',
+        inputLabel: 'Motivo',
+        inputPlaceholder: 'Ej. Corrección de cantidades solicitada por el supervisor',
+        inputAttributes: { maxlength: 250, 'aria-label': 'Motivo de la habilitación' },
+        inputValidator: (valor) => {
+            if (texto(valor).length < 5) return 'Escriba un motivo de al menos 5 caracteres.';
+
+            return texto(valor).length > 250 ? 'Máximo 250 caracteres.' : undefined;
+        },
+        showCancelButton: true,
+        confirmButtonText: 'Sí, habilitar',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#1dab4d',
+        showLoaderOnConfirm: true,
+        allowOutsideClick: () => !Swal.isLoading(),
+        preConfirm: (motivo) => pedir('habilitar', { empresa: empresaId(), numero, motivo: texto(motivo) })
+            .catch((error) => {
+                Swal.showValidationMessage(escaparHtml(error.message));
+
+                return false;
+            })
+    });
+
+    if (!respuesta.isConfirmed) return;
+
+    Toast.fire({ icon: 'success', title: `Transacción ${escaparHtml(numero)} habilitada hasta ${fFechaHora(respuesta.value?.vence)}` });
+
+    volverConsulta(numero, true);
+};
+
 const cambiarEmpresa = async () => {
     const selector = $id('filtro_empresa');
     const sucio = Boolean(estado.edicion) || (Boolean($id('tiquete')) && !estado.sellado && (texto($id('tiquete').value) !== '' || estado.lineas.length > 0));
@@ -495,6 +543,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (boton.dataset.ver) verTransaccion(boton.dataset.ver, boton);
         if (boton.dataset.editar && PERMISOS.editar) cargarEdicion(boton.dataset.editar);
         if (boton.dataset.eliminar && PERMISOS.eliminar) eliminarTransaccion(boton.dataset.eliminar);
+        if (boton.dataset.habilitar && PERMISOS.habilitar) habilitarTransaccion(boton.dataset.habilitar);
     });
 
     $id('con_filas').addEventListener('dblclick', (evento) => {

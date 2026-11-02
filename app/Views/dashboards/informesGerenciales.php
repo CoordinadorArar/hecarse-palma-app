@@ -273,4 +273,5 @@ $plan         = ! empty($planeacion['habilitada']) ? $planeacion : ['habilitada'
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
 <script src="<?= asset_url('public/assets/js/comun/palmas_mapa.js') ?>"></script>
 <script src="<?= asset_url('public/assets/js/dashboards/informesGerenciales.js') ?>"></script>
+<script src="<?= asset_url('public/assets/js/tutoriales/modulos/informesGerenciales.js') ?>"></script>
 <?php echo $this->endSection(); ?>

@@ -11,6 +11,11 @@ class LosetasModel extends Model
 
     public const ROLES_ALERTA_LABORES = ['ids' => [1, 3], 'abreviaturas' => ['GER', 'AGR']];
 
+    public static function rutaModulo(array $modulo): string
+    {
+        return preg_replace('#/\d+$#', '', trim((string) $modulo['Ruta'], '/')) . '/' . (int) (empty($modulo['IdLoseta']) && empty($modulo['IdModulo']) ? $modulo['Id'] : $modulo['IdLoseta']);
+    }
+
     public function alertaLaboresPermitida(int $usuario): bool
     {
         $ids  = self::ROLES_ALERTA_LABORES['ids'];

@@ -60,16 +60,23 @@ const conFila = (fila) => {
     const observacion = texto(fila.observacion);
     const bloqueo = conMotivoBloqueo(fila);
     const liquidada = bloqueo === 'Liquidada en nómina';
+    const habilitada = liquidada && Number(fila.habilitada) === 1;
     const claseBloqueo = bloqueo ? ' tx-accion-bloqueada' : '';
-    const indicador = liquidada ? 'Liquidada en nómina · solo edición' : bloqueo;
+    const vence = texto(fila.habilitadaVence);
+    const por = escaparHtml(texto(fila.habilitadaPor));
+    const indicador = habilitada
+        ? `Habilitada para edición hasta ${fechaCorta(vence)} ${vence.substring(11, 16)}${por ? ` · por ${por}` : ''} · un solo uso`
+        : (liquidada ? `Liquidada en nómina · ${PERMISOS.habilitar ? 'Puede habilitarla para una edición' : 'Solicite a su superior que la habilite para editarla'}` : bloqueo);
+    const icono = habilitada ? 'bi-unlock-fill tx-icono-habilitada' : (liquidada ? 'bi-lock-fill text-muted' : 'bi-lock text-muted');
     const fecha = texto(fila.fecha).substring(0, 10);
 
-    return `<tr${anulado ? ' class="tx-fila-anulada"' : ''} data-numero="${numero}" data-tipo="${tipo}">
+    return `<tr${anulado ? ' class="tx-fila-anulada"' : (habilitada ? ' class="tx-fila-habilitada"' : '')} data-numero="${numero}" data-tipo="${tipo}">
         <td class="text-center text-nowrap">
             <div class="btn-group btn-group-sm" role="group" aria-label="Acciones de ${numero}">
-                ${PERMISOS.editar ? `<button type="button" class="btn btn-outline-primary${liquidada ? '' : claseBloqueo}" data-editar="${numero}" data-tipo="${tipo}" title="Editar transacción ${tipo} ${numero}" aria-label="Editar transacción ${tipo} ${numero}"><i class="bi bi-pencil" aria-hidden="true"></i></button>` : ''}
+                ${PERMISOS.editar ? `<button type="button" class="btn btn-outline-primary${habilitada ? '' : claseBloqueo}" data-editar="${numero}" data-tipo="${tipo}" title="Editar transacción ${tipo} ${numero}" aria-label="Editar transacción ${tipo} ${numero}"><i class="bi bi-pencil" aria-hidden="true"></i></button>` : ''}
+                ${PERMISOS.habilitar && liquidada && !habilitada ? `<button type="button" class="btn tx-btn-habilitar" data-habilitar="${numero}" data-tipo="${tipo}" title="Habilitar edición de la transacción ${tipo} ${numero}" aria-label="Habilitar edición de la transacción ${tipo} ${numero}"><i class="bi bi-unlock" aria-hidden="true"></i></button>` : ''}
                 ${PERMISOS.eliminar ? `<button type="button" class="btn btn-outline-danger${claseBloqueo}" data-eliminar="${numero}" data-tipo="${tipo}" title="Eliminar transacción ${tipo} ${numero}" aria-label="Eliminar transacción ${tipo} ${numero}"><i class="bi bi-trash" aria-hidden="true"></i></button>` : ''}
-            </div>${bloqueo && (PERMISOS.editar || PERMISOS.eliminar) ? `<i class="bi ${liquidada ? 'bi-lock-half' : 'bi-lock'} text-muted ms-1" role="img" title="${indicador}" aria-label="${indicador}"></i>` : ''}
+            </div>${bloqueo && (PERMISOS.editar || PERMISOS.eliminar || PERMISOS.habilitar) ? `<i class="bi ${icono} ms-1" role="img" title="${indicador}" aria-label="${indicador}"></i>` : ''}
         </td>
         <td><span class="gp-chip-fila tx-chip-neutro">${tipo}</span></td>
         <td class="font-monospace fw-semibold">${numero}</td>
@@ -215,6 +222,51 @@ const conEliminar = async (numero, tipo) => {
     consultar();
 };
 
+const conHabilitar = async (numero, tipo) => {
+    const fila = conFilaDe(numero, tipo);
+    const referencia = [
+        fechaCorta(fila.fecha),
+        texto(fila.finca) ? `Finca <span class="font-monospace">${escaparHtml(texto(fila.finca))}</span>` : '',
+        escaparHtml(texto(fila.observacion).substring(0, 80))
+    ].filter(Boolean).join(' &middot; ');
+
+    const respuesta = await Swal.fire({
+        icon: 'warning',
+        title: `¿Habilitar la transacción ${escaparHtml(numero)} para edición?`,
+        html: `<div class="gp-referencia mb-3">${referencia}</div>`
+            + '<p class="mb-0">Ya fue liquidada en nómina. La habilitación permite <b>una sola edición</b> y vence en <b>24 horas</b>. Al guardar los cambios, volverá a quedar bloqueada.</p>',
+        input: 'textarea',
+        inputLabel: 'Motivo',
+        inputPlaceholder: 'Ej. Corrección de cantidades solicitada por el supervisor',
+        inputAttributes: { maxlength: 250, 'aria-label': 'Motivo de la habilitación' },
+        inputValidator: (valor) => {
+            if (texto(valor).length < 5) return 'Escriba un motivo de al menos 5 caracteres.';
+
+            return texto(valor).length > 250 ? 'Máximo 250 caracteres.' : undefined;
+        },
+        showCancelButton: true,
+        confirmButtonText: 'Sí, habilitar',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#1dab4d',
+        showLoaderOnConfirm: true,
+        allowOutsideClick: () => !Swal.isLoading(),
+        preConfirm: (motivo) => pedir('habilitar', { empresa: empresaId(), numero, motivo: texto(motivo), ...(CFG.referencia && tipo ? { tipo } : {}) })
+            .catch((error) => {
+                Swal.showValidationMessage(escaparHtml(error.message));
+
+                return false;
+            })
+    });
+
+    if (!respuesta.isConfirmed) return;
+
+    const vence = texto(respuesta.value?.vence);
+
+    Toast.fire({ icon: 'success', title: `Transacción ${escaparHtml(numero)} habilitada hasta ${fechaCorta(vence)} ${vence.substring(11, 16)}`.trim() });
+
+    volverConsulta(numero, true);
+};
+
 const conCambiarEmpresa = async () => {
     const selector = $id('filtro_empresa');
 
@@ -281,6 +333,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (boton.dataset.editar && PERMISOS.editar) conEditar(boton.dataset.editar, boton.dataset.tipo);
         if (boton.dataset.eliminar && PERMISOS.eliminar) conEliminar(boton.dataset.eliminar, boton.dataset.tipo);
+        if (boton.dataset.habilitar && PERMISOS.habilitar) conHabilitar(boton.dataset.habilitar, boton.dataset.tipo);
     });
 
     if (!PERMISOS.registrar) consultar();

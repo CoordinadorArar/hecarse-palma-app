@@ -512,6 +512,59 @@ class ProduccionController extends BaseController
         return $this->response->setJSON($resultado);
     }
 
+    public function habilitar(): ResponseInterface
+    {
+        if ($sinSesion = $this->sesionRequerida(['habilitar'], 'habilitar para edición transacciones de producción')) {
+            return $sinSesion;
+        }
+
+        $empresa = $this->empresaValida();
+
+        if ($empresa === null) {
+            return $this->error('Debe seleccionar una empresa válida.');
+        }
+
+        $numero = trim($this->campo('numero'));
+
+        if ($numero === '' || strlen($numero) > 50) {
+            return $this->error('El campo "Número" es obligatorio y admite máximo 50 caracteres.');
+        }
+
+        $motivo = trim($this->campo('motivo'));
+
+        if ($motivo === '' || mb_strlen($motivo) > 250) {
+            return $this->error('El campo "Motivo" es obligatorio y admite máximo 250 caracteres.');
+        }
+
+        if (! $this->produccionModel->tablaHabilitaciones()) {
+            return $this->error('La habilitación de transacciones no está disponible: falta ejecutar el script crear_habilitacion_transacciones.sql.', 500);
+        }
+
+        $antes = $this->transaccionEditable($empresa, $numero, 'habilitar');
+
+        if ($antes instanceof ResponseInterface) {
+            return $antes;
+        }
+
+        try {
+            $vence = $this->produccionModel->habilitar($empresa, $numero, $motivo, $this->session->get('usu_id'));
+        } catch (\Throwable $e) {
+            log_message('error', 'Error habilitando la transacción de producción: ' . $e->getMessage());
+
+            return $this->error('No se pudo habilitar la transacción.', 500);
+        }
+
+        if ($vence === null) {
+            return $this->error('La transacción ' . $numero . ' ya tiene una habilitación vigente para edición.');
+        }
+
+        return $this->response->setJSON([
+            'success' => true,
+            'message' => 'Transacción ' . $numero . ' habilitada para edición hasta ' . $vence . '.',
+            'vence'   => $vence,
+        ]);
+    }
+
     public function periodos(): ResponseInterface
     {
         if ($sinSesion = $this->sesionRequerida(['registrar', 'editar'], 'registrar o editar transacciones de producción')) {
@@ -604,8 +657,22 @@ class ProduccionController extends BaseController
             return $this->error('La transacción ' . $numero . ' está anulada y no se puede ' . $accion . '.');
         }
 
-        if ($accion !== 'editar' && $this->produccionModel->liquidada($empresa, $numero)) {
-            return $this->error('La transacción ' . $numero . ' ya fue liquidada o ejecutada en nómina y no se puede ' . $accion . '.');
+        $liquidada = $this->produccionModel->liquidada($empresa, $numero);
+
+        if ($accion === 'habilitar' && ! $liquidada) {
+            return $this->error('La transacción ' . $numero . ' no está liquidada en nómina: se puede editar sin habilitación.');
+        }
+
+        if ($accion !== 'habilitar' && $liquidada) {
+            $habilitacion = $accion === 'editar' ? $this->produccionModel->habilitacion($empresa, $numero) : null;
+
+            if ($habilitacion === null) {
+                return $this->error($accion === 'editar'
+                    ? 'La transacción ' . $numero . ' ya fue liquidada en nómina y no se puede editar. Solicite a su superior que la habilite para edición.'
+                    : 'La transacción ' . $numero . ' ya fue liquidada o ejecutada en nómina y no se puede ' . $accion . '.');
+            }
+
+            $antes['habilitacion'] = $habilitacion['id'];
         }
 
         $periodo = $this->produccionModel->periodo($empresa, $antes['encabezado']['anio'], $antes['encabezado']['mes']);
@@ -1216,7 +1283,7 @@ class ProduccionController extends BaseController
         if ($this->permisos === null) {
             $acciones = $this->produccionModel->accionesPermitidas((int) $this->session->get('usu_id'), self::MODULO);
 
-            foreach (['registrar', 'consultar', 'editar', 'eliminar'] as $accion) {
+            foreach (['registrar', 'consultar', 'editar', 'eliminar', 'habilitar'] as $accion) {
                 $this->permisos[$accion] = in_array($accion . '-produccion', $acciones, true);
             }
         }

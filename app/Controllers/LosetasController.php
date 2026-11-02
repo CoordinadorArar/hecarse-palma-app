@@ -49,7 +49,7 @@ class LosetasController extends BaseController
 
         $losetas = $this->losetas_model->getLosetasByUsuario($session->get('usu_id'));
 
-        $data = ['title' => lang('Losetas.welcome')];
+        $data = ['title' => sitio('nombre_app'), 'empresa' => lang('Losetas.empresa')];
         $data['subtitle'] = lang('Losetas.subtitle_welcome');
         $data['losetas'] = $losetas;
         $data['nombre_usuario'] = trim($session->get('usu_nombres') . ' ' . $session->get('usu_apellidos'));

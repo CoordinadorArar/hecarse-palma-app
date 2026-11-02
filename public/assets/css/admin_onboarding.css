@@ -1,0 +1,258 @@
+.ao-root {
+  --ao-primario: #1dab4d;
+  --ao-oscuro: #137a36;
+  --ao-suave: #e8f6ed;
+  --ao-borde: #bfe6cc;
+  --ao-texto: #2f3b48;
+  --ao-muted: #8795a4;
+  --ao-linea: #e4e8ee;
+}
+
+.ao-root .gp-icono {
+  background-color: var(--ao-suave);
+  color: var(--ao-primario);
+}
+
+.ao-root .inf-kpi .gp-icono {
+  width: 40px;
+  height: 40px;
+  flex-basis: 40px;
+}
+
+.ao-root .gp-seccion {
+  color: var(--ao-oscuro);
+  border-bottom: 2px solid var(--ao-suave);
+}
+
+.ao-root .card-header .gp-seccion {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.ao-root a:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 .2rem rgba(29, 171, 77, .25);
+  border-radius: .375rem;
+}
+
+.ao-kpi-alerta {
+  border-left: 4px solid #e0a800 !important;
+  background-color: #fff6e5 !important;
+}
+
+.ao-kpi-neutro {
+  border-left: 4px solid var(--ao-primario) !important;
+}
+
+.ao-chart {
+  min-height: 280px;
+}
+
+.ao-lista {
+  padding: .55rem 0;
+  border-bottom: 1px solid var(--ao-linea);
+}
+
+.ao-lista:last-child {
+  border-bottom: 0;
+}
+
+.ao-avatar {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  font-size: .75rem;
+  background-color: var(--ao-suave);
+  color: var(--ao-oscuro);
+}
+
+.ao-chip {
+  display: inline-block;
+  padding: .2rem .6rem;
+  font-size: .72rem;
+  font-weight: 600;
+  border-radius: 50rem;
+  background-color: var(--ao-suave);
+  color: var(--ao-oscuro);
+  border: 1px solid var(--ao-borde);
+}
+
+.ao-chip.ambar {
+  background-color: #fff6e5;
+  color: #8a6100;
+  border-color: #ffe0a3;
+}
+
+@media (max-width: 575.98px) {
+  .ao-root .inf-kpi-valor {
+    font-size: 1.15rem;
+  }
+}
+
+@media (max-width: 399.98px) {
+  .ao-root .inf-kpi .gp-icono {
+    display: none !important;
+  }
+}
+
+.ao-kpi-alerta {
+  border-color: #ffe0a3 !important;
+  border-left-color: #e0a800 !important;
+}
+
+.ao-kpi-alerta .gp-icono {
+  background-color: #fff;
+  color: #e0a800;
+}
+
+.ao-scroll-x {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.ao-scroll-x > .ao-chart {
+  width: 100%;
+}
+
+.ao-icono-estado {
+  font-size: 2rem;
+}
+
+.ao-icono-ok {
+  color: #198754;
+}
+
+.ao-root .min-w-0 {
+  min-width: 0;
+}
+
+.ao-chip.gris {
+  background-color: #f1f3f5;
+  color: #495057;
+  border-color: #dee2e6;
+}
+
+.ao-mes {
+  min-width: 2.25rem;
+  text-align: center;
+  padding: .3rem .25rem;
+  border-radius: .5rem;
+  line-height: 1.3;
+}
+
+.ao-mes.actual {
+  outline: 2px solid var(--ao-oscuro);
+  outline-offset: 2px;
+}
+
+.ao-barra {
+  height: 6px;
+  min-width: 60px;
+  background-color: var(--ao-linea);
+  border-radius: 50rem;
+  overflow: hidden;
+}
+
+.ao-barra > div {
+  height: 100%;
+  background-color: var(--ao-primario);
+  border-radius: 50rem;
+}
+
+.ao-tabla thead th {
+  font-size: .72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--ao-texto);
+  background-color: transparent;
+  border-bottom: 1px solid var(--ao-linea);
+}
+
+.ao-tabla td,
+.ao-tabla th {
+  vertical-align: middle;
+  border-color: var(--ao-linea);
+}
+
+.ao-tabla .ao-finca > * {
+  --bs-table-bg: var(--ao-suave);
+  background-color: var(--ao-suave);
+  font-weight: 600;
+}
+
+.ao-tabla .ao-finca .gp-subtexto {
+  font-weight: 400;
+}
+
+.ao-root button:focus-visible,
+.ao-root select:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 .2rem rgba(29, 171, 77, .25);
+  border-radius: .375rem;
+}
+
+@media (max-width: 575.98px) {
+  .ao-chart {
+    min-height: 240px;
+  }
+}
+
+.ao-tabla .ao-chip {
+  white-space: nowrap;
+}
+
+.ao-root .ao-toggle {
+  color: var(--ao-oscuro);
+}
+
+.ao-root .ao-toggle[aria-expanded="true"] .ao-ver,
+.ao-root .ao-toggle[aria-expanded="false"] .ao-ocultar {
+  display: none;
+}
+
+.ao-root a.inf-kpi:hover {
+  border-color: var(--ao-borde);
+}
+
+.ao-root .ao-finca .gp-subtexto {
+  color: #5c6b7a;
+}
+
+@media (max-width: 575.98px) {
+  .ao-root .ao-tabla .ao-chip {
+    padding: .2rem .4rem;
+  }
+
+  .ao-root .ao-tabla .ao-barra {
+    min-width: 32px;
+  }
+}
+
+.ao-chip.rojo {
+  background-color: #fdecec;
+  color: #a62c2c;
+  border-color: #f7c7c7;
+}
+
+.ao-punto {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: .35rem;
+  vertical-align: 1px;
+}
+
+.ao-kpi-mod {
+  border-left: 4px solid var(--ao-mod) !important;
+}
+
+.ao-kpi-mod .ao-barra {
+  min-width: 32px;
+}
+
+.ao-root .ao-kpi-mod .gp-icono {
+  color: var(--ao-mod);
+  background-color: color-mix(in srgb, var(--ao-mod) 12%, #fff);
+}

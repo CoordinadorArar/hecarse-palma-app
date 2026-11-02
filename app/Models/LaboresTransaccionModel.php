@@ -163,7 +163,7 @@ class LaboresTransaccionModel extends ProduccionModel
                        CASE WHEN ISNULL(t.anulado, 0) = 0 THEN 0 ELSE 1 END AS anulado,
                        CASE WHEN EXISTS (SELECT 1 FROM cPeriodo p WHERE p.empresa = t.empresa AND p.[año] = t.[año]
                                             AND p.mes = t.mes AND p.cerrado = 1) THEN 1 ELSE 0 END AS cerrado,
-                       CASE WHEN " . $this->liquidadaSql('t') . " THEN 1 ELSE 0 END AS bloqueada" . $this->auditoriaSql('t') . "
+                       CASE WHEN " . $this->liquidadaSql('t') . " THEN 1 ELSE 0 END AS bloqueada" . $this->auditoriaSql('t') . $this->habilitacionSql('t') . "
                   FROM aTransaccion t
                  WHERE t.empresa = ? AND t.tipo IN (" . $this->marcas() . ')' . $this->sinEliminadas('t');
 
@@ -190,6 +190,8 @@ class LaboresTransaccionModel extends ProduccionModel
             foreach (['anio', 'mes', 'anulado', 'cerrado', 'bloqueada'] as $c) {
                 $fila[$c] = (int) $fila[$c];
             }
+
+            $fila['habilitada'] = $fila['habilitadaVence'] === null ? 0 : 1;
         }
 
         unset($fila);
@@ -220,6 +222,8 @@ class LaboresTransaccionModel extends ProduccionModel
         foreach (['anio', 'mes', 'anulado', 'cerrado', 'bloqueada'] as $c) {
             $encabezado[$c] = (int) $encabezado[$c];
         }
+
+        $encabezado += $this->estadoHabilitacion($empresa, $numero);
 
         $lineas = $this->db->query(
             "SELECT n.registro, RTRIM(ISNULL(n.novedad, '')) AS novedad,
@@ -399,12 +403,18 @@ class LaboresTransaccionModel extends ProduccionModel
 
             $this->conservarLiquidacion($liquidacion, $llave);
 
+            if (! $this->usarHabilitacion((int) ($antes['habilitacion'] ?? 0), $usu_id)) {
+                $this->db->transRollback();
+
+                return ['success' => false, 'message' => 'La habilitación para editar la transacción ' . $numero . ' venció o ya fue usada.'];
+            }
+
             $auditoria = $this->insertarAuditoria('UPDATE', [
                 'empresa' => $empresa,
                 'tipo'    => static::TIPO,
                 'numero'  => $numero,
-                'antes'   => $antes + ['liquidada' => $liquidacion !== []],
-                'despues' => $datos + ['liquidada' => $liquidacion !== []],
+                'antes'   => array_merge($antes, ['liquidada' => (int) ($liquidacion['aTransaccionTercero']['ejecutado'] ?? 0) === 1, 'habilitacion' => null]),
+                'despues' => $datos + ['liquidada' => (int) ($liquidacion['aTransaccionTercero']['ejecutado'] ?? 0) === 1, 'habilitacion' => $antes['habilitacion'] ?? null],
             ], $usu_id);
 
             if (! $auditoria || $this->db->transStatus() === false) {

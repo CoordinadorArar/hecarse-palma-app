@@ -199,4 +199,53 @@ class App extends BaseConfig
      * @see http://www.w3.org/TR/CSP/
      */
     public bool $CSPEnabled = false;
+
+    public string $hostsPermitidos = '';
+
+    public function __construct()
+    {
+        parent::__construct();
+
+        if (PHP_SAPI === 'cli' || empty($_SERVER['HTTP_HOST'])) {
+            return;
+        }
+
+        $partes  = $this->baseURL !== '' ? (parse_url($this->baseURL) ?: []) : [];
+        $hostBase = strtolower($partes['host'] ?? '') . (isset($partes['port']) ? ':' . $partes['port'] : '');
+        $ruta     = $this->baseURL !== ''
+            ? ($partes['path'] ?? '/')
+            : rtrim(str_replace('\\', '/', dirname((string) ($_SERVER['SCRIPT_NAME'] ?? '/'))), '/') . '/';
+
+        $host       = strtolower((string) $_SERVER['HTTP_HOST']);
+        $seguro     = self::esPeticionSegura();
+        $entradas   = array_filter(array_map('trim', explode(',', strtolower($this->hostsPermitidos . ',' . ($partes['host'] ?? '')))));
+        $nombres    = array_map(static fn ($e) => explode(':', $e)[0], $entradas);
+        $valido     = preg_match('/^([a-z0-9.\-]+)(?::(\d{1,5}))?$/', $host, $m)
+            && ($nombres === [] || in_array($m[1], $nombres, true));
+
+        if ($valido && isset($m[2])) {
+            if ($m[2] === ($seguro ? '443' : '80')) {
+                $host = $m[1];
+            } elseif ($m[2] !== (string) ($partes['port'] ?? '') && ! in_array($host, $entradas, true)) {
+                $valido = false;
+            }
+        }
+
+        if (! $valido) {
+            $host = $hostBase;
+        }
+
+        if ($host === '') {
+            return;
+        }
+
+        $this->baseURL = ($seguro ? 'https' : 'http') . '://' . $host . '/' . ltrim($ruta, '/');
+    }
+
+    public static function esPeticionSegura(): bool
+    {
+        return (! empty($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) !== 'off')
+            || ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https'
+            || (! empty($_SERVER['HTTP_FRONT_END_HTTPS']) && strtolower((string) $_SERVER['HTTP_FRONT_END_HTTPS']) !== 'off');
+    }
 }

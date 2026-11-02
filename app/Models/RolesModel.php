@@ -18,9 +18,140 @@ class RolesModel extends Model
         $builder = $this->db->table('Roles r');
         $builder->join('Usuarios u', 'u.Id = r.IdUsuario');
         $builder->select('r.*, u.Nombre AS NombreUsuario, u.Apellido AS ApellidoUsuario');
-        $query = $builder->get();
+        if ($this->columnaInicio()) {
+            $builder->join('Modulos mi', 'mi.Id = r.IdModuloInicio', 'left');
+            $builder->join('Modulos ml', 'ml.Id = mi.IdLoseta', 'left');
+            $builder->select('mi.Nombre AS ModuloInicio, mi.Icono AS IconoInicio, ml.Nombre AS LosetaInicio');
+        } else {
+            $builder->select('NULL AS ModuloInicio, NULL AS IconoInicio, NULL AS LosetaInicio', false);
+        }
+        $roles = $builder->get()->getResultArray();
 
-        return $query->getResultArray();
+        foreach ($roles as &$rol) {
+            $rol['inicio_nombre'] = $rol['ModuloInicio'] === null ? null : ($rol['LosetaInicio'] === null ? $rol['ModuloInicio'] : $rol['LosetaInicio'] . ' › ' . $rol['ModuloInicio']);
+            $rol['inicio_icono'] = $rol['IconoInicio'];
+        }
+        unset($rol);
+
+        return $roles;
+    }
+
+    public function columnaInicio(): bool
+    {
+        static $existe = null;
+
+        return $existe ??= $this->db->fieldExists('IdModuloInicio', 'Roles');
+    }
+
+    public function inicioRol(int $idRol): ?array
+    {
+        return $this->db->table('Roles')
+            ->select($this->columnaInicio() ? 'Id, IdModuloInicio' : 'Id, NULL AS IdModuloInicio', false)
+            ->where('Id', $idRol)
+            ->get()->getRowArray();
+    }
+
+    private function modulosInicio(string $filtro, array $params): array
+    {
+        return $this->db->query(
+            "SELECT m.Id, m.Nombre, m.Icono, m.Ruta, m.IdLoseta, m.IdModulo, COALESCE(l.Nombre, m.Nombre) AS Grupo
+               FROM Modulos m
+               LEFT JOIN Modulos l ON l.Id = m.IdLoseta
+               LEFT JOIN Modulos p ON p.Id = m.IdModulo
+              WHERE m.FechaFinalizacion IS NULL
+                AND LTRIM(RTRIM(ISNULL(m.Ruta, ''))) <> ''
+                AND ((m.IdLoseta IS NULL AND m.IdModulo IS NULL) OR (l.Id IS NOT NULL AND l.FechaFinalizacion IS NULL))
+                AND m.Id IN (SELECT mr.IdModulo FROM ModulosRoles mr WHERE mr.FechaFinalizacion IS NULL AND $filtro)
+              ORDER BY COALESCE(l.Orden, m.Orden), COALESCE(l.Id, m.Id),
+                       CASE WHEN m.IdLoseta IS NULL THEN 0 ELSE 1 END,
+                       COALESCE(p.Orden, m.Orden), COALESCE(p.Id, m.Id),
+                       CASE WHEN m.IdModulo IS NULL THEN 0 ELSE 1 END, m.Orden, m.Id",
+            $params
+        )->getResultArray();
+    }
+
+    public function opcionesInicio(int $idRol): array
+    {
+        return array_map(fn ($m) => [
+            'id' => (int) $m['Id'],
+            'nombre' => $m['Nombre'],
+            'grupo' => $m['Grupo'],
+            'icono' => $m['Icono'],
+            'tipo' => empty($m['IdLoseta']) && empty($m['IdModulo']) ? 'loseta' : 'modulo',
+        ], $this->modulosInicio('mr.IdRol = ?', [$idRol]));
+    }
+
+    public function destinoInicio(int $idUsuario): string
+    {
+        try {
+            if (!$this->columnaInicio()) {
+                return 'losetas';
+            }
+
+            $inicios = array_column($this->db->query(
+                'SELECT r.IdModuloInicio
+                   FROM UsuariosRoles ur
+                   JOIN Roles r ON r.Id = ur.IdRol AND r.FechaFinalizacion IS NULL
+                  WHERE ur.IdUsuario = ? AND ur.FechaFinalizacion IS NULL',
+                [$idUsuario]
+            )->getResultArray(), 'IdModuloInicio');
+
+            $unicos = array_unique(array_map(fn ($v) => $v === null ? '' : (string) (int) $v, $inicios));
+            if (count($unicos) !== 1 || reset($unicos) === '') {
+                return 'losetas';
+            }
+
+            $modulo = $this->modulosInicio(
+                'mr.IdRol IN (SELECT ur.IdRol FROM UsuariosRoles ur JOIN Roles r ON r.Id = ur.IdRol AND r.FechaFinalizacion IS NULL WHERE ur.IdUsuario = ? AND ur.FechaFinalizacion IS NULL) AND m.Id = ?',
+                [$idUsuario, (int) reset($unicos)]
+            );
+
+            return empty($modulo) ? 'losetas' : LosetasModel::rutaModulo($modulo[0]);
+        } catch (\Throwable $e) {
+            log_message('error', 'Error obteniendo vista de inicio: ' . $e->getMessage());
+
+            return 'losetas';
+        }
+    }
+
+    public function guardarInicio(int $idRol, ?int $idModulo): bool
+    {
+        $rol = $this->inicioRol($idRol);
+        if (!$rol) {
+            return false;
+        }
+
+        $session = session();
+        $fecha = date('Y-m-d') . 'T' . date('H:i:s');
+        $ok = $this->db->table('Roles')->where('Id', $idRol)->update([
+            'IdModuloInicio' => $idModulo,
+            'FechaModificacion' => $fecha,
+        ]);
+
+        $anterior = $rol['IdModuloInicio'] === null ? null : (int) $rol['IdModuloInicio'];
+        if ($ok && $anterior !== $idModulo) {
+            $this->db->table('Auditoria')->insert([
+                'TablaAfectada' => 'Roles',
+                'Accion' => 'UPDATE',
+                'CambiosRealizados' => json_encode([['Columna' => 'IdModuloInicio', 'ValorAnterior' => $anterior, 'ValorNuevo' => $idModulo]]),
+                'FechaRegistro' => $fecha,
+                'IdUsuario' => $session->get('usu_id'),
+            ]);
+        }
+
+        return (bool) $ok;
+    }
+
+    public function depurarInicio(int $idRol): void
+    {
+        if (!$this->columnaInicio()) {
+            return;
+        }
+
+        $actual = $this->inicioRol($idRol)['IdModuloInicio'] ?? null;
+        if ($actual !== null && !in_array((int) $actual, array_column($this->opcionesInicio($idRol), 'id'), true)) {
+            $this->guardarInicio($idRol, null);
+        }
     }
 
     /**
