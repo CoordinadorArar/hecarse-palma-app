@@ -28,5 +28,6 @@ writable/logs/*
 !writable/logs/index.html
 writable/uploads/*
 !writable/uploads/index.html
+writable/datos_bascula/*
 .vscode/sftp.json
 .claude/settings.local.json

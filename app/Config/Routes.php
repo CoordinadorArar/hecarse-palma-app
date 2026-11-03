@@ -410,3 +410,6 @@ $routes->get('informes/fertilizacion/(:num)', 'informes\ReportesController::modu
 $routes->post('informes/reportes/consultar', 'informes\ReportesController::consultar');
 $routes->post('informes/reportes/exportar', 'informes\ReportesController::exportar');
 $routes->post('informes/reportes/opciones', 'informes\ReportesController::opciones');
+
+/** Rutas de integración con la báscula.*/
+$routes->post('api/receive-data-bascula', 'api\BasculaController::receiveData');
