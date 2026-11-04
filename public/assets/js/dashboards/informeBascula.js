@@ -1,6 +1,10 @@
 const URL_DATOS = BASE_URL + 'dashboards/bascula/datos';
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 const DIAS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+const MAX_DIAS = 366;
+const MAX_DIARIO = 92;
+const FECHA_MIN = '2000-01-01';
 const PALETA = ['#2f7a4b', '#41a867', '#7cc49a', '#4a5b6c', '#f0a500', '#5b8def'];
 const ESTADOS = {
     cumple: { nombre: 'Cumple', corto: 'Cumple', clase: 'ig-e-normal', icono: 'bi-check-circle' },
@@ -11,7 +15,7 @@ const ESTADOS = {
 const ORDEN_FILTRO = ['fuera_regla', 'cumple', 'sin_tlc', 'incompleto'];
 const TABS = [['panel_viajes', 'bi-arrow-left-right', 'Báscula vs extractora'], ['panel_placas', 'bi-truck-front', 'Placas por día'], ['panel_conductores', 'bi-person-badge', 'Conductores']];
 const ZERO_RECORDS = 'Ningún registro coincide con la búsqueda';
-const SIN_EXTRACTORA = ['SIN DESTINO', 'MOVIMIENTO INTERNO'];
+const SIN_EXTRACTORA = { 'SIN DESTINO': '#c5ccd3', 'MOVIMIENTO INTERNO': '#9aa5b1' };
 const DOM_TABLA = "<'gp-dt-barra'lf><'table-responsive't><'gp-dt-barra gp-dt-pie'ip>";
 
 const $id = (id) => document.getElementById(id);
@@ -45,16 +49,33 @@ const diaSemana = (iso) => {
     const [anio, mes, dia] = partes(iso);
     return DIAS[new Date(anio, mes - 1, dia).getDay()] || '';
 };
-const fechaCorta = (iso) => `${diaSemana(iso)} ${fecha(iso).substring(0, 5)}`;
 const mesTexto = (valor) => {
-    const [anio, mes] = texto(valor).split('-').map(Number);
+    const [anio, mes] = partes(valor);
     return anio && mes ? `${MESES[mes - 1]} ${anio}` : texto(valor);
 };
-const etiquetaDia = (valor) => (movil() && (Number(valor) - 1) % 3 ? '' : valor);
+const isoDe = (dia) => `${dia.getFullYear()}-${pad(dia.getMonth() + 1)}-${pad(dia.getDate())}`;
+const sumarDias = (iso, dias) => {
+    const [anio, mes, dia] = partes(iso);
+    return isoDe(new Date(anio, mes - 1, dia + dias));
+};
+const diasEntre = (desde, hasta) => {
+    const [a1, m1, d1] = partes(desde);
+    const [a2, m2, d2] = partes(hasta);
+    return Math.round((Date.UTC(a2, m2 - 1, d2) - Date.UTC(a1, m1 - 1, d1)) / 86400000) + 1;
+};
+const rangoTexto = (desde, hasta) => (desde === hasta ? `el ${fecha(desde)}` : `entre ${fecha(desde)} y ${fecha(hasta)}`);
+const RANGOS = {
+    mes: (hoy) => [isoDe(new Date(hoy.getFullYear(), hoy.getMonth(), 1)), isoDe(hoy)],
+    anterior: (hoy) => [isoDe(new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1)), isoDe(new Date(hoy.getFullYear(), hoy.getMonth(), 0))],
+    treinta: (hoy) => [isoDe(new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() - 29)), isoDe(hoy)]
+};
 const truncar = (valor, largo = 22) => (valor.length > largo ? valor.slice(0, largo - 1) + '…' : valor);
 const nombreConductor = (fila) => texto(fila.conductor) || 'Sin nombre';
+const nombrePropio = (valor) => texto(valor).toLocaleLowerCase('es').replace(/(^|\s)(\S)/g, (_, espacio, letra) => espacio + letra.toLocaleUpperCase('es'));
+const fincasViaje = (fila) => (Array.isArray(fila.fincas) ? fila.fincas : []).map(String);
+const nombresFincas = (codigos) => codigos.map((codigo) => `${codigo} ${estado.fincas[codigo] || ''}`.trim()).join(' · ');
 
-const estado = { turno: 0, respuesta: null, graficas: {}, tablas: [], pendientes: {}, tab: 'panel_viajes', filtro: null, regla: 0.02, tablaViajes: null };
+const estado = { turno: 0, respuesta: null, graficas: {}, tablas: [], pendientes: {}, tab: 'panel_viajes', filtro: null, regla: 0.02, tablaViajes: null, fincas: {}, firmaFincas: '', esperaFincas: null };
 
 const estadoVacio = (icono, titulo, cuerpo, extra = '') => `
     <div class="gp-estado-vacio text-center py-5">
@@ -66,7 +87,7 @@ const estadoVacio = (icono, titulo, cuerpo, extra = '') => `
 const pedir = async (datos) => {
     const cuerpo = new FormData();
 
-    Object.entries(datos).forEach(([clave, valor]) => cuerpo.append(clave, valor ?? ''));
+    Object.entries(datos).forEach(([clave, valor]) => (Array.isArray(valor) ? valor.forEach((item) => cuerpo.append(`${clave}[]`, item)) : cuerpo.append(clave, valor ?? '')));
 
     let respuesta;
 
@@ -95,7 +116,7 @@ const ocupado = (activo) => {
     const boton = $id('btn_consultar');
     const cuerpo = $id('resultado_cuerpo');
 
-    boton.disabled = activo;
+    boton.disabled = activo || !rango().valido;
     boton.innerHTML = activo
         ? '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>Actualizando…'
         : '<i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i>Actualizar';
@@ -161,18 +182,19 @@ const kpiRegla = (k, n) => {
 
     return `<div class="col-12 col-xl-4">
         <div class="inf-kpi ba-regla${sin ? '' : (cumple ? ' ig-kpi-ok' : ' ig-kpi-critico')}">
-            <div class="d-flex align-items-center justify-content-between gap-2"><span class="gp-etiqueta-mini">Regla de pérdida · máx. ${f('pct', regla, ' %')}</span>${chip}</div>
-            <div class="d-flex flex-wrap align-items-baseline gap-2"><span class="ba-regla-valor${fuera ? ' ig-texto-rojo' : ''}">${f('pct', pct, ' %')}</span>${veces > 1 ? `<span class="tb-variacion text-muted">≈${f('entero', Math.round(veces))} veces el máximo</span>` : ''}</div>
-            <span class="gp-subtexto">${cruzados ? `${f('entero', n.fuera_regla)} de ${f('entero', cruzados)} viajes cruzados fuera de regla (${f('pctEje', (n.fuera_regla / cruzados) * 100, ' %')})` : 'Sin viajes cruzados con TLC en el mes'}</span>
+            <div class="d-flex align-items-center justify-content-between gap-2"><span class="gp-etiqueta-mini">Regla de pérdida neta · máx. ${f('pct', regla, ' %')}</span>${chip}</div>
+            <div class="d-flex flex-wrap align-items-baseline gap-2"><span class="ba-regla-valor${fuera ? ' ig-texto-rojo' : ''}">${f('pct', pct, ' %')}</span>${veces > 1 ? `<span class="tb-variacion text-muted">≈ ${f('entero', Math.round(veces))} veces el máximo</span>` : ''}</div>
+            <span class="gp-subtexto">Pérdida neta: ${sin ? '—' : f(Number(k.perdidaKg) < 0 ? 'kgSigno' : 'kg', k.perdidaKg, ' kg')}</span>
+            <span class="gp-subtexto">${cruzados ? `${f('entero', n.fuera_regla)} de ${f('entero', cruzados)} viajes cruzados fuera de regla (${f('pctEje', (n.fuera_regla / cruzados) * 100, ' %')})` : 'Sin viajes cruzados con TLC en el periodo'}</span>
             <div class="ba-distribucion" role="img" aria-label="${escaparHtml(`Distribución de viajes. ${resumen}`)}">${segmentos}</div>
             <div class="ig-leyenda">${leyenda}</div>
         </div>
     </div>`;
 };
 
-const kpi = (icono, etiqueta, valor, sub) => `<div class="col-6 col-md-3 col-xl-6 min-w-0">
+const kpi = (icono, etiqueta, valor, sub, claseIcono = '') => `<div class="col-6 col-md-3 col-xl-6 min-w-0">
     <div class="inf-kpi">
-        <span class="gp-icono rounded-circle d-inline-flex align-items-center justify-content-center"><i class="bi ${icono}" aria-hidden="true"></i></span>
+        <span class="gp-icono${claseIcono ? ` ${claseIcono}` : ''} rounded-circle d-inline-flex align-items-center justify-content-center"><i class="bi ${icono}" aria-hidden="true"></i></span>
         <div class="min-w-0 flex-grow-1">
             <span class="gp-etiqueta-mini d-block">${etiqueta}</span>
             <div class="inf-kpi-valor" title="${valor}">${valor}</div>
@@ -200,6 +222,11 @@ const kpiEstado = (clave, cantidad, kg) => {
 const pintarKpis = (k, n, viajes) => {
     const kgEstado = viajes.reduce((total, viaje) => ({ ...total, [viaje.estado]: (total[viaje.estado] || 0) + (Number(viaje.kgBascula) || 0) }), {});
     const tlc = Number(k.tlcSinPesaje) || 0;
+    const kgCruzados = (Number(k.kgExtractora) || 0) + (Number(k.perdidaKg) || 0);
+    const conFaltante = Number(k.viajesFaltante) || 0;
+    const subNoLlegados = !(Number(k.cruzados) > 0)
+        ? 'Sin viajes cruzados'
+        : (conFaltante ? `en ${f('entero', conFaltante)} ${conFaltante === 1 ? 'viaje' : 'viajes'} con faltante${kgCruzados > 0 ? ` · ${f('pctEje', (Number(k.kgNoLlegados) / kgCruzados) * 100, ' %')} de kg cruzados` : ''}` : 'Sin faltantes en viajes cruzados');
 
     return `<div class="row g-3 mb-3">
         ${kpiRegla(k, n)}
@@ -207,7 +234,7 @@ const pintarKpis = (k, n, viajes) => {
             ${kpi('bi-truck', 'Viajes en báscula', f('entero', k.viajes), `${f('entero', k.cruzados)} cruzados · ${f('entero', k.sinTlc)} sin TLC`)}
             ${kpi('bi-box-seam', 'Kg báscula', f('kg', k.kgBascula, ' kg'), 'Peso neto finca')}
             ${kpi('bi-buildings', 'Kg extractora', f('kg', k.kgExtractora, ' kg'), 'Solo viajes cruzados')}
-            ${kpi('bi-graph-down-arrow', 'Pérdida kg', f('kg', k.perdidaKg, ' kg'), nulo(k.perdidaPct) ? 'Sin viajes cruzados' : `${f('pct', k.perdidaPct, ' %')} sobre kg cruzados`)}
+            ${kpi('bi-graph-down-arrow', 'Kg no llegados', f('kg', k.kgNoLlegados, ' kg'), subNoLlegados, Number(k.kgNoLlegados) > 0 ? 'ba-icono-faltante' : '')}
         </div></div>
     </div>
     <div class="row g-3 mb-3">
@@ -236,18 +263,62 @@ const opcionesBase = (altura) => ({
     yaxis: { min: 0, labels: { style: { colors: '#5c6b7a' }, formatter: (valor) => FORMATOS.compacto.format(valor) } }
 });
 
-const porFecha = (lista) => Object.fromEntries((lista || []).map((fila) => [texto(fila.fecha).substring(0, 10), fila]));
+const construirEjes = (desde, hasta) => {
+    const total = Math.max(diasEntre(desde, hasta), 1);
+    const dias = Array.from({ length: total }, (_, indice) => sumarDias(desde, indice));
+
+    if (total > MAX_DIARIO) {
+        const meses = [...new Set(dias.map((dia) => dia.substring(0, 7)))];
+        const etiquetas = meses.map((mes) => `${MESES_CORTOS[Number(mes.substring(5, 7)) - 1]} ${mes.substring(0, 4)}`);
+
+        return { mensual: true, largo: 7, claves: meses, etiquetas, titulos: etiquetas, visibles: new Set(etiquetas) };
+    }
+
+    const unMes = desde.substring(0, 7) === hasta.substring(0, 7);
+    const paso = Math.ceil(total / (movil() ? 8 : 16));
+    const etiquetas = dias.map((dia) => (unMes ? dia.substring(8, 10) : fecha(dia).substring(0, 5)));
+
+    return { mensual: false, largo: 10, claves: dias, etiquetas, titulos: dias.map((dia) => `${diaSemana(dia)} ${fecha(dia)}`), visibles: new Set(etiquetas.filter((_, indice) => indice % paso === 0)) };
+};
+
+const agrupar = (lista, ejes) => (lista || []).reduce((grupos, fila) => {
+    const clave = texto(fila.fecha).substring(0, ejes.largo);
+
+    (grupos[clave] ||= []).push(fila);
+    return grupos;
+}, {});
+
+const ejeX = (base, ejes) => ({ ...base.xaxis, categories: ejes.etiquetas, labels: { ...base.xaxis.labels, rotate: 0, formatter: (valor) => (ejes.visibles.has(valor) ? valor : '') }, tooltip: { enabled: false } });
 
 const opcionesDias = (dias, ejes) => {
     const base = opcionesBase(alto());
-    const mapa = porFecha(dias);
-    const valores = (campo) => ejes.map((iso) => (nulo(mapa[iso]?.[campo]) ? null : Number(mapa[iso][campo])));
-    const regla = estado.regla;
-    const pcts = valores('perdidaPct');
-    const titulo = (indice) => {
-        const total = mapa[ejes[indice]]?.kgBasculaTotal;
+    const grupos = agrupar(dias, ejes);
+    const suma = (filas, campo) => filas.reduce((total, fila) => total + (Number(fila[campo]) || 0), 0);
+    const puntos = ejes.claves.map((clave) => {
+        const filas = grupos[clave];
 
-        return fechaCorta(ejes[indice]) + (nulo(total) ? '' : ` · Total báscula del día: ${f('kg', total, ' kg')}`);
+        if (!filas) return null;
+
+        const kgBascula = suma(filas, 'kgBascula');
+        const kgExtractora = suma(filas, 'kgExtractora');
+        const pct = ejes.mensual ? (kgBascula > 0 ? ((kgBascula - kgExtractora) / kgBascula) * 100 : null) : (nulo(filas[0].perdidaPct) ? null : Number(filas[0].perdidaPct));
+
+        return { kgBascula, kgExtractora, pct, total: filas.some((fila) => !nulo(fila.kgBasculaTotal)) ? suma(filas, 'kgBasculaTotal') : null };
+    });
+    const valores = (campo) => puntos.map((punto) => (punto ? punto[campo] : null));
+    const regla = estado.regla;
+    const pcts = valores('pct');
+    const conDato = pcts.filter((valor) => valor !== null);
+    const minimo = Math.min(0, ...conDato);
+    const maximo = Math.max(regla, ...conDato);
+    const crudo = (maximo - minimo) / 5;
+    const magnitud = 10 ** Math.floor(Math.log10(crudo));
+    const paso = Math.max(0.01, [1, 2, 5, 10].map((factor) => factor * magnitud).find((valor) => valor >= crudo));
+    const ejePct = { min: Math.floor(minimo / paso) * paso, max: Math.ceil(maximo / paso) * paso };
+    const titulo = (indice) => {
+        const total = puntos[indice]?.total;
+
+        return ejes.titulos[indice] + (nulo(total) ? '' : ` · Total báscula del ${ejes.mensual ? 'mes' : 'día'}: ${f('kg', total, ' kg')}`);
     };
 
     return {
@@ -256,15 +327,15 @@ const opcionesDias = (dias, ejes) => {
         series: [
             { name: 'Kg báscula (cruzados)', type: 'column', data: valores('kgBascula') },
             { name: 'Kg extractora', type: 'column', data: valores('kgExtractora') },
-            { name: '% pérdida', type: 'line', data: pcts }
+            { name: '% pérdida neta', type: 'line', data: pcts }
         ],
         colors: ['#2f7a4b', '#4a5b6c', '#f0a500'],
         stroke: { width: [0, 0, 3], curve: 'straight' },
         markers: { size: [0, 0, 4], strokeColors: '#fff', strokeWidth: 2 },
-        xaxis: { ...base.xaxis, categories: ejes.map((iso) => iso.substring(8, 10)), labels: { ...base.xaxis.labels, rotate: 0, formatter: etiquetaDia }, tooltip: { enabled: false } },
+        xaxis: ejeX(base, ejes),
         yaxis: [
             { ...base.yaxis, seriesName: ['Kg báscula (cruzados)', 'Kg extractora'] },
-            { seriesName: '% pérdida', opposite: true, min: Math.min(0, ...pcts.filter((valor) => valor !== null)), forceNiceScale: true, labels: { style: { colors: '#5c6b7a' }, formatter: (valor) => f('pctEje', valor, ' %') } }
+            { seriesName: '% pérdida neta', opposite: true, ...ejePct, tickAmount: Math.max(1, Math.round((ejePct.max - ejePct.min) / paso)), labels: { style: { colors: '#5c6b7a' }, formatter: (valor) => f('pctEje', valor, ' %') } }
         ],
         annotations: { yaxis: [{ y: regla, yAxisIndex: 1, borderColor: '#dc3545', strokeDashArray: 4, label: { text: `Regla ${f('pct', regla, ' %')}`, position: 'left', textAnchor: 'start', offsetY: -6, borderWidth: 0, style: { color: '#dc3545', background: 'transparent', fontSize: '11px', fontWeight: 700 } } }] },
         tooltip: {
@@ -278,22 +349,25 @@ const opcionesDias = (dias, ejes) => {
 
 const opcionesPlacas = (placas, ejes) => {
     const base = opcionesBase(alto());
-    const mapa = porFecha(placas.dias);
-    const gris = (nombre) => SIN_EXTRACTORA.includes(texto(nombre).toUpperCase());
+    const grupos = agrupar(placas.dias, ejes);
+    const gris = (nombre) => SIN_EXTRACTORA[texto(nombre).toUpperCase()];
     const extractoras = [...(placas.extractoras || []).filter((nombre) => !gris(nombre)), ...(placas.extractoras || []).filter(gris)];
+    const unidad = ejes.mensual ? ['placa-día', 'placas-día'] : ['placa', 'placas'];
+    const contar = (clave, extractora) => (grupos[clave] || []).reduce((total, dia) => (dia.porExtractora?.[extractora] ? (total ?? 0) + (Number(dia.porExtractora[extractora].placas) || 0) : total), null);
+    const totalClave = (clave) => (grupos[clave] || []).reduce((total, dia) => total + (Number(dia.total) || 0), 0);
 
     return {
         ...base,
         chart: { ...base.chart, type: 'bar', stacked: true },
-        series: extractoras.map((extractora) => ({ name: extractora, data: ejes.map((iso) => mapa[iso]?.porExtractora?.[extractora]?.placas ?? null) })),
-        colors: extractoras.map((nombre, indice) => (gris(nombre) ? '#c5ccd3' : PALETA[indice] || '#9aa5b1')),
-        xaxis: { ...base.xaxis, categories: ejes.map((iso) => iso.substring(8, 10)), labels: { ...base.xaxis.labels, rotate: 0, formatter: etiquetaDia }, tooltip: { enabled: false } },
+        series: extractoras.map((extractora) => ({ name: extractora, data: ejes.claves.map((clave) => contar(clave, extractora)) })),
+        colors: extractoras.map((nombre, indice) => gris(nombre) || PALETA[indice] || '#9aa5b1'),
+        xaxis: ejeX(base, ejes),
         yaxis: { ...base.yaxis, decimalsInFloat: 0, forceNiceScale: true, labels: { ...base.yaxis.labels, formatter: (valor) => f('entero', valor) } },
         tooltip: {
             shared: true,
             intersect: false,
-            x: { formatter: (valor, { dataPointIndex }) => `${fechaCorta(ejes[dataPointIndex])} · ${f('entero', mapa[ejes[dataPointIndex]]?.total || 0)} placas` },
-            y: { formatter: (valor) => (nulo(valor) ? '—' : `${f('entero', valor)} ${Number(valor) === 1 ? 'placa' : 'placas'}`), title: { formatter: (nombre) => `${escaparHtml(nombre)}: ` } }
+            x: { formatter: (valor, { dataPointIndex }) => `${ejes.titulos[dataPointIndex]} · ${f('entero', totalClave(ejes.claves[dataPointIndex]))} ${unidad[1]}` },
+            y: { formatter: (valor) => (nulo(valor) ? '—' : `${f('entero', valor)} ${Number(valor) === 1 ? unidad[0] : unidad[1]}`), title: { formatter: (nombre) => `${escaparHtml(nombre)}: ` } }
         }
     };
 };
@@ -322,14 +396,14 @@ const opcionesConductores = (lista) => {
             custom: ({ dataPointIndex }) => {
                 const conductor = lista[dataPointIndex] || {};
 
-                return `<div class="inf-tooltip"><div class="fw-semibold mb-1">${escaparHtml(nombreConductor(conductor))}</div>${fila('Kg báscula', f('kg', conductor.kgBascula, ' kg'))}${fila('Kg extractora', f('kg', conductor.kgExtractora, ' kg'))}${fila('% pérdida', f('pct', conductor.perdidaPct, ' %'))}</div>`;
+                return `<div class="inf-tooltip"><div class="fw-semibold mb-1">${escaparHtml(nombreConductor(conductor))}</div>${fila('Kg báscula', f('kg', conductor.kgBascula, ' kg'))}${fila('Kg extractora', f('kg', conductor.kgExtractora, ' kg'))}${fila('Kg no llegados', f('kg', conductor.kgNoLlegados, ' kg'))}${fila('% pérdida neta', f('pct', conductor.perdidaPct, ' %'))}</div>`;
             }
         }
     };
 };
 
 const lienzo = (id, etiqueta) => `<div class="inf-grafica" id="${id}" role="img" aria-label="${escaparHtml(etiqueta)}"></div>`;
-const vacioGrafica = (mensaje = 'Sin pesajes en el mes') => `<div class="tb-grafica-vacia"><i class="bi bi-bar-chart" aria-hidden="true"></i>${escaparHtml(mensaje)}</div>`;
+const vacioGrafica = (mensaje = 'Sin pesajes en el periodo') => `<div class="tb-grafica-vacia"><i class="bi bi-bar-chart" aria-hidden="true"></i>${escaparHtml(mensaje)}</div>`;
 
 const seccion = (icono, titulo, unidad, cuerpo) => `<section>
     <div class="px-3 pt-3 pb-2 d-flex flex-wrap align-items-center gap-2">
@@ -385,10 +459,17 @@ const crearTablaViajes = (viajes) => {
         pageLength: 25,
         columns: [
             { data: 'entrada', render: (valor, tipo, fila) => (tipo === 'display' ? `<span class="fw-semibold">${fecha(fila.fecha)}</span>${hora(valor) ? `<span class="gp-subtexto">${hora(valor)}</span>` : ''}` : (tipo === 'filter' ? fecha(fila.fecha) : texto(valor || fila.fecha))) },
-            { data: 'placa', render: (valor, tipo) => (tipo === 'display' ? placa(valor) : texto(valor)) },
+            { data: 'placa', render: (valor, tipo, fila) => {
+                const codigos = fincasViaje(fila);
+
+                if (tipo === 'filter') return `${texto(valor)} ${nombresFincas(codigos)}`;
+                if (tipo !== 'display') return texto(valor);
+
+                return placa(valor) + (codigos.length ? `<span class="gp-subtexto" title="${escaparHtml(nombresFincas(codigos))}">${escaparHtml(codigos.join(' · '))}</span>` : '<span class="gp-subtexto">Sin finca</span>');
+            } },
             { data: 'conductor', render: (valor, tipo, fila) => (tipo === 'display' ? `<div class="gp-truncar" title="${escaparHtml(valor)}">${texto(valor) ? escaparHtml(valor) : NULO}</div>${texto(fila.cedula) ? `<span class="gp-subtexto">C.C. ${escaparHtml(fila.cedula)}</span>` : ''}` : `${texto(valor)} ${texto(fila.cedula)}`) },
             { data: 'extractora', render: (valor, tipo) => (tipo === 'display' ? `<div class="gp-truncar ba-col-extractora" title="${escaparHtml(valor)}">${texto(valor) ? escaparHtml(valor) : NULO}</div>` : texto(valor)) },
-            { data: 'kgBascula', ...numerica((valor, fila) => (fila.estado === 'incompleto' ? `${NULO}<span class="gp-subtexto">Solo 1.ª pesada</span>` : f('kg', valor))) },
+            { data: 'kgBascula', ...numerica((valor, fila) => (fila.estado === 'incompleto' ? `${NULO}<span class="gp-subtexto">Solo 1.ª pesada</span>` : f('kg', valor)) + (fila.parcial ? `<span class="gp-subtexto" title="${escaparHtml(`Carga mixta (${fincasViaje(fila).join(' · ')}): kg báscula, kg extractora y diferencia prorrateados a las fincas seleccionadas.`)}"><i class="bi bi-pie-chart me-1" aria-hidden="true"></i>Prorrateado</span>` : '')) },
             { data: 'tlc', type: 'num', render: (valor, tipo, fila) => {
                 const lista = listaTlc(fila);
 
@@ -408,10 +489,11 @@ const crearTablaViajes = (viajes) => {
             const kgExtractora = sumar(filas, 'kgExtractora');
             const dif = sumar(filas, 'perdidaKg');
             const cruzado = kgExtractora + dif;
+            const prorrateados = filas.filter((fila) => fila.parcial).length;
             const pie = [
-                `Total<span class="gp-subtexto fw-normal">${f('entero', filas.length)} viajes</span>`, '', '', '',
+                `Total<span class="gp-subtexto fw-normal">${f('entero', filas.length)} viajes${prorrateados ? ` · ${f('entero', prorrateados)} prorrateados` : ''}</span>`, '', '', '',
                 f('kg', sumar(filas, 'kgBascula', (fila) => fila.estado !== 'incompleto')), '',
-                f('kg', kgExtractora), celdaDif(dif), cruzado > 0 ? celdaPct((dif / cruzado) * 100) : NULO, ''
+                f('kg', kgExtractora), `${celdaDif(dif)}<span class="gp-subtexto fw-normal">No llegados ${f('kg', sumar(filas, 'perdidaKg', (fila) => Number(fila.perdidaKg) > 0))}</span>`, cruzado > 0 ? celdaPct((dif / cruzado) * 100) : NULO, ''
             ];
 
             api.columns().every(function (indice) {
@@ -457,6 +539,7 @@ const crearTablaConductores = (conductores) => {
             { data: 'kgBascula', ...numerica((valor) => f('kg', valor)) },
             { data: 'kgExtractora', ...numerica((valor) => f('kg', valor)) },
             { data: 'perdidaKg', ...numerica(celdaDif) },
+            { data: 'kgNoLlegados', ...numerica((valor) => (Number(valor) ? f('kg', valor) : `<span class="text-muted">${f('kg', valor || 0)}</span>`)) },
             { data: 'perdidaPct', ...numerica(chipPct), className: 'text-center' },
             { data: 'fueraRegla', ...numerica((valor, fila) => barraFuera(valor, fila.viajes)) }
         ],
@@ -468,7 +551,7 @@ const crearTablaConductores = (conductores) => {
             const viajes = sumar(filas, 'viajes');
             const pie = [
                 `Total<span class="gp-subtexto fw-normal">${f('entero', filas.length)} conductores</span>`,
-                f('entero', viajes), f('kg', sumar(filas, 'kgBascula')), f('kg', kgExtractora), celdaDif(dif),
+                f('entero', viajes), f('kg', sumar(filas, 'kgBascula')), f('kg', kgExtractora), celdaDif(dif), f('kg', sumar(filas, 'kgNoLlegados')),
                 kgExtractora + dif > 0 ? chipPct((dif / (kgExtractora + dif)) * 100) : NULO,
                 barraFuera(sumar(filas, 'fueraRegla'), viajes)
             ];
@@ -519,7 +602,7 @@ const aplicarFiltro = () => {
     if (radio) radio.checked = true;
     if (!estado.tablaViajes) return;
 
-    estado.tablaViajes.settings()[0].oLanguage.sZeroRecords = estado.filtro ? `Ningún viaje con estado «${ESTADOS[estado.filtro].nombre}» en el mes` : ZERO_RECORDS;
+    estado.tablaViajes.settings()[0].oLanguage.sZeroRecords = estado.filtro ? `Ningún viaje con estado «${ESTADOS[estado.filtro].nombre}» en el periodo` : ZERO_RECORDS;
     estado.tablaViajes.column(9).search(estado.filtro ? `^${estado.filtro}$` : '', true, false).draw();
 };
 
@@ -542,64 +625,97 @@ const filtrar = (clave, desdeKpi) => {
 };
 
 const pintarContexto = (r) => {
-    const mes = texto(r.filtros?.mes);
+    const desde = texto(r.filtros?.desde);
+    const hasta = texto(r.filtros?.hasta);
+    const dias = diasEntre(desde, hasta);
     const ultimo = texto(r.filtros?.ultimoPesaje);
-    const chips = [`<span class="gp-chip-fila inf-chip-filtro">Mes: ${escaparHtml(mesTexto(mes))}</span>`];
+    const chips = [`<span class="gp-chip-fila inf-chip-filtro">Periodo: ${desde === hasta ? fecha(desde) : `${fecha(desde)} – ${fecha(hasta)}`} · ${f('entero', dias)} ${dias === 1 ? 'día' : 'días'}</span>`];
 
+    const nombres = (r.filtros?.fincas || []).map((codigo) => nombrePropio(estado.fincas[String(codigo)] || codigo));
+    const prorrateados = nombres.length ? (r.viajes || []).filter((viaje) => viaje.parcial).length : 0;
+
+    chips.push(`<span class="gp-chip-fila inf-chip-filtro"${nombres.length > 2 ? ` title="${escaparHtml(nombres.join(', '))}"` : ''}>Fincas: ${escaparHtml(nombres.length ? nombres.slice(0, 2).join(', ') + (nombres.length > 2 ? ` +${nombres.length - 2}` : '') : 'todas')}</span>`);
+    if (prorrateados) chips.push(`<span class="gp-chip-fila inf-chip-filtro" title="Viajes con carga de varias fincas: se incluyen solo los kg proporcionales a las fincas seleccionadas."><i class="bi bi-pie-chart me-1" aria-hidden="true"></i>${f('entero', prorrateados)} ${prorrateados === 1 ? 'viaje prorrateado' : 'viajes prorrateados'}</span>`);
     if ($id('filtro_empresa').options.length > 1) chips.push(`<span class="gp-chip-fila inf-chip-filtro">Empresa: ${escaparHtml($id('filtro_empresa').selectedOptions[0]?.text || '')}</span>`);
-    if (ultimo) chips.push(`<span class="gp-chip-fila ${mes > ultimo.substring(0, 7) ? 'ambar' : 'inf-chip-filtro'}"><i class="bi bi-clock-history me-1" aria-hidden="true"></i>Último pesaje: ${fecha(ultimo)}${hora(ultimo) ? ` ${hora(ultimo)}` : ''}</span>`);
+    if (ultimo) chips.push(`<span class="gp-chip-fila ${hasta > ultimo.substring(0, 10) ? 'ambar' : 'inf-chip-filtro'}"><i class="bi bi-clock-history me-1" aria-hidden="true"></i>Último pesaje: ${fecha(ultimo)}${hora(ultimo) ? ` ${hora(ultimo)}` : ''}</span>`);
 
     $id('chips_contexto').innerHTML = chips.join('');
 };
 
 const avisosHtml = (avisos) => (avisos || []).map((aviso) => `<div class="alert alert-warning py-2 small mb-3 d-flex gap-2" role="alert"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i><span>${escaparHtml(aviso)}</span></div>`).join('');
 
+const actualizarFincas = (r) => {
+    const lista = r.fincasDisponibles || [];
+    const firma = lista.map((finca) => finca.codigo).join('|');
+
+    estado.fincas = Object.fromEntries(lista.map((finca) => [String(finca.codigo), texto(finca.nombre)]));
+
+    if (firma !== estado.firmaFincas) {
+        estado.firmaFincas = firma;
+        $id('filtro_fincas').innerHTML = lista.map((finca) => `<option value="${escaparHtml(finca.codigo)}" data-nombre="${escaparHtml(finca.nombre)}">${escaparHtml(`${finca.codigo} — ${texto(finca.nombre)}`)}</option>`).join('');
+    }
+
+    if (!estado.esperaFincas) $('#filtro_fincas').val((r.filtros?.fincas || []).map(String)).trigger('change.select2');
+    $id('col_fincas').classList.toggle('d-none', lista.length <= 1);
+};
+
 const pintar = () => {
     const r = estado.respuesta;
     const k = r.kpis || {};
-    const mes = texto(r.filtros?.mes);
+    const desde = texto(r.filtros?.desde);
+    const hasta = texto(r.filtros?.hasta);
+    const periodo = rangoTexto(desde, hasta);
     const viajes = r.viajes || [];
     const placas = { extractoras: r.placas?.extractoras || [], dias: r.placas?.dias || [] };
     const conductores = [...(r.conductores || [])].sort((a, b) => (Number(b.kgBascula) || 0) - (Number(a.kgBascula) || 0));
     const sinPesaje = r.tlcSinPesaje || [];
     const n = conteos(k);
 
+    const conFincas = (r.filtros?.fincas || []).length > 0;
+    const unidadKg = viajes.some((viaje) => viaje.parcial) ? 'kg · incluye prorrateo' : 'kg';
+
     estado.regla = nulo(r.regla?.maxPerdidaPct) ? 0.02 : Number(r.regla.maxPerdidaPct);
     destruir();
+    actualizarFincas(r);
     pintarContexto(r);
 
-    if (mes) $id('filtro_mes').value = mes;
+    if (desde) $id('filtro_desde').value = desde;
+    if (hasta) $id('filtro_hasta').value = hasta;
+    validar();
 
     if (!viajes.length) {
-        const ultimoMes = texto(r.filtros?.ultimoPesaje).substring(0, 7);
-        const boton = ultimoMes && ultimoMes !== mes;
+        const ultimo = texto(r.filtros?.ultimoPesaje).substring(0, 10);
+        const boton = ultimo && (ultimo < desde || ultimo > hasta);
 
-        $id('resultado_cuerpo').innerHTML = avisosHtml(r.avisos) + `<div class="card mb-3">${estadoVacio('bi-truck', `Sin pesajes en ${escaparHtml(mesTexto(mes))}`,
-            `<p class="text-muted ${boton ? 'mb-3' : 'mb-0'}">No hay viajes registrados en la báscula para el mes seleccionado.</p>${boton ? `<button type="button" class="btn btn-outline-success btn-sm" data-accion="ultimo" data-mes="${escaparHtml(ultimoMes)}"><i class="bi bi-calendar-check me-1" aria-hidden="true"></i>Ir al último mes con datos</button>` : ''}`)}</div>`;
+        const botones = (boton ? `<button type="button" class="btn btn-outline-success btn-sm" data-accion="ultimo" data-desde="${escaparHtml(ultimo.substring(0, 8))}01" data-hasta="${escaparHtml(ultimo)}"><i class="bi bi-calendar-check me-1" aria-hidden="true"></i>Ver mes del último pesaje (${escaparHtml(mesTexto(ultimo))})</button>` : '')
+            + (conFincas ? '<button type="button" class="btn btn-outline-secondary btn-sm" data-accion="todas-fincas"><i class="bi bi-geo-alt me-1" aria-hidden="true"></i>Ver todas las fincas</button>' : '');
+
+        $id('resultado_cuerpo').innerHTML = avisosHtml(r.avisos) + `<div class="card mb-3">${estadoVacio('bi-truck', `Sin pesajes ${periodo}${conFincas ? ' para las fincas seleccionadas' : ''}`,
+            `<p class="text-muted ${botones ? 'mb-3' : 'mb-0'}">No hay viajes registrados en la báscula para el periodo seleccionado.</p>${botones ? `<div class="d-flex flex-wrap justify-content-center gap-2">${botones}</div>` : ''}`)}</div>`;
         return;
     }
 
     if (estado.filtro && !n[estado.filtro]) estado.filtro = null;
 
-    const ultimoDia = Math.max(1, ...[...(r.dias || []), ...placas.dias].map((dia) => partes(dia.fecha)[2] || 0));
-    const ejes = Array.from({ length: ultimoDia }, (_, indice) => `${mes}-${pad(indice + 1)}`);
+    const ejes = construirEjes(desde, hasta);
+    const por = ejes.mensual ? 'por mes' : 'por día';
     const unicas = new Set(placas.dias.flatMap((dia) => Object.values(dia.porExtractora || {}).flatMap((valor) => valor.lista || []))).size;
     const totalPlacas = placas.dias.reduce((suma, dia) => suma + (Number(dia.total) || 0), 0);
     const separar = (lista) => lista.filter(Boolean).join('<hr class="m-0">');
 
     const paneles = [
         separar([
-            seccion('bi-bar-chart-line', 'Báscula vs extractora por día', 'kg · % pérdida', (r.dias || []).length ? lienzo('grafica_dias', `Kg báscula, kg extractora y porcentaje de pérdida por día de ${mesTexto(mes)}. Pérdida del mes ${f('pct', k.perdidaPct, ' %')}`) : vacioGrafica()),
-            seccion('bi-list-ul', 'Viajes del mes', `${f('entero', viajes.length)} viajes · kg`, filtroEstados(n, viajes.length) + tablaHtml('tabla_viajes', [['Fecha'], ['Placa'], ['Conductor'], ['Extractora'], ['Kg báscula', 'text-end'], ['TLC / tiquete'], ['Kg extractora', 'text-end'], ['Dif. kg', 'text-end'], ['% pérdida', 'text-end'], ['Estado']])),
+            seccion('bi-bar-chart-line', `Báscula vs extractora ${por}`, 'kg · % pérdida neta', (r.dias || []).length ? lienzo('grafica_dias', `Kg báscula, kg extractora y porcentaje de pérdida neta ${por} ${periodo}. Pérdida neta del periodo ${f('pct', k.perdidaPct, ' %')}`) : vacioGrafica()),
+            seccion('bi-list-ul', 'Viajes del periodo', `${f('entero', viajes.length)} viajes · kg`, filtroEstados(n, viajes.length) + tablaHtml('tabla_viajes', [['Fecha'], ['Placa / finca'], ['Conductor'], ['Extractora'], ['Kg báscula', 'text-end'], ['TLC / tiquete'], ['Kg extractora', 'text-end'], ['Dif. kg', 'text-end'], ['% pérdida', 'text-end'], ['Estado']])),
             sinPesaje.length ? seccion('bi-receipt', 'TLC sin pesaje en báscula', `${f('entero', sinPesaje.length)} tiquetes · ${f('kg', k.kgTlcSinPesaje, ' kg')}`, tablaSinPesaje(sinPesaje)) : ''
         ]),
         separar([
-            seccion('bi-truck-front', 'Placas por día', 'placas por extractora', placas.dias.length ? lienzo('grafica_placas', `Placas por día y extractora en ${mesTexto(mes)}`) : vacioGrafica()),
-            seccion('bi-table', 'Detalle de placas', `${f('entero', totalPlacas)} placas · ${f('entero', unicas)} únicas`, tablaHtml('tabla_placas', [['Fecha'], ['Extractora'], ['Nº placas', 'text-end'], ['Placas']], ['', `Total del mes<span class="gp-subtexto fw-normal">Placas por día sumadas</span>`, f('entero', totalPlacas), `${f('entero', unicas)} placas únicas`]))
+            seccion('bi-truck-front', `Placas ${por}`, ejes.mensual ? 'placas-día por extractora' : 'placas por extractora', placas.dias.length ? lienzo('grafica_placas', `Placas ${por} y extractora ${periodo}`) : vacioGrafica()),
+            seccion('bi-table', 'Detalle de placas', `${f('entero', totalPlacas)} placas · ${f('entero', unicas)} únicas`, tablaHtml('tabla_placas', [['Fecha'], ['Extractora'], ['Nº placas', 'text-end'], ['Placas']], ['', `Total del periodo<span class="gp-subtexto fw-normal">Placas por día sumadas</span>`, f('entero', totalPlacas), `${f('entero', unicas)} placas únicas`]))
         ]),
         separar([
-            seccion('bi-person-badge', 'Kg báscula por conductor', `${f('entero', conductores.length)} conductores · kg`, conductores.length ? `<div class="inf-grafica-scroll">${lienzo('grafica_conductores', `Kg báscula por conductor en ${mesTexto(mes)}`)}</div>` : vacioGrafica()),
-            seccion('bi-table', 'Detalle por conductor', 'kg', tablaHtml('tabla_conductores', [['Conductor'], ['Viajes', 'text-end'], ['Kg báscula', 'text-end'], ['Kg extractora', 'text-end'], ['Pérdida kg', 'text-end'], ['% pérdida', 'text-center'], ['Fuera de regla', 'text-end']]))
+            seccion('bi-person-badge', 'Kg báscula por conductor', `${f('entero', conductores.length)} conductores · ${unidadKg}`, conductores.length ? `<div class="inf-grafica-scroll">${lienzo('grafica_conductores', `Kg báscula por conductor ${periodo}`)}</div>` : vacioGrafica()),
+            seccion('bi-table', 'Detalle por conductor', unidadKg, tablaHtml('tabla_conductores', [['Conductor'], ['Viajes', 'text-end'], ['Kg báscula', 'text-end'], ['Kg extractora', 'text-end'], ['Pérdida neta kg', 'text-end'], ['No llegados kg', 'text-end'], ['% pérdida neta', 'text-center'], ['Fuera de regla', 'text-end']]))
         ])
     ];
 
@@ -618,7 +734,7 @@ const pintar = () => {
     activarGraficas(estado.tab);
 };
 
-const consultar = async (mes = $id('filtro_mes').value) => {
+const consultar = async () => {
     const turno = ++estado.turno;
 
     ocupado(true);
@@ -631,7 +747,7 @@ const consultar = async (mes = $id('filtro_mes').value) => {
     let respuesta;
 
     try {
-        respuesta = await pedir({ empresa: $id('filtro_empresa').value, mes });
+        respuesta = await pedir({ empresa: $id('filtro_empresa').value, fincas: $('#filtro_fincas').val() || [], desde: $id('filtro_desde').value, hasta: $id('filtro_hasta').value });
     } catch (error) {
         if (turno !== estado.turno) return;
 
@@ -650,12 +766,101 @@ const consultar = async (mes = $id('filtro_mes').value) => {
     pintar();
 };
 
+const rango = () => {
+    const desde = $id('filtro_desde').value;
+    const hasta = $id('filtro_hasta').value;
+    const llenos = Boolean(desde && hasta);
+    const dias = llenos ? diasEntre(desde, hasta) : 0;
+    const error = !llenos ? (desde || hasta ? 'Indique la fecha inicio y la fecha fin.' : '') : (hasta < desde ?'La fecha fin debe ser igual o posterior a la fecha inicio.' : (dias > MAX_DIAS ? `El rango máximo es de ${MAX_DIAS} días (seleccionaste ${f('entero', dias)}).` : ''));
+
+    return { desde, hasta, error, valido: llenos && !error };
+};
+
+const validar = () => {
+    const actual = rango();
+    const hoy = new Date();
+
+    $id('filtro_hasta').min = actual.desde || FECHA_MIN;
+    $id('filtro_desde').classList.toggle('is-invalid', Boolean(actual.error) && !actual.desde);
+    $id('filtro_hasta').classList.toggle('is-invalid', Boolean(actual.error) && Boolean(actual.desde));
+    $id('error_hasta').textContent = actual.error;
+    $id('fila_error_hasta').classList.toggle('d-none', !actual.error);
+    $id('btn_consultar').disabled = !actual.valido;
+    document.querySelectorAll('[data-rango]').forEach((boton) => {
+        const [desde, hasta] = RANGOS[boton.dataset.rango](hoy);
+        const activo = desde === actual.desde && hasta === actual.hasta;
+
+        boton.classList.toggle('active', activo);
+        boton.setAttribute('aria-pressed', String(activo));
+    });
+
+    return actual.valido;
+};
+
+const recargar = () => {
+    if (validar()) {
+        consultar();
+        return;
+    }
+
+    estado.turno++;
+    ocupado(false);
+    validar();
+};
+
+const fijarRango = (desde, hasta) => {
+    $id('filtro_desde').value = desde;
+    $id('filtro_hasta').value = hasta;
+    recargar();
+};
+
 $id('form_filtros').addEventListener('submit', (evento) => {
     evento.preventDefault();
-    consultar();
+    recargar();
 });
 
-['filtro_empresa', 'filtro_mes'].forEach((id) => $id(id).addEventListener('change', () => consultar()));
+$id('form_filtros').addEventListener('click', (evento) => {
+    const boton = evento.target.closest('[data-rango]');
+
+    if (boton) fijarRango(...RANGOS[boton.dataset.rango](new Date()));
+});
+
+['filtro_desde', 'filtro_hasta'].forEach((id) => $id(id).addEventListener('change', recargar));
+
+const limpiarFincas = () => {
+    clearTimeout(estado.esperaFincas);
+    estado.esperaFincas = null;
+    $('#filtro_fincas').val([]).trigger('change.select2');
+};
+
+$id('filtro_empresa').addEventListener('change', () => {
+    limpiarFincas();
+    recargar();
+});
+
+estado.firmaFincas = [...$id('filtro_fincas').options].map((opcion) => opcion.value).join('|');
+
+$('#filtro_fincas').select2({
+    width: '100%',
+    placeholder: 'Todas las fincas',
+    allowClear: true,
+    closeOnSelect: false,
+    language: { noResults: () => 'No se encontraron fincas' },
+    templateSelection: (item) => nombrePropio(item.element?.dataset.nombre || item.text)
+}).on('change', () => {
+    clearTimeout(estado.esperaFincas);
+    estado.esperaFincas = null;
+
+    if (!($('#filtro_fincas').val() || []).length) {
+        recargar();
+        return;
+    }
+
+    estado.esperaFincas = setTimeout(() => {
+        estado.esperaFincas = null;
+        recargar();
+    }, 500);
+});
 
 $id('resultado_cuerpo').addEventListener('click', (evento) => {
     const kpiEstado = evento.target.closest('.ig-ciclo-kpi[data-estado]');
@@ -666,8 +871,10 @@ $id('resultado_cuerpo').addEventListener('click', (evento) => {
     } else if (accion?.dataset.accion === 'reintentar') {
         consultar();
     } else if (accion?.dataset.accion === 'ultimo') {
-        $id('filtro_mes').value = accion.dataset.mes;
-        consultar();
+        fijarRango(accion.dataset.desde, accion.dataset.hasta);
+    } else if (accion?.dataset.accion === 'todas-fincas') {
+        limpiarFincas();
+        recargar();
     }
 });
 
@@ -681,4 +888,5 @@ $id('resultado_cuerpo').addEventListener('shown.bs.tab', (evento) => {
     $.fn.dataTable.tables({ visible: true, api: true }).columns.adjust();
 });
 
-consultar('');
+validar();
+consultar();

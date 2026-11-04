@@ -37,7 +37,8 @@ class BasculaInformeModel extends Model
         return $this->db->query(
             'SELECT CAST(SUBSTRING(LTRIM(RTRIM(a.numero)), LEN(a.tipo) + 1, 50) AS bigint) AS tlc, CONVERT(char(10), a.fecha, 120) AS fecha, ' . sprintf(self::PLACA, 'b.vehiculo') . " AS placa,
                     LTRIM(RTRIM(ISNULL(b.tiquete, ''))) AS tiquete, ISNULL(b.pesoNeto, 0) AS kg, LTRIM(RTRIM(ISNULL(b.codigoConductor, ''))) AS codigoConductor,
-                    LTRIM(RTRIM(ISNULL(b.nombreConductor, ''))) AS conductor, ISNULL(x.nit, '') AS nit, CAST(ISNULL(t.nombre, '') AS varchar(150)) AS nombre
+                    LTRIM(RTRIM(ISNULL(b.nombreConductor, ''))) AS conductor, ISNULL(x.nit, '') AS nit,
+                    (SELECT MIN(LTRIM(RTRIM(n.finca))) FROM aTransaccionNovedad n WHERE n.empresa = a.empresa AND n.tipo = a.tipo AND n.numero = a.numero) AS finca, CAST(ISNULL(t.nombre, '') AS varchar(150)) AS nombre
                FROM aTransaccion a
                JOIN aTransaccionBascula b ON b.empresa = a.empresa AND b.tipo = a.tipo AND b.numero = a.numero
               CROSS APPLY (SELECT " . self::NIT . " AS nit) x
@@ -47,6 +48,14 @@ class BasculaInformeModel extends Model
               WHERE a.empresa = ? AND a.tipo = 'TLC' AND a.anulado = 0{$eliminadas} AND CONVERT(date, a.fecha) BETWEEN ? AND ?
               ORDER BY a.fecha, a.numero",
             [$empresa, $desde, $hasta]
+        )->getResultArray();
+    }
+
+    public function fincasEmpresa(int $empresa): array
+    {
+        return $this->db->query(
+            "SELECT LTRIM(RTRIM(codigo)) AS codigo, LTRIM(RTRIM(ISNULL(descripcion, ''))) AS nombre FROM aFinca WHERE empresa = ? AND activo = 1 ORDER BY codigo",
+            [$empresa]
         )->getResultArray();
     }
 
