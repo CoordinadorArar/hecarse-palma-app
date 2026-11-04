@@ -40,15 +40,46 @@
                         </select>
                     </div>
                 </div>
-                <div class="col-12 col-sm-6 col-md-4 col-lg-3">
-                    <label class="form-label mb-1 small fw-semibold text-muted" for="filtro_mes">Mes</label>
-                    <div class="input-group">
-                        <span class="input-group-text"><i class="bi bi-calendar-month" aria-hidden="true"></i></span>
-                        <input type="month" class="form-control" id="filtro_mes" value="<?= esc($mes_sel ?? '', 'attr') ?>">
+                <div class="col-12 col-md-6 col-lg-4 ba-fincas<?= count($fincas_disp ?? []) > 1 ? '' : ' d-none' ?>" id="col_fincas">
+                    <label class="form-label mb-1 small fw-semibold text-muted" for="filtro_fincas">Fincas</label>
+                    <div class="input-group flex-nowrap inf-select2">
+                        <span class="input-group-text"><i class="bi bi-geo-alt" aria-hidden="true"></i></span>
+                        <div class="flex-grow-1 inf-selector">
+                            <select class="form-select" id="filtro_fincas" multiple>
+                                <?php foreach ($fincas_disp ?? [] as $finca): ?>
+                                    <option value="<?= esc($finca['codigo'], 'attr') ?>" data-nombre="<?= esc($finca['nombre'], 'attr') ?>"><?= esc($finca['codigo'] . ' — ' . $finca['nombre']) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
                     </div>
                 </div>
-                <div class="col-12 col-lg text-lg-end">
+                <div class="col-6 col-md-3 col-lg-2">
+                    <label class="form-label mb-1 small fw-semibold text-muted" for="filtro_desde">Fecha inicio</label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-calendar-event" aria-hidden="true"></i></span>
+                        <input type="date" class="form-control" id="filtro_desde" value="<?= esc($desde_sel ?? '', 'attr') ?>" min="2000-01-01" max="2100-12-31" aria-describedby="error_hasta">
+                    </div>
+                </div>
+                <div class="col-6 col-md-3 col-lg-2">
+                    <label class="form-label mb-1 small fw-semibold text-muted" for="filtro_hasta">Fecha fin</label>
+                    <div class="input-group has-validation">
+                        <span class="input-group-text"><i class="bi bi-calendar-event" aria-hidden="true"></i></span>
+                        <input type="date" class="form-control" id="filtro_hasta" value="<?= esc($hasta_sel ?? '', 'attr') ?>" min="2000-01-01" max="2100-12-31" aria-describedby="error_hasta">
+                    </div>
+                </div>
+                <div class="col-12 col-md-auto">
+                    <span class="form-label mb-1 small fw-semibold text-muted d-block">Periodo</span>
+                    <div class="btn-group btn-group-sm w-100" role="group" aria-label="Accesos rápidos de periodo">
+                        <button type="button" class="btn btn-outline-success text-nowrap" data-rango="mes" aria-pressed="false">Este mes</button>
+                        <button type="button" class="btn btn-outline-success text-nowrap" data-rango="anterior" aria-pressed="false">Mes anterior</button>
+                        <button type="button" class="btn btn-outline-success text-nowrap" data-rango="treinta" aria-pressed="false">Últimos 30 días</button>
+                    </div>
+                </div>
+                <div class="col-12 col-md text-md-end">
                     <button type="submit" class="btn btn-outline-success ig-consultar" id="btn_consultar"><i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i>Actualizar</button>
+                </div>
+                <div class="col-12 d-none" id="fila_error_hasta">
+                    <div class="invalid-feedback d-block small mt-0" id="error_hasta" role="alert"></div>
                 </div>
             </form>
         </div>
