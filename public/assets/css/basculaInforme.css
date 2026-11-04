@@ -1,0 +1,75 @@
+.ba-regla {
+  flex-direction: column;
+  align-items: stretch;
+  gap: .35rem;
+}
+
+.ba-regla-valor {
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.15;
+  color: #2f3b48;
+  font-variant-numeric: tabular-nums;
+}
+
+.ba-regla-valor.ig-texto-rojo {
+  color: #a62c2c;
+}
+
+.ba-distribucion {
+  display: flex;
+  gap: 2px;
+  height: 8px;
+  margin-top: .25rem;
+  border-radius: 4px;
+  overflow: hidden;
+  background-color: #eef1f5;
+}
+
+.ba-distribucion > span {
+  min-width: 3px;
+  background: var(--ig-e);
+}
+
+#resultado_cuerpo,
+#resultado_cuerpo .tab-content,
+#resultado_cuerpo .tab-pane,
+#resultado_cuerpo section,
+#resultado_cuerpo .dataTables_wrapper {
+  min-width: 0;
+  max-width: 100%;
+}
+
+#resultado_cuerpo .table-responsive {
+  overflow-x: auto;
+}
+
+.ba-estados {
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+
+.ba-col-extractora {
+  max-width: 170px;
+}
+
+.ig-ciclo-kpi .gp-icono {
+  background: var(--ig-e-suave);
+  color: var(--ig-e-texto);
+}
+
+@media (max-width: 575.98px) {
+  .ba-regla-valor {
+    font-size: 1.35rem;
+  }
+
+  .ba-estados {
+    flex-wrap: wrap;
+    gap: .25rem;
+  }
+
+  .ba-estados > .btn {
+    border-radius: .25rem !important;
+    margin-left: 0 !important;
+  }
+}
