@@ -3,6 +3,7 @@
 namespace App\Controllers\Dashboards;
 
 use App\Controllers\BaseController;
+use App\Models\BasculaInformeModel;
 use App\Models\ReportesModel;
 use App\Models\TablerosModel;
 use CodeIgniter\HTTP\RedirectResponse;
@@ -13,6 +14,18 @@ class TablerosController extends BaseController
     private const TABLEROS = [
         'produccion'    => ['ruta' => 'dashboards/produccion', 'titulo' => 'Tablero de producción', 'vista' => 'dashboards/tablero_produccion'],
         'fertilizacion' => ['ruta' => 'dashboards/fertilizacion', 'titulo' => 'Tablero de fertilización', 'vista' => 'dashboards/tablero_fertilizacion'],
+        'bascula'       => ['ruta' => 'dashboards/bascula', 'titulo' => 'Informe báscula', 'vista' => 'dashboards/tablero_bascula'],
+    ];
+
+    private const MAX_PERDIDA_PCT = 0.02;
+
+    private const BASCULA_CERO = ['viajes' => 0, 'kgBascula' => 0.0, 'kgCruzado' => 0.0, 'kgExtractora' => 0.0, 'cruzados' => 0, 'sin_tlc' => 0, 'fuera_regla' => 0, 'cumple' => 0, 'incompleto' => 0];
+
+    private const EXTRACTORAS = [
+        '/MONTER|MOTERR/' => ['800116749', 'MONTERREY'],
+        '/CERESAGRO/'     => ['901203105', 'CERESAGRO'],
+        '/SAN ALBERTO/'   => ['900654394', 'PALMAS DE SAN ALBERTO'],
+        '/SAN FERNANDO/'  => ['900121530', 'SAN FERNANDO'],
     ];
 
     private const MESES = [1 => 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -24,12 +37,14 @@ class TablerosController extends BaseController
     private $session;
     private TablerosModel $model;
     private ReportesModel $reportesModel;
+    private BasculaInformeModel $basculaModel;
 
     public function __construct()
     {
         $this->session       = session();
         $this->model         = new TablerosModel();
         $this->reportesModel = new ReportesModel();
+        $this->basculaModel  = new BasculaInformeModel();
     }
 
     public function produccion($id_loseta): string|RedirectResponse
@@ -40,6 +55,11 @@ class TablerosController extends BaseController
     public function fertilizacion($id_loseta): string|RedirectResponse
     {
         return $this->vista('fertilizacion', $id_loseta);
+    }
+
+    public function bascula($id_loseta): string|RedirectResponse
+    {
+        return $this->vista('bascula', $id_loseta);
     }
 
     private function vista(string $tablero, $id_loseta): string|RedirectResponse
@@ -65,7 +85,7 @@ class TablerosController extends BaseController
         $data['empresa_sel'] = $empresaSel;
         $data['meses']       = self::MESES;
 
-        $data = array_merge($data, $this->filtrosEmpresa($tablero, $empresaSel));
+        $data = array_merge($data, $tablero === 'bascula' ? ['mes_sel' => $this->mesBascula()] : $this->filtrosEmpresa($tablero, $empresaSel));
 
         return view(self::TABLEROS[$tablero]['vista'], $data);
     }
@@ -92,7 +112,7 @@ class TablerosController extends BaseController
     {
         $tablero = trim((string) $this->request->getPost('tablero'));
 
-        if (! isset(self::TABLEROS[$tablero])) {
+        if (! in_array($tablero, ['produccion', 'fertilizacion'], true)) {
             return $this->error('El tablero solicitado no existe.', 404);
         }
 
@@ -901,6 +921,274 @@ class TablerosController extends BaseController
             'meses'     => $filaM,
             'detalle'   => $filaD,
         ];
+    }
+
+    public function datosBascula(): ResponseInterface
+    {
+        $acceso = $this->acceso('bascula');
+
+        if ($acceso !== null) {
+            return $acceso;
+        }
+
+        $empresa = (int) $this->request->getPost('empresa');
+        $mes     = trim((string) $this->request->getPost('mes'));
+
+        if ($mes !== '' && (preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $mes) !== 1 || (int) $mes < 2000 || (int) $mes > 2100)) {
+            return $this->error('Debe seleccionar un mes válido.');
+        }
+
+        try {
+            if ($empresa <= 0 || ! $this->model->empresaExiste($empresa)) {
+                return $this->error('Debe seleccionar una empresa válida.');
+            }
+
+            return $this->response->setJSON($this->basculaDatos($empresa, $mes));
+        } catch (\Throwable $e) {
+            log_message('error', 'Error consultando el informe de báscula: ' . $e->getMessage());
+
+            return $this->error('No se pudo consultar el informe.', 500);
+        }
+    }
+
+    private function mesBascula(): string
+    {
+        try {
+            $ultimo = $this->basculaModel->ultimoPesaje();
+        } catch (\Throwable $e) {
+            $ultimo = null;
+        }
+
+        return substr($ultimo ?? date('Y-m'), 0, 7);
+    }
+
+    private function basculaDatos(int $empresa, string $mes): array
+    {
+        $ultimo  = $this->basculaModel->ultimoPesaje();
+        $mes     = $mes !== '' ? $mes : substr($ultimo ?? date('Y-m'), 0, 7);
+        $desde   = $mes . '-01';
+        $hasta   = date('Y-m-t', strtotime($desde));
+        $antes   = date('Y-m-d', strtotime($desde . ' -1 day'));
+        $despues = date('Y-m-d', strtotime($hasta . ' +1 day'));
+        $tlcs    = $this->basculaModel->tlc($empresa, $antes, $despues);
+        $idx     = [];
+        $usadas  = [];
+        $nombres = [];
+        $total   = self::BASCULA_CERO;
+        $dias    = [];
+        $placas  = [];
+        $exts    = [];
+        $cond    = [];
+        $viajes  = [];
+        $cargas  = [];
+        $deTlc   = [];
+        $asignar = [];
+
+        foreach ($tlcs as $i => $t) {
+            $tiq   = ltrim(trim($t['tiquete']), '0');
+            $clave = $t['placa'] . '|' . ($tiq !== '' ? $tiq : '#' . $i);
+            $cargas[$clave] ??= ['kg' => 0.0, 'tlcs' => [], 'tiquete' => $t['tiquete']];
+            $cargas[$clave]['kg'] += (float) $t['kg'];
+            $cargas[$clave]['tlcs'][] = (int) $t['tlc'];
+            $deTlc[$i] = $clave;
+            $idx[$t['placa'] . '|' . $t['fecha']][$clave] = true;
+        }
+
+        foreach ($cargas as &$c) {
+            sort($c['tlcs']);
+        }
+
+        unset($c);
+        $pesajes = $this->basculaModel->pesajes($antes, $despues);
+
+        foreach ([0, 1] as $pasada) {
+            foreach ($pesajes as $n => $p) {
+                $kg = (float) $p['neto'];
+
+                if (isset($asignar[$n]) || $p['placa'] === '' || (float) $p['pesada2'] == 0 || $kg <= 0) {
+                    continue;
+                }
+
+                $dia    = substr($p['entrada'], 0, 10);
+                $fechas = $pasada === 0 ? [$dia, substr((string) $p['salida'], 0, 10)] : [date('Y-m-d', strtotime($dia . ' -1 day')), $dia, date('Y-m-d', strtotime($dia . ' +1 day'))];
+                $mejor  = null;
+
+                foreach (array_unique($fechas) as $f) {
+                    foreach (array_keys($idx[$p['placa'] . '|' . $f] ?? []) as $c) {
+                        if (! isset($usadas[$c]) && ($mejor === null || abs($cargas[$c]['kg'] - $kg) < abs($cargas[$mejor]['kg'] - $kg))) {
+                            $mejor = $c;
+                        }
+                    }
+                }
+
+                if ($mejor !== null) {
+                    $usadas[$mejor] = true;
+                    $asignar[$n]    = $mejor;
+                }
+            }
+        }
+
+        foreach ($pesajes as $n => $p) {
+            $kg         = (float) $p['neto'];
+            $fecha      = substr($p['entrada'], 0, 10);
+
+            if ($fecha < $desde || $fecha > $hasta) {
+                continue;
+            }
+
+            $extractora = $this->extractoraBascula($empresa, $p['destino'], $nombres);
+            $completo   = (float) $p['pesada2'] != 0 && $kg > 0;
+            $t          = isset($asignar[$n]) ? $cargas[$asignar[$n]] : null;
+            $kgExt      = $t === null ? null : $t['kg'];
+            $pct        = $t === null ? null : round(($kg - $kgExt) / $kg * 100, 4);
+            $estado     = ! $completo ? 'incompleto' : ($t === null ? 'sin_tlc' : ($pct > self::MAX_PERDIDA_PCT ? 'fuera_regla' : 'cumple'));
+            $nombreC    = mb_strtoupper(preg_replace('/\s+/', ' ', $p['conductor']), 'UTF-8');
+            $clave      = $p['cedula'] !== '' ? 'C' . $p['cedula'] : 'N' . $nombreC;
+
+            $total          = $this->acumularBascula($total, $estado, $kg, $kgExt);
+            $dias[$fecha]   = $this->acumularBascula($dias[$fecha] ?? null, $estado, $kg, $kgExt);
+            $cond[$clave]   = $this->acumularBascula($cond[$clave] ?? null, $estado, $kg, $kgExt);
+            $cond[$clave]['cedula'] = $p['cedula'];
+            $cond[$clave]['nombres'][$p['conductor']] = ($cond[$clave]['nombres'][$p['conductor']] ?? 0) + 1;
+            $exts[$extractora] = true;
+
+            if ($p['placa'] !== '') {
+                $placas[$fecha][$extractora][$p['placa']] = true;
+            }
+
+            $viajes[] = [
+                'numero'       => (int) $p['numero'],
+                'fecha'        => $fecha,
+                'entrada'      => $p['entrada'],
+                'salida'       => $p['salida'],
+                'placa'        => $p['placa'],
+                'conductor'    => $p['conductor'],
+                'cedula'       => $p['cedula'],
+                'origen'       => $p['origen'],
+                'extractora'   => $extractora,
+                'kgBascula'    => $kg,
+                'tlc'          => $t === null ? null : $t['tlcs'][0],
+                'tlcs'         => $t === null ? [] : $t['tlcs'],
+                'tiquete'      => $t['tiquete'] ?? null,
+                'kgExtractora' => $kgExt,
+                'perdidaKg'    => $t === null ? null : round($kg - $kgExt, 2),
+                'perdidaPct'   => $pct,
+                'estado'       => $estado,
+            ];
+        }
+
+        $sinPesaje = [];
+
+        foreach ($tlcs as $i => $t) {
+            if (! isset($usadas[$deTlc[$i]]) && $t['fecha'] >= $desde && $t['fecha'] <= $hasta) {
+                $sinPesaje[] = [
+                    'tlc'          => (int) $t['tlc'],
+                    'fecha'        => $t['fecha'],
+                    'placa'        => $t['placa'],
+                    'conductor'    => $t['conductor'],
+                    'tiquete'      => $t['tiquete'],
+                    'kgExtractora' => (float) $t['kg'],
+                    'extractora'   => trim($t['nombre']) !== '' ? trim($t['nombre']) : ($t['nit'] !== '' ? $t['nit'] : 'Sin extractora'),
+                ];
+            }
+        }
+
+        $kpis = $this->resumenBascula($total);
+        ksort($dias);
+        ksort($placas);
+        ksort($exts);
+
+        $conductores = array_map(function (array $c) {
+            arsort($c['nombres']);
+
+            return ['cedula' => $c['cedula'], 'conductor' => (string) array_key_first($c['nombres']), 'viajes' => $c['viajes']] + $this->resumenBascula($c) + ['fueraRegla' => $c['fuera_regla']];
+        }, array_values($cond));
+
+        usort($conductores, static fn ($a, $b) => $b['kgBascula'] <=> $a['kgBascula']);
+
+        return [
+            'success' => true,
+            'message' => '',
+            'filtros' => ['empresa' => $empresa, 'mes' => $mes, 'desde' => $desde, 'hasta' => $hasta, 'ultimoPesaje' => $ultimo],
+            'regla'   => ['maxPerdidaPct' => self::MAX_PERDIDA_PCT],
+            'kpis'    => [
+                'viajes'         => $total['viajes'],
+                'kgBascula'      => $kpis['kgBascula'],
+                'kgExtractora'   => $kpis['kgExtractora'],
+                'perdidaKg'      => $kpis['perdidaKg'],
+                'perdidaPct'     => $kpis['perdidaPct'],
+                'cruzados'       => $total['cruzados'],
+                'sinTlc'         => $total['sin_tlc'],
+                'fueraRegla'     => $total['fuera_regla'],
+                'cumplen'        => $total['cumple'],
+                'incompletos'    => $total['incompleto'],
+                'tlcSinPesaje'   => count($sinPesaje),
+                'kgTlcSinPesaje' => round(array_sum(array_column($sinPesaje, 'kgExtractora')), 2),
+                'cumpleMes'      => $kpis['perdidaPct'] === null ? null : $kpis['perdidaPct'] <= self::MAX_PERDIDA_PCT,
+            ],
+            'dias' => array_map(fn (string $fecha, array $d) => ['fecha' => $fecha, 'viajes' => $d['viajes'], 'kgBasculaTotal' => round($d['kgBascula'], 2)] + $this->resumenBascula($d, true), array_keys($dias), $dias),
+            'viajes'       => $viajes,
+            'tlcSinPesaje' => $sinPesaje,
+            'placas'       => [
+                'extractoras' => array_map('strval', array_keys($exts)),
+                'dias'        => array_map(static fn (string $fecha, array $e) => [
+                    'fecha'         => $fecha,
+                    'total'         => count(array_replace(...array_values($e))),
+                    'porExtractora' => (object) array_map(static function (array $l) {
+                        $lista = array_map('strval', array_keys($l));
+                        sort($lista);
+
+                        return ['placas' => count($lista), 'lista' => $lista];
+                    }, $e),
+                ], array_keys($placas), $placas),
+            ],
+            'conductores' => $conductores,
+        ];
+    }
+
+    private function acumularBascula(?array $a, string $estado, float $kg, ?float $kgExt): array
+    {
+        $a ??= self::BASCULA_CERO;
+        $a['viajes']++;
+        $a[$estado]++;
+        $a['kgBascula'] += $estado === 'incompleto' ? 0 : $kg;
+
+        if ($kgExt !== null) {
+            $a['cruzados']++;
+            $a['kgCruzado']    += $kg;
+            $a['kgExtractora'] += $kgExt;
+        }
+
+        return $a;
+    }
+
+    private function resumenBascula(array $a, bool $soloCruzados = false): array
+    {
+        $perdida = $a['kgCruzado'] - $a['kgExtractora'];
+
+        return [
+            'kgBascula'    => round($soloCruzados ? $a['kgCruzado'] : $a['kgBascula'], 2),
+            'kgExtractora' => round($a['kgExtractora'], 2),
+            'perdidaKg'    => round($perdida, 2),
+            'perdidaPct'   => $a['kgCruzado'] > 0 ? round($perdida / $a['kgCruzado'] * 100, 4) : null,
+        ];
+    }
+
+    private function extractoraBascula(int $empresa, string $destino, array &$cache): string
+    {
+        $texto = strtr(mb_strtoupper(trim(preg_replace('/\s+/', ' ', $destino)), 'UTF-8'), ['Á' => 'A', 'É' => 'E', 'Í' => 'I', 'Ó' => 'O', 'Ú' => 'U', 'Ü' => 'U', 'Ñ' => 'N']);
+
+        if ($texto === '') {
+            return 'Sin destino';
+        }
+
+        foreach (self::EXTRACTORAS as $patron => [$nit, $nombre]) {
+            if (preg_match($patron, $texto) === 1) {
+                return $cache[$nit] ??= $this->basculaModel->nombreExtractora($empresa, $nit) ?? $nombre;
+            }
+        }
+
+        return preg_match('/CRUCEIRO|CANAGUATE/', $texto) === 1 ? 'Movimiento interno' : $texto;
     }
 
     private function ton(float $kilos): float
