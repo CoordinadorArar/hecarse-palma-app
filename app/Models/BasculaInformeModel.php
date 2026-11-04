@@ -9,7 +9,7 @@ class BasculaInformeModel extends Model
     protected $table      = 'bBasculaRegistro';
     protected $returnType = 'array';
 
-    private const PLACA = "REPLACE(REPLACE(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(ISNULL(%s, '')))), '*', ''), ' ', ''), '-', ''), '.', '')";
+    private const PLACA = "CAST(REPLACE(REPLACE(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(ISNULL(%s, '')))), '*', ''), ' ', ''), '-', ''), '.', '') AS varchar(50))";
 
     private const NIT = "COALESCE(NULLIF(LTRIM(RTRIM(b.terceroExtractrora)), ''), NULLIF(LTRIM(RTRIM(b.empresaExtractora)), ''), NULLIF(LTRIM(RTRIM(b.planta)), ''))";
 
