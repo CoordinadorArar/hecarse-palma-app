@@ -192,13 +192,13 @@ const kpiRegla = (k, n) => {
     </div>`;
 };
 
-const kpi = (icono, etiqueta, valor, sub, claseIcono = '') => `<div class="col-6 col-md-3 col-xl-6 min-w-0">
+const kpi = (icono, etiqueta, valor, sub, claseIcono = '', ayuda = sub) => `<div class="col-6 col-md-3 col-xl-6 min-w-0">
     <div class="inf-kpi">
         <span class="gp-icono${claseIcono ? ` ${claseIcono}` : ''} rounded-circle d-inline-flex align-items-center justify-content-center"><i class="bi ${icono}" aria-hidden="true"></i></span>
         <div class="min-w-0 flex-grow-1">
             <span class="gp-etiqueta-mini d-block">${etiqueta}</span>
             <div class="inf-kpi-valor" title="${valor}">${valor}</div>
-            <div class="gp-subtexto text-truncate" title="${sub}">${sub}</div>
+            <div class="gp-subtexto text-truncate" title="${ayuda}">${sub}</div>
         </div>
     </div>
 </div>`;
@@ -222,11 +222,13 @@ const kpiEstado = (clave, cantidad, kg) => {
 const pintarKpis = (k, n, viajes) => {
     const kgEstado = viajes.reduce((total, viaje) => ({ ...total, [viaje.estado]: (total[viaje.estado] || 0) + (Number(viaje.kgBascula) || 0) }), {});
     const tlc = Number(k.tlcSinPesaje) || 0;
-    const kgCruzados = (Number(k.kgExtractora) || 0) + (Number(k.perdidaKg) || 0);
-    const conFaltante = Number(k.viajesFaltante) || 0;
-    const subNoLlegados = !(Number(k.cruzados) > 0)
-        ? 'Sin viajes cruzados'
-        : (conFaltante ? `en ${f('entero', conFaltante)} ${conFaltante === 1 ? 'viaje' : 'viajes'} con faltante${kgCruzados > 0 ? ` · ${f('pctEje', (Number(k.kgNoLlegados) / kgCruzados) * 100, ' %')} de kg cruzados` : ''}` : 'Sin faltantes en viajes cruzados');
+    const kgBascula = Number(k.kgBascula) || 0;
+    const sinTlc = Number(k.sinTlc) || 0;
+    const pctNoLlegados = kgBascula > 0 ? f('pctEje', (Number(k.kgNoLlegados) / kgBascula) * 100, ' %') : '';
+    const subNoLlegados = kgBascula > 0 ? `${pctNoLlegados} de kg báscula${sinTlc ? ` · ${f('entero', sinTlc)} sin TLC` : ''}` : 'Sin pesajes completos';
+    const ayudaNoLlegados = kgBascula > 0
+        ? `Báscula − extractora, incluidos los viajes sin TLC. ${pctNoLlegados} de kg báscula.${sinTlc ? ` Incluye el peso neto de ${f('entero', sinTlc)} ${sinTlc === 1 ? 'viaje' : 'viajes'} sin TLC (${f('kg', k.kgSinTlc || 0, ' kg')}), que no tienen registro en la extractora.` : ''}`
+        : subNoLlegados;
 
     return `<div class="row g-3 mb-3">
         ${kpiRegla(k, n)}
@@ -234,7 +236,7 @@ const pintarKpis = (k, n, viajes) => {
             ${kpi('bi-truck', 'Viajes en báscula', f('entero', k.viajes), `${f('entero', k.cruzados)} cruzados · ${f('entero', k.sinTlc)} sin TLC`)}
             ${kpi('bi-box-seam', 'Kg báscula', f('kg', k.kgBascula, ' kg'), 'Peso neto finca')}
             ${kpi('bi-buildings', 'Kg extractora', f('kg', k.kgExtractora, ' kg'), 'Solo viajes cruzados')}
-            ${kpi('bi-graph-down-arrow', 'Kg no llegados', f('kg', k.kgNoLlegados, ' kg'), subNoLlegados, Number(k.kgNoLlegados) > 0 ? 'ba-icono-faltante' : '')}
+            ${kpi('bi-graph-down-arrow', 'Kg no llegados', f('kg', k.kgNoLlegados, ' kg'), subNoLlegados, Number(k.kgNoLlegados) > 0 ? 'ba-icono-faltante' : '', ayudaNoLlegados)}
         </div></div>
     </div>
     <div class="row g-3 mb-3">
@@ -493,7 +495,7 @@ const crearTablaViajes = (viajes) => {
             const pie = [
                 `Total<span class="gp-subtexto fw-normal">${f('entero', filas.length)} viajes${prorrateados ? ` · ${f('entero', prorrateados)} prorrateados` : ''}</span>`, '', '', '',
                 f('kg', sumar(filas, 'kgBascula', (fila) => fila.estado !== 'incompleto')), '',
-                f('kg', kgExtractora), `${celdaDif(dif)}<span class="gp-subtexto fw-normal">No llegados ${f('kg', sumar(filas, 'perdidaKg', (fila) => Number(fila.perdidaKg) > 0))}</span>`, cruzado > 0 ? celdaPct((dif / cruzado) * 100) : NULO, ''
+                f('kg', kgExtractora), `${celdaDif(dif)}<span class="gp-subtexto fw-normal">No llegados ${f('kg', sumar(filas, 'kgBascula', (fila) => fila.estado !== 'incompleto') - sumar(filas, 'kgExtractora', (fila) => fila.estado !== 'incompleto'))}</span>`, cruzado > 0 ? celdaPct((dif / cruzado) * 100) : NULO, ''
             ];
 
             api.columns().every(function (indice) {
