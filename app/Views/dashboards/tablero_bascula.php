@@ -75,8 +75,11 @@
                         <button type="button" class="btn btn-outline-success text-nowrap" data-rango="treinta" aria-pressed="false">Últimos 30 días</button>
                     </div>
                 </div>
-                <div class="col-12 col-md text-md-end">
-                    <button type="submit" class="btn btn-outline-success ig-consultar" id="btn_consultar"><i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i>Actualizar</button>
+                <div class="col-12 col-md">
+                    <div class="d-flex gap-2 justify-content-md-end">
+                        <button type="button" class="btn btn-outline-success ig-consultar" id="btn_excel" disabled><i class="bi bi-file-earmark-excel me-1" aria-hidden="true"></i>Exportar a Excel</button>
+                        <button type="submit" class="btn btn-outline-success ig-consultar" id="btn_consultar"><i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i>Actualizar</button>
+                    </div>
                 </div>
                 <div class="col-12 d-none" id="fila_error_hasta">
                     <div class="invalid-feedback d-block small mt-0" id="error_hasta" role="alert"></div>

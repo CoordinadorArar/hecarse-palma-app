@@ -4,10 +4,16 @@ namespace App\Controllers\Dashboards;
 
 use App\Controllers\BaseController;
 use App\Models\BasculaInformeModel;
+use App\Models\BasculaModel;
 use App\Models\ReportesModel;
 use App\Models\TablerosModel;
 use CodeIgniter\HTTP\RedirectResponse;
 use CodeIgniter\HTTP\ResponseInterface;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class TablerosController extends BaseController
 {
@@ -931,6 +937,208 @@ class TablerosController extends BaseController
             return $acceso;
         }
 
+        $f = $this->filtrosBascula();
+
+        if ($f instanceof ResponseInterface) {
+            return $f;
+        }
+
+        try {
+            return $this->response->setJSON($this->basculaDatos(...$f));
+        } catch (\Throwable $e) {
+            log_message('error', 'Error consultando el informe de báscula: ' . $e->getMessage());
+
+            return $this->error('No se pudo consultar el informe.', 500);
+        }
+    }
+
+    public function excelBascula(): ResponseInterface
+    {
+        $acceso = $this->acceso('bascula');
+
+        if ($acceso !== null) {
+            return $acceso;
+        }
+
+        $f = $this->filtrosBascula();
+
+        if ($f instanceof ResponseInterface) {
+            return $f;
+        }
+
+        if (! class_exists(Spreadsheet::class)) {
+            return $this->error('La exportación a Excel no está disponible en el servidor.', 500);
+        }
+
+        ini_set('memory_limit', '512M');
+        set_time_limit(120);
+
+        try {
+            $d       = $this->basculaDatos(...$f);
+            $k       = $d['kpis'];
+            $fac     = $d['facturacion'];
+            $nFincas = array_column($f[4], 'nombre', 'codigo');
+            $empresa = array_column($this->model->getEmpresas(), 'razonSocial', 'id')[$f[0]] ?? $f[0];
+            $pct     = static fn ($v) => $v === null ? null : $v / 100;
+            $si      = static fn ($v) => $v ? 'Sí' : 'No';
+            $estados = ['cumple' => 'Cumple', 'fuera_regla' => 'Fuera de regla', 'sin_tlc' => 'Sin TLC', 'incompleto' => 'Incompleto'];
+            $info    = ['Empresa: ' . $empresa, 'Desde: ' . $f[1] . '   Hasta: ' . $f[2], 'Fincas: ' . ($f[3] === [] ? 'Todas' : implode(', ', array_map(static fn ($c) => $nFincas[$c] ?? $c, $f[3]))), 'Generado: ' . date('Y-m-d H:i')];
+            $sinFac  = $fac['disponible'] ? [] : [$fac['mensaje']];
+            $libro   = new Spreadsheet();
+            $libro->removeSheetByIndex(0);
+
+            $n       = static fn ($v) => [$v, '#,##0'];
+            $resumen = [
+                ['Viajes', $n($k['viajes'])], ['Kg báscula', $k['kgBascula']], ['Kg extractora', $k['kgExtractora']], ['Pérdida kg', $k['perdidaKg']],
+                ['% pérdida', [$pct($k['perdidaPct']), '0.00%']], ['Viajes cruzados con TLC', $n($k['cruzados'])], ['Viajes sin TLC', $n($k['sinTlc'])],
+                ['Viajes fuera de regla', $n($k['fueraRegla'])], ['Viajes que cumplen', $n($k['cumplen'])], ['Pesajes incompletos', $n($k['incompletos'])],
+                ['Kg no llegados', $k['kgNoLlegados']], ['% no llegados', [$pct($k['pctNoLlegados']), '0.00%']], ['Kg sin TLC', $k['kgSinTlc']],
+                ['Kg sobrante', $k['kgSobrante']], ['TLC sin pesaje', $n($k['tlcSinPesaje'])], ['Kg TLC sin pesaje', $k['kgTlcSinPesaje']],
+                ['Cumple regla del periodo', [$k['cumpleMes'] === null ? '' : $si($k['cumpleMes']), null]],
+            ];
+
+            if ($fac['disponible']) {
+                $t = $fac['totales'];
+                array_push($resumen, ['Kg facturado (Siesa)', $t['kgFacturado']], ['Valor facturado (Siesa)', $n($t['valorFacturado'])], ['Kg TLC de las facturas', $t['kgTlc']],
+                    ['Dif. facturado vs TLC', $t['difTlc']], ['Kg báscula de las facturas', $t['kgBascula']], ['Dif. facturado vs báscula', $t['difBascula']], ['Kg TLC sin facturar', $t['kgSinFacturar']]);
+            } else {
+                $resumen[] = ['Facturación Siesa', [$fac['mensaje'], null]];
+            }
+
+            $this->hojaBascula($libro, 'Resumen', $info, ['Indicador' => null, 'Valor' => '#,##0.00'], $resumen);
+
+            $this->hojaBascula($libro, 'Viajes', [], [
+                'Fecha' => null, 'Hora entrada' => null, 'Placa' => null, 'Fincas' => null, 'Conductor' => null, 'Cédula' => null, 'Extractora' => null,
+                '1.ª pesada' => '#,##0', '2.ª pesada' => '#,##0', 'Kg báscula' => '#,##0.00', 'TLC(s)' => null, 'Tiquete' => null, 'Kg extractora' => '#,##0.00',
+                'Dif. kg' => '#,##0.00', '% pérdida' => '0.00%', 'Estado' => null, 'Prorrateado' => null,
+            ], array_map(static fn ($v) => [
+                $v['fecha'], substr((string) $v['entrada'], 11, 8), $v['placa'], implode(', ', array_map(static fn ($c) => $nFincas[$c] ?? $c, $v['fincas'])), $v['conductor'], $v['cedula'], $v['extractora'],
+                $v['pesada1'], $v['pesada2'], $v['kgBascula'], implode(', ', $v['tlcs']), $v['tiquete'], $v['kgExtractora'], $v['perdidaKg'], $pct($v['perdidaPct']), $estados[$v['estado']] ?? $v['estado'], $si($v['parcial']),
+            ], $d['viajes']));
+
+            $this->hojaBascula($libro, 'TLC sin pesaje', [], ['TLC' => null, 'Fecha' => null, 'Placa' => null, 'Conductor' => null, 'Tiquete' => null, 'Extractora' => null, 'Kg extractora' => '#,##0.00'],
+                array_map(static fn ($t) => [$t['tlc'], $t['fecha'], $t['placa'], $t['conductor'], $t['tiquete'], $t['extractora'], $t['kgExtractora']], $d['tlcSinPesaje']));
+
+            $placas = [];
+
+            foreach ($d['placas']['dias'] as $dia) {
+                foreach ((array) $dia['porExtractora'] as $ext => $p) {
+                    $placas[] = [$dia['fecha'], (string) $ext, $p['placas'], implode(', ', $p['lista'])];
+                }
+            }
+
+            $this->hojaBascula($libro, 'Placas', [], ['Fecha' => null, 'Extractora' => null, 'Nº placas' => '#,##0', 'Placas' => null], $placas);
+
+            $this->hojaBascula($libro, 'Conductores', [], [
+                'Cédula' => null, 'Conductor' => null, 'Viajes' => '#,##0', 'Kg báscula' => '#,##0.00', 'Kg extractora' => '#,##0.00', 'Pérdida kg' => '#,##0.00', '% pérdida' => '0.00%',
+                'Fuera de regla' => '#,##0', 'Kg sin TLC' => '#,##0.00', 'Kg sobrante' => '#,##0.00', 'Kg no llegados' => '#,##0.00', '% no llegados' => '0.00%',
+            ], array_map(static fn ($c) => [
+                $c['cedula'], $c['conductor'], $c['viajes'], $c['kgBascula'], $c['kgExtractora'], $c['perdidaKg'], $pct($c['perdidaPct']), $c['fueraRegla'], $c['kgSinTlc'], $c['kgSobrante'], $c['kgNoLlegados'], $pct($c['pctNoLlegados']),
+            ], $d['conductores']));
+
+            $this->hojaBascula($libro, 'Facturación', $fac['disponible'] ? ['Comparativo de kg facturados en Siesa contra TLC y báscula. No discrimina por finca.'] : $sinFac, $fac['disponible'] ? [
+                'Documento' => null, 'Fecha' => null, 'NIT' => null, 'Extractora' => null, 'Inicio periodo' => null, 'Fin periodo' => null, 'Periodo por fecha' => null, 'Parcial' => null,
+                'Kg facturado' => '#,##0.00', 'Valor facturado' => '#,##0', 'Ajuste valor' => '#,##0', 'Notas crédito' => null, 'Kg TLC' => '#,##0.00', 'TLCs' => '#,##0',
+                'Kg báscula' => '#,##0.00', 'TLC sin pesaje' => '#,##0', 'Dif. vs TLC' => '#,##0.00', 'Dif. vs báscula' => '#,##0.00', 'Notas' => null,
+            ] : [], array_map(static fn ($x) => [
+                $x['documento'], $x['fecha'], $x['nit'], $x['extractora'], $x['inicio'], $x['fin'], $si($x['periodoPorFecha']), $si($x['parcial']), $x['kgFacturado'], $x['valorFacturado'], $x['ajusteValor'],
+                implode(', ', $x['notasCredito']), $x['kgTlc'], $x['tlcs'], $x['kgBascula'], $x['tlcsSinPesaje'], $x['difTlc'], $x['difBascula'], $x['notas'],
+            ], $fac['facturas']));
+
+            $this->hojaBascula($libro, 'TLC sin facturar', $sinFac, $fac['disponible'] ? ['NIT' => null, 'Extractora' => null, 'TLCs' => '#,##0', 'Kg' => '#,##0.00', 'Desde' => null, 'Hasta' => null] : [],
+                array_map(static fn ($x) => [$x['nit'], $x['extractora'], $x['tlcs'], $x['kg'], $x['desde'], $x['hasta']], $fac['sinFacturar']));
+
+            $this->hojaBascula($libro, 'Notas crédito', $sinFac, $fac['disponible'] ? ['Tipo' => null, 'Factura' => null, 'Nota crédito' => null, 'Fecha' => null, 'NIT' => null, 'Extractora' => null, 'Kg' => '#,##0.00', 'Valor' => '#,##0', 'Notas' => null] : [],
+                array_merge(
+                    array_map(static fn ($x) => ['Anulación', $x['documento'], $x['anuladaPor'], $x['fecha'], $x['nit'], $x['extractora'], $x['kg'], $x['valor'], ''], $fac['anuladas']),
+                    array_map(static fn ($x) => ['Ajuste sin factura', $x['referencia'] ?? '', $x['documento'], $x['fecha'], $x['nit'], $x['extractora'], $x['kg'], $x['valor'], $x['notas']], $fac['ajustesSinFactura'])
+                ));
+
+            $libro->setActiveSheetIndex(0);
+
+            ob_start();
+            (new Xlsx($libro))->save('php://output');
+            $contenido = ob_get_clean();
+        } catch (\Throwable $e) {
+            log_message('error', 'Error exportando el informe de báscula: ' . $e->getMessage());
+
+            return $this->error('No se pudo generar el archivo de Excel.', 500);
+        }
+
+        return $this->response
+            ->setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            ->setHeader('Content-Disposition', 'attachment; filename="informe-bascula-' . $f[1] . '-' . $f[2] . '.xlsx"')
+            ->setBody($contenido);
+    }
+
+    private function hojaBascula(Spreadsheet $libro, string $titulo, array $info, array $columnas, array $filas): void
+    {
+        $hoja = $libro->createSheet();
+        $hoja->setTitle($titulo);
+        $hoja->setCellValueExplicit('A1', 'Informe báscula · ' . $titulo, DataType::TYPE_STRING);
+        $hoja->getStyle('A1')->getFont()->setBold(true)->setSize(14);
+        $fila = 2;
+
+        foreach ($info as $linea) {
+            $hoja->setCellValueExplicit('A' . $fila++, (string) $linea, DataType::TYPE_STRING);
+        }
+
+        if ($columnas === []) {
+            $hoja->getColumnDimension('A')->setAutoSize(true);
+
+            return;
+        }
+
+        $fila++;
+        $encabezado = $fila;
+        $formatos   = array_values($columnas);
+        $ultima     = Coordinate::stringFromColumnIndex(count($columnas));
+
+        foreach (array_keys($columnas) as $i => $nombre) {
+            $hoja->setCellValueExplicit(Coordinate::stringFromColumnIndex($i + 1) . $fila, $nombre, DataType::TYPE_STRING);
+        }
+
+        $hoja->getStyle('A' . $fila . ':' . $ultima . $fila)->getFont()->setBold(true);
+        $hoja->getStyle('A' . $fila . ':' . $ultima . $fila)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFE9EEF4');
+
+        foreach ($formatos as $i => $formato) {
+            $letra = Coordinate::stringFromColumnIndex($i + 1);
+
+            if ($formato !== null && $filas !== []) {
+                $hoja->getStyle($letra . ($encabezado + 1) . ':' . $letra . ($encabezado + count($filas)))->getNumberFormat()->setFormatCode($formato);
+            }
+
+            count($filas) > 5000 ? $hoja->getColumnDimension($letra)->setWidth(18) : $hoja->getColumnDimension($letra)->setAutoSize(true);
+        }
+
+        foreach ($filas as $registro) {
+            $fila++;
+
+            foreach (array_values($registro) as $i => $valor) {
+                $celda   = Coordinate::stringFromColumnIndex($i + 1) . $fila;
+                $formato = $formatos[$i] ?? null;
+
+                if (is_array($valor)) {
+                    [$valor, $formato] = $valor;
+
+                    if ($formato !== null) {
+                        $hoja->getStyle($celda)->getNumberFormat()->setFormatCode($formato);
+                    }
+                }
+
+                if ($valor === null) {
+                    continue;
+                }
+
+                $formato === null ? $hoja->setCellValueExplicit($celda, (string) $valor, DataType::TYPE_STRING) : $hoja->setCellValue($celda, $valor);
+            }
+        }
+
+        $hoja->freezePane('A' . ($encabezado + 1));
+    }
+
+    private function filtrosBascula(): array|ResponseInterface
+    {
         $empresa = (int) $this->request->getPost('empresa');
         $desde   = trim((string) $this->request->getPost('desde'));
         $hasta   = trim((string) $this->request->getPost('hasta'));
@@ -966,16 +1174,17 @@ class TablerosController extends BaseController
             $sel        = $this->request->getPost('fincas');
             $sel        = array_values(array_unique(array_filter(array_map(static fn ($f) => is_scalar($f) ? trim((string) $f) : '?', (array) $sel), static fn ($f) => $f !== '')));
 
-            if (array_diff($sel, array_column($fincasDisp, 'codigo')) !== []) {
-                return $this->error('Finca no válida.');
-            }
-
-            return $this->response->setJSON($this->basculaDatos($empresa, $desde, $hasta, $sel, $fincasDisp));
         } catch (\Throwable $e) {
             log_message('error', 'Error consultando el informe de báscula: ' . $e->getMessage());
 
             return $this->error('No se pudo consultar el informe.', 500);
         }
+
+        if (array_diff($sel, array_column($fincasDisp, 'codigo')) !== []) {
+            return $this->error('Finca no válida.');
+        }
+
+        return [$empresa, $desde, $hasta, $sel, $fincasDisp];
     }
 
     private function fechaBascula(string $fecha): bool
@@ -999,10 +1208,24 @@ class TablerosController extends BaseController
     private function basculaDatos(int $empresa, string $desde, string $hasta, array $sel, array $fincasDisp): array
     {
         $ultimo   = $this->basculaModel->ultimoPesaje();
-        $porLargo = array_map(fn ($n) => $this->normalizarBascula($n), array_column($fincasDisp, 'nombre', 'codigo'));
-        uksort($porLargo, static fn ($a, $b) => strlen($porLargo[$b]) <=> strlen($porLargo[$a]) ?: strcmp((string) $a, (string) $b));
-        $antes    =date('Y-m-d', strtotime($desde . ' -1 day'));
-        $despues = date('Y-m-d', strtotime($hasta . ' +1 day'));
+        $porLargo = BasculaModel::porLargo($fincasDisp);
+        $porCo    = [];
+
+        foreach ($fincasDisp as $f) {
+            if ($f['co'] !== '') {
+                $porCo[$f['co']][] = (string) $f['codigo'];
+            }
+        }
+
+        try {
+            $fac = $empresa === 1 ? $this->facturasBascula($empresa, $desde, $hasta) : null;
+        } catch (\Throwable $e) {
+            log_message('error', 'Error consultando la facturación de Siesa del informe de báscula: ' . $e->getMessage());
+            $fac = false;
+        }
+
+        $antes   = date('Y-m-d', strtotime(min([$desde, ...array_column($fac['incl'] ?? [], 'inicio')]) . ' -1 day'));
+        $despues = date('Y-m-d', strtotime(max([$hasta, ...array_column($fac['incl'] ?? [], 'fin')]) . ' +1 day'));
         $tlcs    = $this->basculaModel->tlc($empresa, $antes, $despues);
         $idx     = [];
         $usadas  = [];
@@ -1077,7 +1300,9 @@ class TablerosController extends BaseController
             $pct        = $t === null ? null : round(($kg - $kgExt) / $kg * 100, 4);
             $estado     = ! $completo ? 'incompleto' : ($t === null ? 'sin_tlc' : ($pct > self::MAX_PERDIDA_PCT ? 'fuera_regla' : 'cumple'));
             $items      = $t === null ? [] : array_filter($t['items'], static fn ($i) => $i['finca'] !== '');
-            $fincas     = $items !== [] ? array_values(array_unique(array_column($items, 'finca'))) : $this->fincasOrigen($p['origen'], $porLargo);
+            $origen     = $this->fincasOrigen($p['origen'], $porLargo);
+            $co         = $porCo[$p['coFinca'] ?? ''] ?? [];
+            $fincas     = $items !== [] ? array_values(array_unique(array_column($items, 'finca'))) : (count($origen) > 1 || $co === [] ? $origen : [array_values(array_intersect($origen, $co))[0] ?? $co[0]]);
             $tlcsV      = $t === null ? [] : $t['tlcs'];
             $parcial    = false;
 
@@ -1220,7 +1445,187 @@ class TablerosController extends BaseController
                 ], array_keys($placas), $placas),
             ],
             'conductores' => $conductores,
+            'facturacion' => $this->facturacionBascula($empresa, $desde, $hasta, $fac, $tlcs, $deTlc, array_combine($asignar, array_map(static fn ($n) => (float) $pesajes[$n]['neto'], array_keys($asignar)))),
         ];
+    }
+
+    private function facturasBascula(int $empresa, string $desde, string $hasta): array
+    {
+        $fves = [];
+        $nces = [];
+
+        foreach ($this->basculaModel->facturasSiesa(date('Y-m-d', strtotime($desde . ' -60 days')), date('Y-m-d', strtotime($hasta . ' +60 days'))) as $r) {
+            $x = [
+                'documento' => $r['tipo'] . '-' . (int) $r['consec'],
+                'consec'    => (int) $r['consec'],
+                'fecha'     => trim($r['fecha']),
+                'nit'       => preg_replace('/\D/', '', (string) $r['nit']),
+                'razon'     => (string) $r['razon'],
+                'kg'        => (float) $r['kg'],
+                'valor'     => abs((float) $r['valor']),
+                'nota'      => $this->normalizarBascula((string) $r['notas']),
+                'notas'     => mb_substr(trim(preg_replace('/\s+/', ' ', (string) $r['notas'])), 0, 250),
+            ];
+
+            if ($r['tipo'] === 'FVE') {
+                $p = $this->periodoNota($x['nota'], $x['fecha']);
+                $fves[$x['documento']] = $x + ['inicio' => $p[0] ?? $x['fecha'], 'fin' => $p[1] ?? $x['fecha'], 'periodoPorFecha' => $p === null, 'ajuste' => 0.0, 'nce' => [], 'anuladaPor' => null];
+            } else {
+                $nces[] = $x;
+            }
+        }
+
+        $nombres = [];
+        $ajustes = [];
+
+        foreach ($nces as $c) {
+            $ref = preg_match('/\bFVE\s*-?\s*(\d+)/', $c['nota'], $m) === 1 ? 'FVE-' . (int) $m[1] : null;
+
+            if ($ref !== null && isset($fves[$ref]) && $fves[$ref]['nit'] === $c['nit']) {
+                if ($c['valor'] >= 0.9 * $fves[$ref]['valor']) {
+                    $fves[$ref]['anuladaPor'] ??= $c['documento'];
+                } else {
+                    $fves[$ref]['ajuste'] += $c['valor'];
+                    $fves[$ref]['nce'][]   = $c['documento'];
+                }
+            } elseif ($c['fecha'] >= $desde && $c['fecha'] <= $hasta) {
+                $ajustes[] = ['documento' => $c['documento'], 'fecha' => $c['fecha'], 'nit' => $c['nit'], 'extractora' => $this->nombreNit($empresa, $c['nit'], $c['razon'], $nombres), 'kg' => round($c['kg'], 2), 'valor' => round($c['valor']), 'referencia' => $ref, 'notas' => $c['notas']];
+            }
+        }
+
+        $cruza = array_filter($fves, static fn ($v) => $v['inicio'] <= $hasta && $v['fin'] >= $desde);
+
+        return ['fves' => $fves, 'cruza' => $cruza, 'incl' => array_filter($cruza, static fn ($v) => $v['anuladaPor'] === null), 'ajustes' => $ajustes];
+    }
+
+    private function facturacionBascula(int $empresa, string $desde, string $hasta, array|false|null $fac, array $tlcsCruce, array $deTlc, array $neto): array
+    {
+        $base = ['disponible' => false, 'mensaje' => '', 'reintentar' => false, 'porFinca' => false, 'facturas' => [], 'anuladas' => [], 'ajustesSinFactura' => [], 'sinFacturar' => [], 'totales' => null];
+
+        if ($fac === null) {
+            return ['mensaje' => 'El comparativo con la facturación de Siesa solo está disponible para la empresa 1.'] + $base;
+        }
+
+        if ($fac === false) {
+            return ['mensaje' => 'No se pudo consultar la facturación en Siesa.', 'reintentar' => true] + $base;
+        }
+
+        try {
+            $incl    = $fac['incl'];
+            $nombres = [];
+            $conoc   = array_flip(array_merge(array_column($fac['fves'], 'nit'), array_column(self::EXTRACTORAS, 0)));
+            $cae     = static fn (array $x, array $v) => $x['nit'] === $v['nit'] && $x['fecha'] >= $v['inicio'] && $x['fecha'] <= $v['fin'];
+            $nitN    = static fn (string $nit) => ! isset($conoc[$n = preg_replace('/\D/', '', $nit)]) && strlen($n) > 6 && isset($conoc[substr($n, 0, -1)]) ? substr($n, 0, -1) : $n;
+            $tlcs    = array_map(static fn ($t, $i) => ['nit' => $nitN((string) $t['nit']), 'fecha' => $t['fecha'], 'kg' => (float) $t['kg'], 'nombre' => trim((string) $t['nombre']), 'carga' => $deTlc[$i]], $tlcsCruce, array_keys($tlcsCruce));
+
+            $facturas = [];
+
+            foreach ($incl as $v) {
+                $tv     = array_filter($tlcs, static fn ($x) => $cae($x, $v));
+                $cargas = array_column($tv, 'carga');
+                $kgTlc  = round(array_sum(array_column($tv, 'kg')), 2);
+                $kgBas  = round(array_sum(array_intersect_key($neto, array_flip($cargas))), 2);
+                $kgFac  = round($v['kg'], 2);
+
+                $facturas[] = [
+                    'documento'       => $v['documento'],
+                    'consec'          => $v['consec'],
+                    'fecha'           => $v['fecha'],
+                    'nit'             => $v['nit'],
+                    'extractora'      => $this->nombreNit($empresa, $v['nit'], $v['razon'], $nombres),
+                    'inicio'          => $v['inicio'],
+                    'fin'             => $v['fin'],
+                    'periodoPorFecha' => $v['periodoPorFecha'],
+                    'parcial'         => $v['inicio'] < $desde || $v['fin'] > $hasta,
+                    'kgFacturado'     => $kgFac,
+                    'valorFacturado'  => round($v['valor'] - $v['ajuste']),
+                    'ajusteValor'     => round($v['ajuste']),
+                    'notasCredito'    => $v['nce'],
+                    'kgTlc'           => $kgTlc,
+                    'tlcs'            => count($tv),
+                    'kgBascula'       => $kgBas,
+                    'tlcsSinPesaje'   => count(array_filter($cargas, static fn ($c) => ! isset($neto[$c]))),
+                    'difTlc'          => round($kgFac - $kgTlc, 2),
+                    'difBascula'      => round($kgFac - $kgBas, 2),
+                    'notas'           => $v['notas'],
+                ];
+            }
+
+            $sin = [];
+
+            foreach ($tlcs as $t) {
+                if ($t['fecha'] < $desde || $t['fecha'] > $hasta || array_filter($incl, static fn ($v) => $cae($t, $v)) !== []) {
+                    continue;
+                }
+
+                $sin[$t['nit']] ??= ['nit' => $t['nit'], 'extractora' => $this->nombreNit($empresa, $t['nit'], $t['nombre'], $nombres), 'tlcs' => 0, 'kg' => 0.0, 'desde' => $t['fecha'], 'hasta' => $t['fecha']];
+                $sin[$t['nit']]['tlcs']++;
+                $sin[$t['nit']]['kg']   += $t['kg'];
+                $sin[$t['nit']]['desde'] = min($sin[$t['nit']]['desde'], $t['fecha']);
+                $sin[$t['nit']]['hasta'] = max($sin[$t['nit']]['hasta'], $t['fecha']);
+            }
+
+            $sin   = array_values(array_map(static fn ($s) => array_replace($s, ['kg' => round($s['kg'], 2)]), $sin));
+            $suma  = static fn (string $c) => array_sum(array_column($facturas, $c));
+            $kgFac = round($suma('kgFacturado'), 2);
+            $kgTlc = round($suma('kgTlc'), 2);
+            $kgBas = round($suma('kgBascula'), 2);
+
+            return [
+                'disponible'        => true,
+                'mensaje'           => $facturas === [] ? 'No hay facturas de fruta en Siesa para el rango consultado.' : '',
+                'reintentar'        => false,
+                'porFinca'          => false,
+                'facturas'          => $facturas,
+                'anuladas'          => array_values(array_map(fn ($v) => ['documento' => $v['documento'], 'fecha' => $v['fecha'], 'nit' => $v['nit'], 'extractora' => $this->nombreNit($empresa, $v['nit'], $v['razon'], $nombres), 'kg' => round($v['kg'], 2), 'valor' => round($v['valor']), 'anuladaPor' => $v['anuladaPor']], array_filter($fac['cruza'], static fn ($v) => $v['anuladaPor'] !== null))),
+                'ajustesSinFactura' => $fac['ajustes'],
+                'sinFacturar'       => $sin,
+                'totales'           => [
+                    'kgFacturado'    => $kgFac,
+                    'valorFacturado' => round($suma('valorFacturado')),
+                    'ajusteValor'    => round($suma('ajusteValor')),
+                    'kgTlc'          => $kgTlc,
+                    'kgBascula'      => $kgBas,
+                    'difTlc'         => round($kgFac - $kgTlc, 2),
+                    'difBascula'     => round($kgFac - $kgBas, 2),
+                    'kgSinFacturar'  => round(array_sum(array_column($sin, 'kg')), 2),
+                ],
+            ];
+        } catch (\Throwable $e) {
+            log_message('error', 'Error consultando la facturación de Siesa del informe de báscula: ' . $e->getMessage());
+
+            return ['mensaje' => 'No se pudo consultar la facturación en Siesa.', 'reintentar' => true] + $base;
+        }
+    }
+
+    private function periodoNota(string $nota, string $fecha): ?array
+    {
+        $meses = ['ENERO' => 1, 'FEBRERO' => 2, 'MARZO' => 3, 'ABRIL' => 4, 'MAYO' => 5, 'JUNIO' => 6, 'JULIO' => 7, 'AGOSTO' => 8, 'SEPTIEMBRE' => 9, 'SETIEMBRE' => 9, 'OCTUBRE' => 10, 'NOVIEMBRE' => 11, 'DICIEMBRE' => 12];
+        $mes   = '(' . implode('|', array_keys($meses)) . ')\b(?:\s*(?:DE\s+|DEL\s+)?(\/\s*\d+|\d+))?';
+        $hall  = [];
+
+        if (preg_match('/(?<!\d)(\d{1,2})\s*(?:AL|A)\s*(\d{1,2})(?!\d)\s*(?:DEL?\s+)?(?:MES\s+)?(?:DE\s+)?' . $mes . '/', $nota, $m, PREG_OFFSET_CAPTURE) === 1) {
+            $hall[$m[0][1]] = [(int) $m[1][0], (int) $m[2][0], $meses[$m[3][0]], $m[4][0] ?? ''];
+        }
+
+        if (preg_match('/\b(1RA|1ERA|1A|PRIMERA|2DA|2A|SEGUNDA)\s+QUINCENA\s+(?:DE\s+|DEL\s+)?(?:MES\s+)?(?:DE\s+)?' . $mes . '/', $nota, $m, PREG_OFFSET_CAPTURE) === 1) {
+            $seg            = in_array($m[1][0], ['2DA', '2A', 'SEGUNDA'], true);
+            $hall[$m[0][1]] = [$seg ? 16 : 1, $seg ? 31 : 15, $meses[$m[2][0]], $m[3][0] ?? ''];
+        }
+
+        if ($hall === []) {
+            return null;
+        }
+
+        ksort($hall);
+        [$d1, $d2, $mm, $a] = reset($hall);
+        $dig  = preg_replace('/\D/', '', $a);
+        $y    = (int) substr($fecha, 0, 4);
+        $cerc = static fn (int $p) => abs(mktime(0, 0, 0, $mm, max(1, $d1), $p) - strtotime($fecha));
+        $a    = strlen($dig) === 4 && (int) $dig >= 2000 && (int) $dig <= 2100 ? (int) $dig : ($a !== '' && $a[0] === '/' && strlen($dig) === 2 ? 2000 + (int) $dig : array_reduce([$y, $y - 1, $y + 1], static fn ($m, $p) => $m === null || $cerc($p) < $cerc($m) ? $p : $m));
+        $d2  = min($d2, (int) date('t', mktime(0, 0, 0, $mm, 1, $a)));
+
+        return $d1 < 1 || $d1 > $d2 ? null : [sprintf('%04d-%02d-%02d', $a, $mm, $d1), sprintf('%04d-%02d-%02d', $a, $mm, $d2)];
     }
 
     private function acumularBascula(?array $a, string $estado, float $kg, ?float $kgExt): array
@@ -1266,22 +1671,12 @@ class TablerosController extends BaseController
 
     private function normalizarBascula(string $texto): string
     {
-        return strtr(mb_strtoupper(trim(preg_replace('/\s+/', ' ', $texto)), 'UTF-8'), ['Á' => 'A', 'É' => 'E', 'Í' => 'I', 'Ó' => 'O', 'Ú' => 'U', 'Ü' => 'U', 'Ñ' => 'N']);
+        return BasculaModel::normalizar($texto);
     }
 
     private function fincasOrigen(string $origen, array $porLargo): array
     {
-        $texto  = preg_replace(['/\bCRUEIRO\b/', '/\bCR\b/', '/\bCG\b/'], ['CRUCEIRO', 'CRUCEIRO', 'CANAGUATE'], $this->normalizarBascula($origen));
-        $fincas = [];
-
-        foreach ($porLargo as $codigo => $nombre) {
-            if ($nombre !== '' && str_contains($texto, $nombre)) {
-                $fincas[] = (string) $codigo;
-                $texto    = str_replace($nombre, '|', $texto);
-            }
-        }
-
-        return $fincas;
+        return BasculaModel::fincasOrigen($origen, $porLargo);
     }
 
     private function extractoraBascula(int $empresa, string $destino, array &$cache): string
@@ -1292,13 +1687,22 @@ class TablerosController extends BaseController
             return 'Sin destino';
         }
 
-        foreach (self::EXTRACTORAS as $patron => [$nit, $nombre]) {
+        foreach (self::EXTRACTORAS as $patron => [$nit]) {
             if (preg_match($patron, $texto) === 1) {
-                return $cache[$nit] ??= $this->basculaModel->nombreExtractora($empresa, $nit) ?? $nombre;
+                return $this->nombreNit($empresa, $nit, '', $cache);
             }
         }
 
         return preg_match('/CRUCEIRO|CANAGUATE/', $texto) === 1 ? 'Movimiento interno' : $texto;
+    }
+
+    private function nombreNit(int $empresa, string $nit, string $alterno, array &$cache): string
+    {
+        if ($nit === '') {
+            return $alterno !== '' ? $alterno : 'Sin extractora';
+        }
+
+        return $cache[$nit] ??= $this->basculaModel->nombreExtractora($empresa, $nit) ?? (array_column(self::EXTRACTORAS, 1, 0)[$nit] ?? ($alterno !== '' ? $alterno : $nit));
     }
 
     private function ton(float $kilos): float

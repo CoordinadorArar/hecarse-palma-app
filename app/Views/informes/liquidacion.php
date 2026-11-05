@@ -26,41 +26,33 @@
 
     <div class="card mb-3 gp-filtros">
         <div class="card-body py-3 px-4">
-            <div class="row g-2 align-items-end">
+            <form id="form_filtros" class="row g-2 align-items-end" novalidate>
                 <div class="col-6 col-md-3 col-lg-2">
-                    <label class="form-label mb-1 small fw-semibold text-muted" for="anio">Año</label>
+                    <label class="form-label mb-1 small fw-semibold text-muted" for="filtro_desde">Fecha inicio</label>
                     <div class="input-group">
-                        <span class="input-group-text"><i class="bi bi-calendar-event"></i></span>
-                        <select class="form-select" id="anio">
-                            <option disabled selected>Seleccione el año</option>
-                        </select>
+                        <span class="input-group-text"><i class="bi bi-calendar-event" aria-hidden="true"></i></span>
+                        <input type="date" class="form-control" id="filtro_desde" min="2000-01-01" max="2100-12-31" aria-describedby="error_rango">
                     </div>
                 </div>
 
                 <div class="col-6 col-md-3 col-lg-2">
-                    <label class="form-label mb-1 small fw-semibold text-muted" for="mes">Mes</label>
-                    <div class="input-group">
-                        <span class="input-group-text"><i class="bi bi-calendar-event"></i></span>
-                        <select class="form-select" id="mes">
-                            <option disabled selected>Seleccione el mes</option>
-                            <option value="01"> Enero </option>
-                            <option value="02"> Febrero </option>
-                            <option value="03"> Marzo </option>
-                            <option value="04"> Abril </option>
-                            <option value="05"> Mayo </option>
-                            <option value="06"> Junio </option>
-                            <option value="07"> Julio </option>
-                            <option value="08"> Agosto </option>
-                            <option value="09"> Septiembre </option>
-                            <option value="10"> Octubre </option>
-                            <option value="11"> Noviembre </option>
-                            <option value="12"> Diciembre </option>
-                        </select>
+                    <label class="form-label mb-1 small fw-semibold text-muted" for="filtro_hasta">Fecha fin</label>
+                    <div class="input-group has-validation">
+                        <span class="input-group-text"><i class="bi bi-calendar-event" aria-hidden="true"></i></span>
+                        <input type="date" class="form-control" id="filtro_hasta" min="2000-01-01" max="2100-12-31" aria-describedby="error_rango">
                     </div>
                 </div>
 
                 <div class="col-12 col-md-auto">
-                    <button type="button" class="btn btn-primary w-100" id="consultar_liquidacion">
+                    <span class="form-label mb-1 small fw-semibold text-muted d-block">Periodo</span>
+                    <div class="btn-group btn-group-sm w-100" role="group" aria-label="Accesos rápidos de periodo">
+                        <button type="button" class="btn btn-outline-success text-nowrap" data-rango="mes" aria-pressed="false">Este mes</button>
+                        <button type="button" class="btn btn-outline-success text-nowrap" data-rango="anterior" aria-pressed="false">Mes anterior</button>
+                    </div>
+                </div>
+
+                <div class="col-12 col-md-auto">
+                    <button type="submit" class="btn btn-primary w-100" id="consultar_liquidacion">
                         <i class="bi bi-search me-1"></i> Consultar
                     </button>
                 </div>
@@ -79,7 +71,11 @@
                         </li>
                     </ul>
                 </div>
-            </div>
+
+                <div class="col-12 d-none" id="fila_error_rango">
+                    <div class="invalid-feedback d-block small mt-0" id="error_rango" role="alert"></div>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -137,6 +133,8 @@
                             </div>
                         </div>
 
+                        <div id="aviso_cruces"></div>
+
                     <!-- Modal empleados sin temporal -->
                     <div class="modal fade" id="modalSinTemporal" tabindex="-1">
                         <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
@@ -185,13 +183,21 @@
                                         aria-label="Close"></button>
                                 </div>
                                 <div class="modal-body">
+                                    <div class="gp-referencia d-flex justify-content-between align-items-center gap-2 mb-3">
+                                        <div>
+                                            <span class="gp-etiqueta-mini d-block">Rango de aplicación</span>
+                                            <span class="fw-semibold" id="modal_rango"></span>
+                                        </div>
+                                        <span class="gp-subtexto text-nowrap" id="modal_rango_dias"></span>
+                                    </div>
+
                                     <div class="alert alert-info d-flex align-items-start" role="alert">
                                         <i class="bi bi-info-circle fs-5 me-2"></i>
                                         <div>
                                             <strong>Instrucciones:</strong>
                                             <ol class="mb-0 mt-2">
                                                 <li>Descarga la plantilla de Excel</li>
-                                                <li>Completa los datos según el formato requerido</li>
+                                                <li>Completa los datos según el formato requerido. Las columnas Año y Mes de la plantilla no se tienen en cuenta.</li>
                                                 <li>Sube el archivo completado</li>
                                             </ol>
                                         </div>
@@ -240,10 +246,20 @@
     </div>
 
 
-    <div class="card">
+    <div class="gp-nota d-none align-items-start gap-2 mb-3" id="nota_rango">
+        <i class="bi bi-info-circle" aria-hidden="true"></i>
+        <span>Cambió el rango de fechas. Pulse Consultar para actualizar.</span>
+    </div>
+
+    <div class="card" id="tarjeta_reporte">
         <div class="card-body p-0">
 
-            <ul class="nav nav-tabs nav-tabs-bordered px-3 pt-3" role="tablist">
+            <div class="gp-estado-vacio text-center py-4" id="reporte_vacio">
+                <div class="gp-medallon chico d-inline-flex align-items-center justify-content-center rounded-circle mb-2"><i class="bi bi-calendar-range" aria-hidden="true"></i></div>
+                <h6 class="mb-0">Seleccione el rango de fechas y pulse Consultar</h6>
+            </div>
+
+            <ul class="nav nav-tabs nav-tabs-bordered px-3 pt-3 d-none" role="tablist">
                 <li class="nav-item">
                     <a class="nav-link active" data-bs-toggle="tab" href="#reporteTotal">
                         Reporte Total
@@ -261,7 +277,7 @@
                 </li>
             </ul>
 
-            <div class="tab-content p-4">
+            <div class="tab-content p-4 d-none">
 
                 <div class="tab-pane fade show active" id="reporteTotal">
                     <table id="tabla-total" class="table table-striped w-100"></table>
@@ -311,8 +327,8 @@
             </div>
             <div class="card-body pt-3" id="siesa_cuerpo">
                 <div class="gp-estado-vacio text-center py-4">
-                    <div class="gp-medallon chico d-inline-flex align-items-center justify-content-center rounded-circle mb-2"><i class="bi bi-calendar-check" aria-hidden="true"></i></div>
-                    <h6 class="mb-0">Seleccione el año y el mes, y pulse Consultar</h6>
+                    <div class="gp-medallon chico d-inline-flex align-items-center justify-content-center rounded-circle mb-2"><i class="bi bi-calendar-range" aria-hidden="true"></i></div>
+                    <h6 class="mb-0">Seleccione el rango de fechas y pulse Consultar</h6>
                 </div>
             </div>
             <?php if (! empty($puedeMarcar)): ?>
@@ -383,21 +399,92 @@
 
     let InconsistenciasTemporal = false;
     let reporteProcesado = false; // Nueva variable
+    let rangoConsulta = '';
+    let rangoTemporales = '';
+    let turnoTemporales = 0;
+    let rangoModal = null;
 
     document.addEventListener('DOMContentLoaded', () => {
-        cargarAnios();
+        const [desde, hasta] = LIQ_RANGOS.anterior(new Date());
 
-        $('#anio, #mes').on('change', cargarTemporales);
-        $('#consultar_liquidacion').on('click', () => $('#tab_siesa').hasClass('active') ? consultarSiesa() : consultarReporte());
+        $('#filtro_desde').val(desde);
+        $('#filtro_hasta').val(hasta);
+        validar();
+
+        $('#filtro_desde, #filtro_hasta').on('change', () => {
+            $('#aviso_cruces').empty();
+            revisarRango();
+            validar();
+        });
+        $('[data-rango]').on('click', function () {
+            const [desde, hasta] = LIQ_RANGOS[this.dataset.rango](new Date());
+
+            $('#filtro_desde').val(desde);
+            $('#filtro_hasta').val(hasta).trigger('change');
+        });
+        $('#form_filtros').on('submit', e => {
+            e.preventDefault();
+
+            if (!validar()) return;
+
+            $('#tab_siesa').hasClass('active') ? consultarSiesa() : consultarReporte();
+        });
+        $('#tipoContrato, #temporal').on('change', () => $('#aviso_cruces').empty());
         $('#actualizar_contratos').on('click', actualizarContratos);
         $('#limpiar_filtros').on('click', limpiarFiltros);
 
         $('#btnAbrirModalTemporales').on('click', function () {
+            const actual = rango();
+
+            if (!validar()) {
+                Swal.fire({ icon: 'warning', title: 'Atención', text: 'Seleccione un rango de fechas válido antes de subir los valores.', returnFocus: false })
+                    .then(() => $('#filtro_desde').trigger('focus'));
+                return;
+            }
+
+            rangoModal = actual;
+            $('#modal_rango').html(rangoTexto(actual.desde, actual.hasta));
+            $('#modal_rango_dias').text(`${siesaNum(actual.dias)} ${actual.dias === 1 ? 'día' : 'días'}`);
             $('#modalActualizarTemporales').modal('show');
         });
     });
 
+    function revisarRango() {
+        const cambio = !!rangoConsulta && rangoConsulta !== rango().clave;
+
+        $('#tarjeta_reporte').toggleClass('inf-desactualizado', cambio);
+        $('#nota_rango').toggleClass('d-none', !cambio).toggleClass('d-flex', cambio);
+        if (cambio) $('#btnProcesar, #btnExportar').hide();
+
+        return cambio;
+    }
+
+    function textoCruces(temporal, cruces) {
+        return `Ya existe un rango procesado para <strong>${escaparHtml(temporal)}</strong> que se cruza con el seleccionado: ${cruces.map(c => `<strong class="text-nowrap">${rangoTexto(c.desde, c.hasta)}</strong>`).join(', ')}. Ajuste las fechas para que no se superpongan.`;
+    }
+
+    function pintarCruces(contenido) {
+        $('#aviso_cruces').html(`<div class="gp-nota-alerta d-flex align-items-start gap-2 mb-3"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i><span>${contenido}</span></div>`);
+    }
+
+    function mostrarErrorRespuesta(response, temporal, generico, codigo) {
+        const cruces = Array.isArray(response?.cruces) ? response.cruces : [];
+
+        if (cruces.length || codigo === 409) {
+            const contenido = cruces.length ? textoCruces(temporal, cruces) : escaparHtml(response?.message || generico);
+
+            reporteProcesado = false;
+            $('#btnProcesar').hide();
+            pintarCruces(contenido);
+            Swal.fire({ icon: 'warning', title: 'El rango se cruza con uno ya procesado', html: `<p class="mb-0">${contenido}</p>`, width: 560 });
+            return;
+        }
+
+        Swal.fire('Error', response?.message || generico, 'error');
+    }
+
     function limpiarFiltros() {
+        $('#aviso_cruces').empty();
         // Resetear los selectores a sus valores por defecto
         $('#tipoContrato').val($('#tipoContrato option:first').val());
         $('#temporal').val($('#temporal option:first').val());
@@ -445,24 +532,14 @@
     }
 
 
-    function cargarAnios() {
-        const anioActual = new Date().getFullYear();
-        let html = '<option disabled selected>Seleccione el año</option>';
-
-        for (let i = 0; i <= 2; i++) {
-            html += `<option value="${anioActual - i}">${anioActual - i}</option>`;
-        }
-
-        $('#anio').html(html);
-    }
-
     function cargarTemporales() {
-        const anio = $('#anio').val();
-        const mes = $('#mes').val();
+        const { desde, hasta, valido, clave } = rango();
         const select = $('#temporal');
+        const turno = ++turnoTemporales;
 
-        if (!anio || !mes) return;
+        if (!valido) return;
 
+        rangoTemporales = clave;
         InconsistenciasTemporal = false;
         reporteProcesado = false;
         $('#btnProcesar').hide();
@@ -470,14 +547,19 @@
         // Resetear filtros
         $('#tipoContrato').val($('#tipoContrato option:first').val());
         $('#temporal').html('<option disabled selected>Seleccione la temporal</option>');
+        select.prop('disabled', true);
 
         fetch("<?= base_url('informes/temporales') ?>", {
             method: "POST",
             headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: `anio=${anio}&mes=${mes}`
+            body: `desde=${desde}&hasta=${hasta}`
         })
-            .then(res => res.json())
+            .then(res => res.json().catch(() => null).then(data => {
+                if (!res.ok || !Array.isArray(data)) throw new Error(data?.message || 'No fue posible cargar las temporales');
+                return data;
+            }))
             .then(data => {
+                if (turno !== turnoTemporales) return;
 
                 select.html('<option disabled selected>Seleccione la temporal</option>');
 
@@ -504,9 +586,7 @@
                 // Llenar select
                 temporalesSet.forEach(razon => {
                     select.append(`
-            <option value="${razon}">
-                ${razon}
-            </option>
+            <option value="${escaparHtml(razon)}">${escaparHtml(razon)}</option>
         `);
                 });
 
@@ -516,7 +596,12 @@
                     mostrarAlertaInconsistencias();
                 }
             })
-            .catch(() => select.prop('disabled', false));
+            .catch(error => {
+                if (turno !== turnoTemporales) return;
+                select.prop('disabled', false);
+                rangoTemporales = '';
+                Swal.fire('Error', error.message, 'error');
+            });
     }
 
 
@@ -539,29 +624,34 @@
     let dataGlobal = [];
 
     function consultarReporte() {
-        const anio = $('#anio').val();
-        const mes = $('#mes').val();
+        const { desde, hasta, clave } = rango();
 
-        if (!anio || !mes) {
-            Swal.fire('Atención', 'Seleccione el año y mes a consultar', 'warning');
-            return;
-        }
+        if (!validar()) return;
 
         bloquearUI(true);
         reporteProcesado = false;
         $('#btnProcesar').hide();
+        $('#aviso_cruces').empty();
 
         $.post("<?= base_url('informes/consultar-reporte') ?>", {
-            anio, mes
+            desde, hasta
         }, response => {
 
             dataGlobal = response;
+            rangoConsulta = clave;
+            $('#reporte_vacio').addClass('d-none');
+            $('#tarjeta_reporte .nav-tabs, #tarjeta_reporte .tab-content').removeClass('d-none');
+            if (rangoTemporales !== clave) cargarTemporales();
 
             cargarReporteTotal();
             cargarReporteLabor();
             cargarReporteDetallado();
 
             bloquearUI(false);
+            revisarRango();
+        }).fail(xhr => {
+            bloquearUI(false);
+            Swal.fire('Error', xhr.responseJSON?.message || 'No fue posible consultar el reporte', 'error');
         });
     }
 
@@ -790,12 +880,13 @@
     }
 
     function verificarReporteProcesado() {
-        const anio = $('#anio').val();
-        const mes = $('#mes').val();
+        const { desde, hasta, valido } = rango();
         const temporal = $('#temporal').val();
         const tipoContrato = $('#tipoContrato').val();
 
-        if (!anio || !mes || !temporal || !tipoContrato ||
+        $('#aviso_cruces').empty();
+
+        if (revisarRango() || !valido || !temporal || !tipoContrato ||
             temporal === 'Seleccione la temporal' ||
             tipoContrato === 'Seleccione el tipo de contrato') {
             $('#btnProcesar').hide();
@@ -804,21 +895,31 @@
         }
 
         $.post("<?= base_url('informes/verificar-procesado') ?>", {
-            anio, mes, temporal, tipoContrato
+            desde, hasta, temporal, tipoContrato
         }, response => {
-            if (response.procesado) {
+            const cruces = Array.isArray(response.cruces) ? response.cruces : [];
+
+            if (response.status === 'error' && !cruces.length) {
+                $('#btnProcesar').hide();
+                Swal.fire('Error', response.message || 'No fue posible verificar el reporte', 'error');
+            } else if (response.procesado) {
                 reporteProcesado = true;
                 $('#btnProcesar').hide();
                 $('#btnExportar').removeClass('d-none').show();
                 Swal.fire({
                     icon: 'info',
                     title: 'Reporte ya procesado',
-                    text: 'Este reporte ya fue procesado anteriormente',
+                    text: `Este rango ya fue procesado para ${temporal} (${rangoTexto(desde, hasta)}).`,
                     toast: true,
                     position: 'top-end',
                     showConfirmButton: false,
                     timer: 3000
                 });
+            } else if (cruces.length) {
+                reporteProcesado = false;
+                $('#btnProcesar').hide();
+                $('#btnExportar').removeClass('d-none').show();
+                pintarCruces(textoCruces(temporal, cruces));
             } else {
                 reporteProcesado = false;
                 const dataFiltrada = filtrarDataGlobal();
@@ -835,6 +936,9 @@
                     $('#btnExportar').hide();
                 }
             }
+        }).fail(xhr => {
+            $('#btnProcesar').hide();
+            mostrarErrorRespuesta(xhr.responseJSON, temporal, 'No fue posible verificar el reporte', xhr.status);
         });
     }
 
@@ -881,13 +985,14 @@
 
 
     function bloquearUI(estado) {
-        $('#consultar_liquidacion').prop('disabled', estado);
-        $('#anio, #mes').prop('disabled', estado);
+        $('#filtro_desde, #filtro_hasta, [data-rango]').prop('disabled', estado);
 
         if (estado) {
+            $('#consultar_liquidacion').prop('disabled', true);
             Swal.fire({ title: 'Consultando...', allowOutsideClick: false });
             Swal.showLoading();
         } else {
+            validar();
             Swal.close();
         }
     }
@@ -913,8 +1018,7 @@
             return;
         }
 
-        const anio = $('#anio').val();
-        const mes = $('#mes').val();
+        const actual = rango();
         const temporal = $('#temporal').val();
         const tipoContrato = $('#tipoContrato').val();
 
@@ -932,15 +1036,19 @@
         Swal.fire({
             title: '¿Procesar reporte?',
             html: `
-                <p>Se procesará el reporte con los siguientes datos:</p>
-                <ul style="text-align: left; display: inline-block;">
-                    <li><strong>Año:</strong> ${anio}</li>
-                    <li><strong>Mes:</strong> ${mes}</li>
-                    <li><strong>Tipo Contrato:</strong> ${tipoContrato}</li>
-                    <li><strong>Temporal:</strong> ${temporal}</li>
-                </ul>
+                <div class="gp-referencia text-start mb-3">
+                    <div class="tx-ficha">
+                        ${siesaDato('Rango', rangoFicha(actual.desde, actual.hasta))}
+                        ${siesaDato('Días', siesaNum(actual.dias))}
+                        ${siesaDato('Tipo de contrato', escaparHtml(tipoContrato))}
+                        ${siesaDato('Temporal', escaparHtml(temporal))}
+                    </div>
+                </div>
+                <div class="gp-nota text-start">El rango quedará registrado como procesado para esta temporal. No podrá procesarse otro rango que se cruce con él.</div>
             `,
             icon: 'question',
+            width: 560,
+            focusCancel: true,
             showCancelButton: true,
             confirmButtonText: 'Sí, procesar',
             cancelButtonText: 'Cancelar'
@@ -959,8 +1067,7 @@
     }
 
     function procesarYGuardar() {
-        const anio = $('#anio').val();
-        const mes = $('#mes').val();
+        const { desde, hasta } = rango();
         const temporal = $('#temporal').val();
         const tipoContrato = $('#tipoContrato').val();
 
@@ -985,8 +1092,8 @@
             type: "POST",
             dataType: "json",
             data: {
-                anio,
-                mes,
+                desde,
+                hasta,
                 temporal,
                 tipoContrato,
                 datos: JSON.stringify(dataAgrupada)
@@ -1008,11 +1115,11 @@
                     $('#btnProcesar').hide();
 
                 } else {
-                    Swal.fire('Error', response.message || 'Error al procesar', 'error');
+                    mostrarErrorRespuesta(response, temporal, 'Error al procesar');
                 }
             },
-            error: function () {
-                Swal.fire('Error', 'No se pudo guardar el reporte', 'error');
+            error: function (xhr) {
+                mostrarErrorRespuesta(xhr.responseJSON, temporal, 'No se pudo guardar el reporte', xhr.status);
             }
         });
     }
@@ -1031,21 +1138,20 @@
 
     function exportarExcelDataTable(nombreArchivo) {
         const table = $('#tabla-total').DataTable();
-        const anio = $('#anio').val();
-        const mes = $('#mes').val();
+        const { desde, hasta } = rango();
         const temporal = $('#temporal').val();
 
-        let csv = 'Año,Mes,Cedula,Empleado,Tipo Contrato,Temporal,Total Pagado\n';
+        let csv = 'Fecha inicio,Fecha fin,Cedula,Empleado,Tipo Contrato,Temporal,Total Pagado\n';
 
         table.rows({ search: 'applied' }).data().each(row => {
-            csv += `"${anio}","${mes}","${row.cedula}","${row.nombreTercero}","${row.TipoContrato}","${row.RazonTemporal}","${row.valorTotalTercero}"\n`;
+            csv += `"${desde}","${hasta}","${row.cedula}","${row.nombreTercero}","${row.TipoContrato}","${row.RazonTemporal}","${row.valorTotalTercero}"\n`;
         });
 
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
 
         link.href = URL.createObjectURL(blob);
-        link.download = `${nombreArchivo}-${temporal}-${anio}-${mes}.csv`;
+        link.download = `${nombreArchivo}-${temporal}-${desde}_${hasta}.csv`;
 
         document.body.appendChild(link);
         link.click();
@@ -1064,6 +1170,9 @@
 
         const formData = new FormData(this);
 
+        formData.append('desde', rangoModal.desde);
+        formData.append('hasta', rangoModal.hasta);
+
         $.ajax({
             url: "<?= base_url('informes/actualizar-valores-temporal') ?>",
             type: "POST",
@@ -1073,13 +1182,42 @@
             dataType: 'json',
             success: res => {
 
+                if (res.tipo === 'duplicados') {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Duplicados detectados',
+                        width: 600,
+                        html: `
+                            <p class="text-danger fw-bold">Se encontraron cédulas duplicadas en el archivo Excel.</p>
+                            <p>Debe corregir el archivo antes de continuar.</p>
+                            <div style="max-height:300px; overflow:auto">
+                                <table class="table table-bordered table-sm mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th class="text-center">Cédula</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${(res.duplicados || []).map(cedula => `
+                                            <tr>
+                                                <td class="text-center font-monospace">${escaparHtml(cedula)}</td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        `
+                    });
+                    return;
+                }
+
                 if (res.status !== 'ok') {
                     Swal.fire('Error', res.message, 'error');
                     return;
                 }
 
                 let html = `
-                        <p><b>Periodo:</b> ${res.periodo}</p>
+                        <p><b>Rango:</b> ${escaparHtml(res.periodo)}</p>
                         <p><b>Actualizados:</b> ${res.actualizados}</p>
                         <p><b>Inválidos:</b> ${res.no_existen?.length ?? 0}</p>
                     `;
@@ -1098,57 +1236,13 @@
                                 <tbody>
                                     ${res.no_existen.map(cedula => `
                                         <tr>
-                                            <td class="text-center">${cedula}</td>
+                                            <td class="text-center">${escaparHtml(cedula)}</td>
                                         </tr>
                                     `).join('')}
                                 </tbody>
                             </table>
                         </div>
                     `;
-                }
-
-                if (res.tipo === 'duplicados') {
-
-                    let html = `
-                        <p class="text-danger fw-bold">
-                            Se encontraron cédulas duplicadas en el archivo Excel.
-                        </p>
-                        <p>Debe corregir el archivo antes de continuar.</p>
-
-                        <div style="max-height:300px; overflow:auto">
-                            <table class="table table-bordered table-sm">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th class="text-center">Cédula</th>
-                                        <th>Empleado(s)</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                    `;
-
-                    res.duplicados.forEach(item => {
-                        html += `
-                            <tr>
-                                <td class="text-center fw-bold">${item.cedula}</td>
-                                <td>${item.nombres.join('<br>')}</td>
-                            </tr>
-                        `;
-                    });
-
-                    html += `
-                                </tbody>
-                            </table>
-                        </div>
-                    `;
-
-                    Swal.fire({
-                        icon: 'warning',
-                        title: 'Duplicados detectados',
-                        html: html,
-                        width: '700px'
-                    });
-
-                    return;
                 }
 
                 // CERRAR EL MODAL después de éxito
@@ -1164,8 +1258,40 @@
                     width: 600
                 });
             },
-            error: function () {
-                Swal.fire('Error', 'No se pudo procesar el archivo', 'error');
+            error: function (xhr) {
+                const res = xhr.responseJSON || {};
+
+                if (res.tipo === 'cruces' && Array.isArray(res.cruces)) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'El rango se cruza con liquidaciones existentes',
+                        width: 600,
+                        html: `
+                            <p>${escaparHtml(res.message)}</p>
+                            <div style="max-height:240px; overflow:auto">
+                                <table class="table table-sm table-bordered mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th class="text-center">Cédula</th>
+                                            <th class="text-center">Rango</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${res.cruces.map(c => `
+                                            <tr>
+                                                <td class="text-center font-monospace">${escaparHtml(c.cedula)}</td>
+                                                <td class="text-center text-nowrap">${rangoTexto(c.desde, c.hasta)}</td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        `
+                    });
+                    return;
+                }
+
+                Swal.fire('Error', res.message || 'No se pudo procesar el archivo', 'error');
             }
         });
     });

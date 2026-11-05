@@ -78,17 +78,17 @@ class InformeController extends BaseController
             return $this->sesionExpirada();
         }
 
-        $periodo = $this->periodoSiesa();
+        $rango = $this->periodoSiesa();
 
-        if ($periodo === null) {
-            return $this->response->setStatusCode(422)->setJSON(['success' => false, 'message' => 'Debe indicar un año y un mes válidos.']);
+        if (is_string($rango)) {
+            return $this->response->setStatusCode(422)->setJSON(['success' => false, 'message' => $rango]);
         }
 
-        [$anio, $mes] = $periodo;
-        $modelo       = new LiquidacionSiesaModel();
+        [$desde, $hasta] = $rango;
+        $modelo          = new LiquidacionSiesaModel();
 
         try {
-            $documentos = $modelo->documentos($anio, $mes);
+            $documentos = $modelo->documentos($desde, $hasta);
             $rowid      = (int) $this->request->getPost('documento');
             $documento  = null;
 
@@ -124,7 +124,7 @@ class InformeController extends BaseController
 
         return $this->response->setJSON([
             'success'               => true,
-            'message'               => $documentos === [] ? 'No hay documentos de nómina mensual (NNM) en Siesa para el periodo.' : '',
+            'message'               => $documentos === [] ? 'No hay documentos de nómina mensual (NNM) en Siesa para el rango seleccionado.' : '',
             'documentos'            => $documentos,
             'documentoSeleccionado' => $documento['rowid'] ?? null,
             'empleados'             => $empleados,
@@ -153,20 +153,20 @@ class InformeController extends BaseController
             return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => 'No tiene permiso para marcar la liquidación de nómina.']);
         }
 
-        $periodo = $this->periodoSiesa();
-        $rowid   = (int) $this->request->getPost('documento');
+        $rango = $this->periodoSiesa();
+        $rowid = (int) $this->request->getPost('documento');
 
-        if ($periodo === null || $rowid <= 0) {
-            return $this->response->setStatusCode(422)->setJSON(['success' => false, 'message' => 'Debe indicar un año, un mes y un documento válidos.']);
+        if (is_string($rango) || $rowid <= 0) {
+            return $this->response->setStatusCode(422)->setJSON(['success' => false, 'message' => is_string($rango) ? $rango : 'Debe indicar un documento válido.']);
         }
 
-        [$anio, $mes] = $periodo;
-        $modelo       = new LiquidacionSiesaModel();
+        [$desde, $hasta] = $rango;
+        $modelo          = new LiquidacionSiesaModel();
 
         try {
             $documento = null;
 
-            foreach ($modelo->documentos($anio, $mes) as $d) {
+            foreach ($modelo->documentos($desde, $hasta) as $d) {
                 if ($d['rowid'] === $rowid) {
                     $documento = $d;
                 }
@@ -178,7 +178,7 @@ class InformeController extends BaseController
         }
 
         if ($documento === null) {
-            return $this->response->setStatusCode(422)->setJSON(['success' => false, 'message' => 'El documento indicado no es una nómina mensual (NNM) del periodo seleccionado.']);
+            return $this->response->setStatusCode(422)->setJSON(['success' => false, 'message' => 'El documento indicado no es una nómina mensual (NNM) del rango seleccionado.']);
         }
 
         if ($marcar && ! $documento['marcable']) {
@@ -186,7 +186,7 @@ class InformeController extends BaseController
         }
 
         try {
-            $resultado = $modelo->cambiarMarca($documento, $anio, $mes, $marcar, (int) $this->session->get('usu_id'));
+            $resultado = $modelo->cambiarMarca($documento, $desde, $hasta, $marcar, (int) $this->session->get('usu_id'));
         } catch (\Throwable $e) {
             log_message('error', 'Error consultando los empleados en Siesa: ' . $e->getMessage());
 
@@ -201,12 +201,50 @@ class InformeController extends BaseController
         return $this->response->setStatusCode(401)->setJSON(['success' => false, 'message' => 'Sesión expirada. Vuelva a iniciar sesión.']);
     }
 
-    private function periodoSiesa(): ?array
+    private function periodoSiesa(): array|string
     {
-        $anio = (int) $this->request->getPost('anio');
-        $mes  = (int) $this->request->getPost('mes');
+        $fechas = [];
 
-        return $anio >= 2000 && $anio <= 2100 && $mes >= 1 && $mes <= 12 ? [$anio, $mes] : null;
+        foreach (['desde', 'hasta'] as $campo) {
+            $valor = trim((string) $this->request->getPost($campo));
+            $fecha = \DateTime::createFromFormat('!Y-m-d', $valor);
+
+            if ($fecha === false || $fecha->format('Y-m-d') !== $valor || (int) $fecha->format('Y') < 2000 || (int) $fecha->format('Y') > 2100) {
+                return 'Debe indicar una fecha de inicio y una fecha de fin válidas (AAAA-MM-DD).';
+            }
+
+            $fechas[] = $fecha;
+        }
+
+        if ($fechas[0] > $fechas[1]) {
+            return 'La fecha de inicio no puede ser mayor que la fecha de fin.';
+        }
+
+        if ($fechas[0]->diff($fechas[1])->days > 365) {
+            return 'El rango de fechas no puede superar 366 días.';
+        }
+
+        return [$fechas[0]->format('Y-m-d'), $fechas[1]->format('Y-m-d')];
+    }
+
+    private function rangoLiquidacion(bool $requiereScript = false)
+    {
+        $rango = $this->periodoSiesa();
+
+        if (is_string($rango)) {
+            return $this->response->setStatusCode(422)->setJSON(['status' => 'error', 'message' => $rango]);
+        }
+
+        if ($requiereScript && ! $this->informe_model->tieneRangoFechas()) {
+            return $this->response->setStatusCode(500)->setJSON(['status' => 'error', 'message' => 'Falta ejecutar el script liquidacion_rango_fechas.sql en la base de datos.']);
+        }
+
+        return $rango;
+    }
+
+    private function fechaTexto(string $fecha): string
+    {
+        return implode('/', array_reverse(explode('-', $fecha)));
     }
 
     private function puedeMarcar(): bool
@@ -257,6 +295,12 @@ class InformeController extends BaseController
 
     public function temporales()
     {
+        if ($this->request->getPost('desde') !== null || $this->request->getPost('hasta') !== null) {
+            $rango = $this->rangoLiquidacion();
+
+            return is_array($rango) ? $this->response->setJSON($this->informe_model->getTemporales(null, null, $rango)) : $rango;
+        }
+
         $anio = $this->request->getPost('anio');
         $mes = $this->request->getPost('mes');
 
@@ -272,20 +316,26 @@ class InformeController extends BaseController
 
     public function empleadosSinTemporal()
     {
-        $anio = $this->request->getPost('anio');
-        $mes = $this->request->getPost('mes');
+        $rango = $this->rangoLiquidacion();
 
-        $data = $this->informe_model->getEmpleadosSinTemporal($anio, $mes);
+        if (! is_array($rango)) {
+            return $rango;
+        }
+
+        $data = $this->informe_model->getEmpleadosSinTemporal($rango);
 
         return $this->response->setJSON($data);
     }
 
     public function consultarReporte()
     {
-        $anio = $this->request->getPost('anio');
-        $mes = $this->request->getPost('mes');
+        $rango = $this->rangoLiquidacion();
 
-        $data = $this->informe_model->getReporteGeneral($anio, $mes);
+        if (! is_array($rango)) {
+            return $rango;
+        }
+
+        $data = $this->informe_model->getReporteGeneral($rango);
 
         return $this->response->setJSON($data);
     }
@@ -293,38 +343,53 @@ class InformeController extends BaseController
 
     public function verificarProcesado()
     {
-        $anio = $this->request->getPost('anio');
-        $mes = $this->request->getPost('mes');
+        $rango = $this->rangoLiquidacion(true);
+
+        if (! is_array($rango)) {
+            return $rango;
+        }
+
         $temporal = $this->request->getPost('temporal');
         $tipoContrato = $this->request->getPost('tipoContrato');
 
-        $procesado = $this->informe_model->verificarReporteProcesado($anio, $mes, $temporal, $tipoContrato);
-
-        return $this->response->setJSON([
-            'procesado' => $procesado
-        ]);
+        return $this->response->setJSON($this->informe_model->verificarReporteProcesado($rango[0], $rango[1], $temporal, $tipoContrato));
     }
 
     public function procesarReporte()
     {
         try {
-            $anio = $this->request->getPost('anio');
-            $mes = $this->request->getPost('mes');
+            $rango = $this->rangoLiquidacion(true);
+
+            if (! is_array($rango)) {
+                return $rango;
+            }
+
+            [$desde, $hasta] = $rango;
             $temporal = $this->request->getPost('temporal');
             $tipoContrato = $this->request->getPost('tipoContrato');
             $datos = json_decode($this->request->getPost('datos'), true);
 
-            if (!$anio || !$mes || !$temporal || !$tipoContrato || empty($datos)) {
+            if (!$temporal || !$tipoContrato || empty($datos)) {
                 return $this->response->setJSON([
                     'status' => 'error',
                     'message' => 'Faltan datos requeridos'
                 ]);
             }
 
+            $cruces = $this->informe_model->verificarReporteProcesado($desde, $hasta, $temporal, $tipoContrato)['cruces'];
+
+            if ($cruces !== []) {
+                return $this->response->setStatusCode(409)->setJSON([
+                    'status' => 'error',
+                    'message' => 'Ya existe una liquidación procesada para esta temporal que se cruza con el rango: ' . implode(', ', array_map(fn ($c) => $this->fechaTexto($c['desde']) . ' – ' . $this->fechaTexto($c['hasta']), $cruces)),
+                    'cruces' => $cruces
+                ]);
+            }
+
             $registrosGuardados = $this->informe_model->guardarReporteProcesado(
                 $datos,
-                $anio,
-                $mes,
+                $desde,
+                $hasta,
                 $temporal,
                 $tipoContrato
             );
@@ -348,6 +413,13 @@ class InformeController extends BaseController
 
     public function actualizarValoresTemporal()
     {
+        $rango = $this->rangoLiquidacion(true);
+
+        if (! is_array($rango)) {
+            return $rango;
+        }
+
+        [$desde, $hasta] = $rango;
         $archivo = $this->request->getFile('archivo');
 
         if (!$archivo || !$archivo->isValid()) {
@@ -363,16 +435,11 @@ class InformeController extends BaseController
         // Quitar encabezado
         unset($rows[0]);
 
-        $anioExcel = null;
-        $mesExcel = null;
-
         $registros = [];
         $mapaCedulas = [];
 
         foreach ($rows as $row) {
 
-            $anio = (int) trim($row[0]);
-            $mes  = (int) trim($row[1]);
             $cedula = trim($row[2]);
 
             $valorRaw = trim($row[3]);
@@ -385,20 +452,8 @@ class InformeController extends BaseController
             $valor = str_replace(['$', '.', ','], '', $valorRaw);
             $valor = (float) $valor; // o (float) si necesitas decimales
 
-            if (!$anio || !$mes || !$cedula || !is_numeric($valor)) {
+            if (!$cedula || !is_numeric($valor)) {
                 continue;
-            }
-
-            if ($anioExcel === null) {
-                $anioExcel = $anio;
-                $mesExcel = $mes;
-            }
-
-            if ($anio !== $anioExcel || $mes !== $mesExcel) {
-                return $this->response->setJSON([
-                    'status' => 'error',
-                    'message' => 'El archivo contiene más de un período (año/mes)'
-                ]);
             }
 
             $mapaCedulas[$cedula][] = $cedula;
@@ -426,22 +481,31 @@ class InformeController extends BaseController
             ]);
         }
 
+        $cruces = $registros === [] ? [] : $this->informe_model->crucesCedulas(array_column($registros, 'cedula'), $desde, $hasta);
+
+        if ($cruces !== []) {
+            return $this->response->setStatusCode(409)->setJSON([
+                'status' => 'error',
+                'tipo' => 'cruces',
+                'message' => 'Hay empleados con liquidaciones de un rango que se cruza con el seleccionado. No se realizó ninguna actualización.',
+                'cruces' => $cruces
+            ]);
+        }
+
         $actualizados = 0;
         $cedulasNoExisten = [];
 
         foreach ($registros as $r) {
 
-            if (!$this->informe_model->existeCedulaPeriodo($r['cedula'], $anioExcel, $mesExcel)) {
+            if (!$this->informe_model->existeCedulaPeriodo($r['cedula'], $desde, $hasta)) {
 
                 $consulta = $this->informe_model->buscarCedula($r['cedula']);
 
                 if ($consulta) {
 
-                    $mesFormateado = str_pad($mesExcel, 2, '0', STR_PAD_LEFT);
-
                     $this->informe_model->insertarNuevos(
-                        $anioExcel,
-                        $mesFormateado,
+                        $desde,
+                        $hasta,
                         $consulta['Cedula'],
                         $consulta['NombreEmpleado'],
                         $consulta['TipoContrato'],
@@ -454,14 +518,14 @@ class InformeController extends BaseController
                 continue;
             }
 
-            if ($this->informe_model->actualizarValorTemporal($r['cedula'], $r['valor'], $anioExcel, $mesExcel)) {
+            if ($this->informe_model->actualizarValorTemporal($r['cedula'], $r['valor'], $desde, $hasta)) {
                 $actualizados++;
             }
         }
 
         return $this->response->setJSON([
             'status' => 'ok',
-            'periodo' => "$anioExcel-$mesExcel",
+            'periodo' => $this->fechaTexto($desde) . ' – ' . $this->fechaTexto($hasta),
             'actualizados' => $actualizados,
             'no_existen' => $cedulasNoExisten
         ]);

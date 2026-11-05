@@ -31,17 +31,17 @@ class LiquidacionSiesaModel extends ProduccionModel
         return $modulo > 0 && in_array(self::ACCION, $this->accionesPermitidas($usuario, $modulo), true);
     }
 
-    public function documentos(int $anio, int $mes): array
+    public function documentos(string $desde, string $hasta): array
     {
         $filas = $this->siesa(
             "SELECT d.c0600_rowid AS rowid, LTRIM(RTRIM(CAST(d.c0600_consec_docto AS varchar(20)))) AS consecutivo,
                     d.c0600_ind_estado AS estado, CONVERT(varchar(10), d.c0600_fecha_inicial, 23) AS fechaInicial,
                     CONVERT(varchar(10), d.c0600_fecha_final, 23) AS fechaFinal, d.c0600_total_devengos AS totalDevengos
                FROM " . self::SIESA . "w0600_docto_nomina d
-              WHERE d.c0600_id_cia = ? AND d.c0600_id_tipo_docto = 'NNM' AND d.c0600_ano = ? AND d.c0600_nro_periodo = ?
+              WHERE d.c0600_id_cia = ? AND d.c0600_id_tipo_docto = 'NNM' AND d.c0600_fecha_inicial <= ? AND d.c0600_fecha_final >= ?
                 AND d.c0600_rowid_tipo_nomina = 2
-              ORDER BY d.c0600_consec_docto",
-            [self::CIA, $anio, $mes]
+              ORDER BY d.c0600_fecha_inicial, d.c0600_consec_docto",
+            [self::CIA, str_replace('-', '', $hasta), str_replace('-', '', $desde)]
         );
 
         return array_map(fn ($d) => [
@@ -116,7 +116,7 @@ class LiquidacionSiesaModel extends ProduccionModel
         return $empleados;
     }
 
-    public function cambiarMarca(array $documento, int $anio, int $mes, bool $marcar, ?int $usu_id): array
+    public function cambiarMarca(array $documento, string $desde, string $hasta, bool $marcar, ?int $usu_id): array
     {
         $filas = $this->siesa(
             'SELECT DISTINCT LTRIM(RTRIM(t.f200_id)) AS cedula
@@ -149,8 +149,8 @@ class LiquidacionSiesaModel extends ProduccionModel
 
             $auditoria = $this->insertarAuditoria('UPDATE', [
                 'operacion' => $marcar ? 'marcar-liquidacion' : 'revertir-liquidacion',
-                'anio'      => $anio,
-                'mes'       => $mes,
+                'desde'     => $desde,
+                'hasta'     => $hasta,
                 'documento' => [
                     'rowid'        => $documento['rowid'],
                     'consecutivo'  => $documento['consecutivo'],

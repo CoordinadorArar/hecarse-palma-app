@@ -14,9 +14,15 @@ const escaparHtml = (valor) => String(valor ?? '').replace(/[&<>"']/g, (caracter
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
 }[caracter]));
 
-const SIESA = { datos: null, doc: null, anio: '', mes: '', cambio: false, ocupado: false, turno: 0, error: null };
-const SIESA_MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
-const SIESA_CAMBIO = 'Cambió el periodo. Pulse Consultar para actualizar.';
+const SIESA = { datos: null, doc: null, desde: '', hasta: '', cambio: false, ocupado: false, turno: 0, error: null };
+const SIESA_CAMBIO = 'Cambió el rango de fechas. Pulse Consultar para actualizar.';
+const LIQ_MAX_DIAS = 366;
+const isoDe = (dia) => `${dia.getFullYear()}-${String(dia.getMonth() + 1).padStart(2, '0')}-${String(dia.getDate()).padStart(2, '0')}`;
+const diasEntre = (desde, hasta) => Math.round((Date.parse(hasta) - Date.parse(desde)) / 86400000) + 1;
+const LIQ_RANGOS = {
+    mes: (hoy) => [isoDe(new Date(hoy.getFullYear(), hoy.getMonth(), 1)), isoDe(new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0))],
+    anterior: (hoy) => [isoDe(new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1)), isoDe(new Date(hoy.getFullYear(), hoy.getMonth(), 0))]
+};
 const SIESA_ESTADOS = {
     0: ['gp-badge-cierre', 'bi-hourglass-split'],
     1: ['gp-badge-abierto', 'bi-check-circle'],
@@ -38,7 +44,42 @@ const siesaFecha = (valor) => {
 
     return escaparHtml(p ? `${p[3]}/${p[2]}/${p[1]}` : valor);
 };
-const siesaPeriodo = () => ($('#anio').val() && $('#mes').val()) ? `${$('#anio').val()}-${$('#mes').val()}` : '';
+const rango = () => {
+    const desde = $('#filtro_desde').val();
+    const hasta = $('#filtro_hasta').val();
+    const llenos = Boolean(desde && hasta);
+    const dias = llenos ? diasEntre(desde, hasta) : 0;
+    const error = !llenos ? 'Indique la fecha inicio y la fecha fin.'
+        : desde < '2000-01-01' || hasta > '2100-12-31' || hasta < '2000-01-01' || desde > '2100-12-31' ? 'Las fechas deben estar entre 01/01/2000 y 31/12/2100.'
+        : hasta < desde ? 'La fecha fin debe ser igual o posterior a la fecha inicio.'
+        : dias > LIQ_MAX_DIAS ? `El rango máximo es de ${LIQ_MAX_DIAS} días (seleccionó ${siesaNum(dias)}).` : '';
+
+    return { desde, hasta, dias, error, valido: !error, clave: `${desde}|${hasta}` };
+};
+const validar = () => {
+    const actual = rango();
+    const hoy = new Date();
+
+    $('#filtro_hasta').attr('min', actual.desde || '2000-01-01').toggleClass('is-invalid', Boolean(actual.error && actual.desde));
+    $('#filtro_desde').toggleClass('is-invalid', Boolean(actual.error && !actual.desde));
+    $('#error_rango').text(actual.error);
+    $('#fila_error_rango').toggleClass('d-none', !actual.error);
+    $('#consultar_liquidacion').prop('disabled', !actual.valido || SIESA.ocupado);
+    $('[data-rango]').each(function () {
+        const [desde, hasta] = LIQ_RANGOS[this.dataset.rango](hoy);
+        const activo = desde === actual.desde && hasta === actual.hasta;
+
+        $(this).toggleClass('active', activo).attr('aria-pressed', String(activo));
+    });
+
+    return actual.valido;
+};
+const rangoTexto = (desde, hasta) => desde === hasta ? siesaFecha(desde) : `${siesaFecha(desde)} – ${siesaFecha(hasta)}`;
+const siesaPeriodo = () => {
+    const actual = rango();
+
+    return actual.valido ? actual.clave : '';
+};
 const siesaBadge = (doc) => {
     const [clase, icono] = SIESA_ESTADOS[doc.estado] || ['gp-badge-doc', 'bi-question-circle'];
 
@@ -46,6 +87,7 @@ const siesaBadge = (doc) => {
 };
 const siesaNnm = (doc) => `<span class="badge gp-badge-doc font-monospace">NNM ${escaparHtml(doc.consecutivo)}</span>`;
 const siesaRango = (doc) => `<span class="gp-rango-fecha">${siesaFecha(doc.fechaInicial)} <i class="bi bi-arrow-right" aria-hidden="true"></i> ${siesaFecha(doc.fechaFinal)}</span>`;
+const rangoFicha = (desde, hasta) => desde === hasta ? `<span class="gp-rango-fecha">${siesaFecha(desde)}</span>` : siesaRango({ fechaInicial: desde, fechaFinal: hasta });
 const siesaDato = (etiqueta, valor) => `<div><span class="gp-etiqueta-mini">${etiqueta}</span><div class="tx-ficha-valor">${valor}</div></div>`;
 const siesaEstadoHtml = (icono, titulo, texto = '', extra = '', error = false) => `
     <div class="gp-estado-vacio text-center py-4">
@@ -111,7 +153,7 @@ const siesaOcupado = (estado) => {
 
     SIESA.ocupado = estado;
     boton.dataset.original = boton.dataset.original || boton.innerHTML;
-    boton.disabled = estado;
+    validar();
     boton.innerHTML = estado ? '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Consultando…' : boton.dataset.original;
     $('#siesa_documento').prop('disabled', estado);
     siesaBotones();
@@ -132,7 +174,7 @@ const siesaKpi = (icono, etiqueta, valor, subtexto, alerta = false) => `
             <div class="min-w-0">
                 <span class="gp-etiqueta-mini text-truncate">${etiqueta}</span>
                 <div class="inf-kpi-valor${alerta ? ' inf-dif-alerta' : ''}" title="${escaparHtml(valor)}">${valor}</div>
-                <span class="gp-subtexto text-truncate">${subtexto}</span>
+                <span class="gp-subtexto text-truncate" title="${escaparHtml(subtexto)}">${subtexto}</span>
             </div>
         </div>
     </div>`;
@@ -205,7 +247,7 @@ const siesaPintar = () => {
     const docs = d.documentos || [];
 
     if (!docs.length) {
-        siesaEstado(siesaEstadoHtml('bi-file-earmark-x', `No hay nómina mensual en Siesa para ${SIESA_MESES[Number(SIESA.mes) - 1]} de ${escaparHtml(SIESA.anio)}`, 'Cuando el documento NNM esté registrado en Siesa podrá consultarlo aquí.'));
+        siesaEstado(siesaEstadoHtml('bi-file-earmark-x', `No hay documentos de nómina en Siesa que se crucen con el rango ${rangoTexto(SIESA.desde, SIESA.hasta)}`, 'Cuando el documento NNM esté registrado en Siesa podrá consultarlo aquí.'));
         return;
     }
 
@@ -232,7 +274,7 @@ const siesaPintar = () => {
     $('#siesa_kpis').html([
         siesaKpi('bi-people', 'Empleados', siesaNum(t.empleados), 'En el documento Siesa'),
         siesaKpi('bi-bank', 'Valor Siesa', siesaMoneda(t.valorSiesa), 'Conceptos 070 a 078'),
-        siesaKpi('bi-journal-check', 'Valor AppPalma', siesaMoneda(t.valorAppPalma), 'Labores en el rango'),
+        siesaKpi('bi-journal-check', 'Valor AppPalma', siesaMoneda(t.valorAppPalma), 'Labores en el periodo del documento'),
         siesaKpi('bi-arrow-left-right', 'Diferencia', siesaMoneda(t.diferencia, true), conDif ? `${siesaNum(conDif)} empleados con diferencia` : 'Sin diferencias', conDif > 0),
         siesaKpi('bi-lock', 'Líneas pendientes', siesaNum(t.lineasPendientes), !t.lineasPendientes && t.lineasMarcadas > 0 ? 'Todas marcadas' : `${siesaNum(t.lineasMarcadas)} marcadas`)
     ].join(''));
@@ -245,13 +287,9 @@ const siesaPintar = () => {
 };
 
 async function consultarSiesa(documento) {
-    const anio = $('#anio').val();
-    const mes = $('#mes').val();
+    const { desde, hasta } = rango();
 
-    if (!anio || !mes) {
-        Swal.fire('Atención', 'Seleccione el año y mes a consultar', 'warning');
-        return;
-    }
+    if (!validar()) return;
 
     const turno = ++SIESA.turno;
 
@@ -264,17 +302,17 @@ async function consultarSiesa(documento) {
     siesaOcupado(true);
 
     try {
-        const datos = await siesaPedir('consultar', { anio, mes, documento: documento || '' });
+        const datos = await siesaPedir('consultar', { desde, hasta, documento: documento || '' });
 
         if (turno !== SIESA.turno) return;
 
-        Object.assign(SIESA, { datos, anio, mes, cambio: siesaPeriodo() !== `${anio}-${mes}` });
+        Object.assign(SIESA, { datos, desde, hasta, cambio: siesaPeriodo() !== `${desde}|${hasta}` });
         siesaPintar();
         $('#siesa_cuerpo, #siesa_resultados').toggleClass('inf-desactualizado', SIESA.cambio && !!SIESA.doc);
     } catch (error) {
         if (turno !== SIESA.turno) return;
 
-        Object.assign(SIESA, { datos: null, anio, mes, cambio: false });
+        Object.assign(SIESA, { datos: null, desde, hasta, cambio: false });
         siesaEstado(siesaEstadoHtml('bi-cloud-slash', 'No se pudo consultar Siesa', escaparHtml(error.message),
             '<button type="button" class="btn btn-outline-primary btn-sm" id="btn_siesa_reintentar"><i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>Reintentar</button>', true));
     } finally {
@@ -317,7 +355,7 @@ const siesaConfirmar = (marcar) => {
         focusCancel: true,
         showLoaderOnConfirm: true,
         allowOutsideClick: () => !Swal.isLoading(),
-        preConfirm: () => siesaPedir(marcar ? 'marcar' : 'revertir', { anio: SIESA.anio, mes: SIESA.mes, documento: doc.rowid })
+        preConfirm: () => siesaPedir(marcar ? 'marcar' : 'revertir', { desde: SIESA.desde, hasta: SIESA.hasta, documento: doc.rowid })
             .catch((error) => {
                 SIESA.error = error;
                 Swal.showValidationMessage(escaparHtml(error.message));
@@ -356,13 +394,13 @@ $(function () {
 
         const periodo = siesaPeriodo();
 
-        if (this.id === 'tab_siesa' && periodo && periodo !== `${SIESA.anio}-${SIESA.mes}`) consultarSiesa();
+        if (this.id === 'tab_siesa' && SIESA.desde && periodo && periodo !== `${SIESA.desde}|${SIESA.hasta}`) consultarSiesa();
     });
 
-    $('#anio, #mes').on('change', () => {
+    $('#filtro_desde, #filtro_hasta').on('change', () => {
         if (!SIESA.doc) return;
 
-        SIESA.cambio = siesaPeriodo() !== `${SIESA.anio}-${SIESA.mes}`;
+        SIESA.cambio = siesaPeriodo() !== `${SIESA.desde}|${SIESA.hasta}`;
         $('#siesa_cuerpo, #siesa_resultados').toggleClass('inf-desactualizado', SIESA.cambio);
         siesaBotones();
     });
