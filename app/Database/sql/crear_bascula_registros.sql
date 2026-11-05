@@ -7,13 +7,16 @@
      tabla "registros" del software de la báscula, enviadas por lotes desde
      el equipo de la báscula al endpoint POST api/receive-data-bascula.
        Mismas columnas y nombres que la tabla origen (numero ... ctda_eje),
-       más las columnas de control lote y fechaRecepcion.
-       PK (numero).
+       más las columnas de control lote y fechaRecepcion, y los centros de
+       operación coEquipo (equipo que envía, codigoFinca del JSON) y coFinca
+       (finca dueña del peso).
+       PK (coEquipo, numero).
 
    USO EN EL APLICATIVO
    --------------------
-     El endpoint inserta solo las filas cuyo numero no exista todavía; las
-     existentes se excluyen, por lo que reenviar un lote no duplica datos.
+     El endpoint inserta solo las filas cuyo (coEquipo, numero) no exista
+     todavía; las existentes se excluyen, por lo que reenviar un lote no
+     duplica datos.
 
    IDEMPOTENTE: se puede ejecutar varias veces.
    Ejecutar desde SSMS o con "sqlcmd -f 65001 -i crear_bascula_registros.sql".
@@ -62,7 +65,9 @@ BEGIN
         ctda_eje       VARCHAR(10)    NULL,
         lote           INT            NULL,
         fechaRecepcion DATETIME       NOT NULL CONSTRAINT DF_bBasculaRegistro_fechaRecepcion DEFAULT (GETDATE()),
-        CONSTRAINT PK_bBasculaRegistro PRIMARY KEY (numero)
+        coEquipo       VARCHAR(3)     NOT NULL,
+        coFinca        VARCHAR(3)     NULL,
+        CONSTRAINT PK_bBasculaRegistro PRIMARY KEY (coEquipo, numero)
     );
 
     PRINT N'Tabla dbo.bBasculaRegistro creada.';

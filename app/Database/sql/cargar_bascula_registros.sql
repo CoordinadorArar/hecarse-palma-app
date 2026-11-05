@@ -6,9 +6,12 @@
      Inserta en dbo.bBasculaRegistro las 406 filas de la tabla "registros"
      de la báscula tomadas de Documentacion/registros.json (numero 1 a 406).
      Fechas convertidas de 'Y-m-d h:mm:ss AM/PM' a ISO 8601; lote = NULL.
+     coEquipo = '003' (equipo de Cruceiro). coFinca = '004' si el origen es
+     solo Cañaguate, '002' si es solo El Hato; el resto '003'.
 
-   Requiere haber ejecutado antes crear_bascula_registros.sql.
-   IDEMPOTENTE: solo inserta los numero que no existan en la tabla.
+   Requiere haber ejecutado antes crear_bascula_registros.sql (o
+   bascula_codigo_finca.sql sobre una tabla anterior).
+   IDEMPOTENTE: solo inserta los (coEquipo, numero) que no existan en la tabla.
    Ejecutar desde SSMS o con "sqlcmd -f 65001 -i cargar_bascula_registros.sql".
    ============================================================================ */
 
@@ -17,8 +20,11 @@ SET XACT_ABORT ON;
 
 BEGIN TRANSACTION;
 
-INSERT INTO dbo.bBasculaRegistro (numero, placa, cliente, nit, direccion, telefono, conductor, cedula, origen, destino, transportista, observaciones, producto, codigo, proceso, f_entrada, f_salida, tipo, pesada1, pesada2, peso_neto, estado, usuario, n_registro, costo, camion, eje1, eje2, eje3, eje4, eje5, eje6, eje7, eje8, ctda_eje)
-SELECT v.numero, v.placa, v.cliente, v.nit, v.direccion, v.telefono, v.conductor, v.cedula, v.origen, v.destino, v.transportista, v.observaciones, v.producto, v.codigo, v.proceso, v.f_entrada, v.f_salida, v.tipo, v.pesada1, v.pesada2, v.peso_neto, v.estado, v.usuario, v.n_registro, v.costo, v.camion, v.eje1, v.eje2, v.eje3, v.eje4, v.eje5, v.eje6, v.eje7, v.eje8, v.ctda_eje
+INSERT INTO dbo.bBasculaRegistro (numero, placa, cliente, nit, direccion, telefono, conductor, cedula, origen, destino, transportista, observaciones, producto, codigo, proceso, f_entrada, f_salida, tipo, pesada1, pesada2, peso_neto, estado, usuario, n_registro, costo, camion, eje1, eje2, eje3, eje4, eje5, eje6, eje7, eje8, ctda_eje, coEquipo, coFinca)
+SELECT v.numero, v.placa, v.cliente, v.nit, v.direccion, v.telefono, v.conductor, v.cedula, v.origen, v.destino, v.transportista, v.observaciones, v.producto, v.codigo, v.proceso, v.f_entrada, v.f_salida, v.tipo, v.pesada1, v.pesada2, v.peso_neto, v.estado, v.usuario, v.n_registro, v.costo, v.camion, v.eje1, v.eje2, v.eje3, v.eje4, v.eje5, v.eje6, v.eje7, v.eje8, v.ctda_eje, '003',
+       CASE WHEN UPPER(LTRIM(RTRIM(ISNULL(v.origen, N'')))) IN (N'CA' + NCHAR(209) + N'AGUATE', N'CANAGUATE', N'CG') THEN '004'
+            WHEN UPPER(LTRIM(RTRIM(ISNULL(v.origen, N'')))) IN (N'EL HATO', N'FINCA EL HATO') THEN '002'
+            ELSE '003' END
 FROM (VALUES
     (1, N'XKC986', N'HECARSE', N'', N'', N'', N'FELIX NIÑO', N'91001059', N'CRUEIRO', N'MONTERREY', N'4745', N'', N'FRUTA PALMA', N'01', 2, '2025-06-04T07:53:55', '2025-06-04T11:58:52', 2, 9290, 25030, 15740, 0, N'BRENDA ESTOR', 1, 0, N'', N'0', N'0', N'0', N'0', N'', N'', N'0', N'0', N'0'),
     (2, N'TTT398', N'HECARSE', N'', N'', N'', N'ARNOL  MEJIA', N'1101209320', N'CRUCEIRO', N'PALMAS DE SAN ALBERTO', N'', N'LLUVIAS ', N'FRUTA PALMA', N'01', 2, '2025-06-05T06:22:28', '2025-06-06T09:36:53', 2, 9210, 0, 9210, 0, N'BRENDA ESTOR', 2, 0, N'', N'0', N'0', N'0', N'0', N'', N'', N'0', N'0', N'0'),
@@ -122,10 +128,13 @@ segunda pesada sin canasta 2 ', N'FRUTA PALMA', N'01', 2, '2025-07-02T06:36:44',
     (99, N'XKC986', N'', N'', N'', N'', N'FELIX NIÑO', N'91001059', N'CAÑAGUATE - CRUCEIRO', N'SAN FERNANDO', N'4089', N'', N'FRUTA PALMA', N'01', 2, '2026-01-11T05:03:20', '2026-01-11T12:30:31', 2, 10200, 26140, 15940, 0, N'BRENDA ESTOR', 99, 0, N'', N'0', N'0', N'0', N'0', N'', N'', N'0', N'0', N'0'),
     (100, N'XKC986', N'', N'', N'', N'', N'FELIX NIÑO', N'91001059', N'', N'', N'', N'', N'FRUTA PALMA', N'01', 2, '2026-01-13T05:57:18', '2026-01-13T10:48:58', 2, 10410, 26460, 16050, 0, N'BRENDA ESTOR', 100, 0, N'', N'0', N'0', N'0', N'0', N'', N'', N'0', N'0', N'0')
 ) AS v (numero, placa, cliente, nit, direccion, telefono, conductor, cedula, origen, destino, transportista, observaciones, producto, codigo, proceso, f_entrada, f_salida, tipo, pesada1, pesada2, peso_neto, estado, usuario, n_registro, costo, camion, eje1, eje2, eje3, eje4, eje5, eje6, eje7, eje8, ctda_eje)
-WHERE NOT EXISTS (SELECT 1 FROM dbo.bBasculaRegistro r WHERE r.numero = v.numero);
+WHERE NOT EXISTS (SELECT 1 FROM dbo.bBasculaRegistro r WHERE r.coEquipo = '003' AND r.numero = v.numero);
 
-INSERT INTO dbo.bBasculaRegistro (numero, placa, cliente, nit, direccion, telefono, conductor, cedula, origen, destino, transportista, observaciones, producto, codigo, proceso, f_entrada, f_salida, tipo, pesada1, pesada2, peso_neto, estado, usuario, n_registro, costo, camion, eje1, eje2, eje3, eje4, eje5, eje6, eje7, eje8, ctda_eje)
-SELECT v.numero, v.placa, v.cliente, v.nit, v.direccion, v.telefono, v.conductor, v.cedula, v.origen, v.destino, v.transportista, v.observaciones, v.producto, v.codigo, v.proceso, v.f_entrada, v.f_salida, v.tipo, v.pesada1, v.pesada2, v.peso_neto, v.estado, v.usuario, v.n_registro, v.costo, v.camion, v.eje1, v.eje2, v.eje3, v.eje4, v.eje5, v.eje6, v.eje7, v.eje8, v.ctda_eje
+INSERT INTO dbo.bBasculaRegistro (numero, placa, cliente, nit, direccion, telefono, conductor, cedula, origen, destino, transportista, observaciones, producto, codigo, proceso, f_entrada, f_salida, tipo, pesada1, pesada2, peso_neto, estado, usuario, n_registro, costo, camion, eje1, eje2, eje3, eje4, eje5, eje6, eje7, eje8, ctda_eje, coEquipo, coFinca)
+SELECT v.numero, v.placa, v.cliente, v.nit, v.direccion, v.telefono, v.conductor, v.cedula, v.origen, v.destino, v.transportista, v.observaciones, v.producto, v.codigo, v.proceso, v.f_entrada, v.f_salida, v.tipo, v.pesada1, v.pesada2, v.peso_neto, v.estado, v.usuario, v.n_registro, v.costo, v.camion, v.eje1, v.eje2, v.eje3, v.eje4, v.eje5, v.eje6, v.eje7, v.eje8, v.ctda_eje, '003',
+       CASE WHEN UPPER(LTRIM(RTRIM(ISNULL(v.origen, N'')))) IN (N'CA' + NCHAR(209) + N'AGUATE', N'CANAGUATE', N'CG') THEN '004'
+            WHEN UPPER(LTRIM(RTRIM(ISNULL(v.origen, N'')))) IN (N'EL HATO', N'FINCA EL HATO') THEN '002'
+            ELSE '003' END
 FROM (VALUES
     (101, N'PAH560', N'', N'', N'', N'', N'JORGE ACOSTA', N'1102367930', N'CRUCEIRO', N'', N'', N'', N'FRUTA PALMA', N'01', 2, '2026-01-13T06:39:11', '2026-01-13T13:16:29', 2, 12890, 36550, 23660, 0, N'BRENDA ESTOR', 101, 0, N'', N'0', N'0', N'0', N'0', N'', N'', N'0', N'0', N'0'),
     (102, N'XKC986', N'', N'', N'', N'', N'FELIX NIÑO', N'91001059', N'', N'MONTERREY', N'', N'', N'FRUTA PALMA', N'01', 2, '2026-01-14T05:45:42', '2026-01-14T11:48:27', 2, 10570, 26190, 15620, 0, N'BRENDA ESTOR', 102, 0, N'', N'0', N'0', N'0', N'0', N'', N'', N'0', N'0', N'0'),
@@ -228,10 +237,13 @@ FROM (VALUES
     (199, N'XKC986', N'', N'', N'', N'', N'FELIX NIÑO', N'91001059', N'', N'MONTERREY', N'', N'', N'FRUTA PALMA', N'01', 2, '2026-03-09T07:13:38', '2026-03-09T14:12:43', 2, 10550, 25400, 14850, 0, N'BRENDA ESTOR', 199, 0, N'', N'0', N'0', N'0', N'0', N'', N'', N'0', N'0', N'0'),
     (200, N'XKC986', N'', N'', N'', N'', N'FELIX NIÑO', N'91001059', N'CRUCEIRO', N'MONTERREY', N'', N'', N'FRUTA PALMA', N'01', 2, '2026-03-10T06:12:16', '2026-03-11T12:05:37', 2, 10630, 25960, 15330, 0, N'BRENDA ESTOR', 200, 0, N'', N'0', N'0', N'0', N'0', N'', N'', N'0', N'0', N'0')
 ) AS v (numero, placa, cliente, nit, direccion, telefono, conductor, cedula, origen, destino, transportista, observaciones, producto, codigo, proceso, f_entrada, f_salida, tipo, pesada1, pesada2, peso_neto, estado, usuario, n_registro, costo, camion, eje1, eje2, eje3, eje4, eje5, eje6, eje7, eje8, ctda_eje)
-WHERE NOT EXISTS (SELECT 1 FROM dbo.bBasculaRegistro r WHERE r.numero = v.numero);
+WHERE NOT EXISTS (SELECT 1 FROM dbo.bBasculaRegistro r WHERE r.coEquipo = '003' AND r.numero = v.numero);
 
-INSERT INTO dbo.bBasculaRegistro (numero, placa, cliente, nit, direccion, telefono, conductor, cedula, origen, destino, transportista, observaciones, producto, codigo, proceso, f_entrada, f_salida, tipo, pesada1, pesada2, peso_neto, estado, usuario, n_registro, costo, camion, eje1, eje2, eje3, eje4, eje5, eje6, eje7, eje8, ctda_eje)
-SELECT v.numero, v.placa, v.cliente, v.nit, v.direccion, v.telefono, v.conductor, v.cedula, v.origen, v.destino, v.transportista, v.observaciones, v.producto, v.codigo, v.proceso, v.f_entrada, v.f_salida, v.tipo, v.pesada1, v.pesada2, v.peso_neto, v.estado, v.usuario, v.n_registro, v.costo, v.camion, v.eje1, v.eje2, v.eje3, v.eje4, v.eje5, v.eje6, v.eje7, v.eje8, v.ctda_eje
+INSERT INTO dbo.bBasculaRegistro (numero, placa, cliente, nit, direccion, telefono, conductor, cedula, origen, destino, transportista, observaciones, producto, codigo, proceso, f_entrada, f_salida, tipo, pesada1, pesada2, peso_neto, estado, usuario, n_registro, costo, camion, eje1, eje2, eje3, eje4, eje5, eje6, eje7, eje8, ctda_eje, coEquipo, coFinca)
+SELECT v.numero, v.placa, v.cliente, v.nit, v.direccion, v.telefono, v.conductor, v.cedula, v.origen, v.destino, v.transportista, v.observaciones, v.producto, v.codigo, v.proceso, v.f_entrada, v.f_salida, v.tipo, v.pesada1, v.pesada2, v.peso_neto, v.estado, v.usuario, v.n_registro, v.costo, v.camion, v.eje1, v.eje2, v.eje3, v.eje4, v.eje5, v.eje6, v.eje7, v.eje8, v.ctda_eje, '003',
+       CASE WHEN UPPER(LTRIM(RTRIM(ISNULL(v.origen, N'')))) IN (N'CA' + NCHAR(209) + N'AGUATE', N'CANAGUATE', N'CG') THEN '004'
+            WHEN UPPER(LTRIM(RTRIM(ISNULL(v.origen, N'')))) IN (N'EL HATO', N'FINCA EL HATO') THEN '002'
+            ELSE '003' END
 FROM (VALUES
     (201, N'TTT627', N'', N'', N'', N'', N'JULIAN   ARIAS', N'1003091554', N'CRUCEIRO', N'MONTERREY', N'', N'', N'FRUTA PALMA', N'01', 2, '2026-03-10T07:05:03', '2026-03-10T13:48:53', 2, 8610, 25680, 17070, 0, N'BRENDA ESTOR', 201, 0, N'', N'0', N'0', N'0', N'0', N'', N'', N'0', N'0', N'0'),
     (202, N'TTT627', N'', N'', N'', N'', N'JULIAN   ARIAS', N'1003091554', N'CRUCEIRO', N'MONTERREY', N'', N'', N'FRUTA PALMA', N'01', 2, '2026-03-11T06:29:25', '2026-03-11T12:04:25', 2, 8530, 25950, 17420, 0, N'BRENDA ESTOR', 202, 0, N'', N'0', N'0', N'0', N'0', N'', N'', N'0', N'0', N'0'),
@@ -334,10 +346,13 @@ FROM (VALUES
     (299, N'TQB190', N'', N'', N'', N'', N'ROBINSON RIOS', N'1007513963', N'CRUCEIRO', N'CRUCEIRO', N'', N'', N'FRUTA PALMA', N'01', 2, '2026-05-30T07:08:59', '2026-05-30T12:42:57', 2, 8870, 25580, 16710, 0, N'BRENDA ESTOR', 299, 0, N'', N'0', N'0', N'0', N'0', N'', N'', N'0', N'0', N'0'),
     (300, N'IAE319', N'', N'', N'', N'', N'OSSUALDO TALERO ', N'1101210520', N'CRUCEIRO', N'', N'', N'', N'FRUTA PALMA', N'01', 2, '2026-05-30T07:10:54', '2026-05-30T12:46:12', 2, 7770, 24400, 16630, 0, N'BRENDA ESTOR', 300, 0, N'', N'0', N'0', N'0', N'0', N'', N'', N'0', N'0', N'0')
 ) AS v (numero, placa, cliente, nit, direccion, telefono, conductor, cedula, origen, destino, transportista, observaciones, producto, codigo, proceso, f_entrada, f_salida, tipo, pesada1, pesada2, peso_neto, estado, usuario, n_registro, costo, camion, eje1, eje2, eje3, eje4, eje5, eje6, eje7, eje8, ctda_eje)
-WHERE NOT EXISTS (SELECT 1 FROM dbo.bBasculaRegistro r WHERE r.numero = v.numero);
+WHERE NOT EXISTS (SELECT 1 FROM dbo.bBasculaRegistro r WHERE r.coEquipo = '003' AND r.numero = v.numero);
 
-INSERT INTO dbo.bBasculaRegistro (numero, placa, cliente, nit, direccion, telefono, conductor, cedula, origen, destino, transportista, observaciones, producto, codigo, proceso, f_entrada, f_salida, tipo, pesada1, pesada2, peso_neto, estado, usuario, n_registro, costo, camion, eje1, eje2, eje3, eje4, eje5, eje6, eje7, eje8, ctda_eje)
-SELECT v.numero, v.placa, v.cliente, v.nit, v.direccion, v.telefono, v.conductor, v.cedula, v.origen, v.destino, v.transportista, v.observaciones, v.producto, v.codigo, v.proceso, v.f_entrada, v.f_salida, v.tipo, v.pesada1, v.pesada2, v.peso_neto, v.estado, v.usuario, v.n_registro, v.costo, v.camion, v.eje1, v.eje2, v.eje3, v.eje4, v.eje5, v.eje6, v.eje7, v.eje8, v.ctda_eje
+INSERT INTO dbo.bBasculaRegistro (numero, placa, cliente, nit, direccion, telefono, conductor, cedula, origen, destino, transportista, observaciones, producto, codigo, proceso, f_entrada, f_salida, tipo, pesada1, pesada2, peso_neto, estado, usuario, n_registro, costo, camion, eje1, eje2, eje3, eje4, eje5, eje6, eje7, eje8, ctda_eje, coEquipo, coFinca)
+SELECT v.numero, v.placa, v.cliente, v.nit, v.direccion, v.telefono, v.conductor, v.cedula, v.origen, v.destino, v.transportista, v.observaciones, v.producto, v.codigo, v.proceso, v.f_entrada, v.f_salida, v.tipo, v.pesada1, v.pesada2, v.peso_neto, v.estado, v.usuario, v.n_registro, v.costo, v.camion, v.eje1, v.eje2, v.eje3, v.eje4, v.eje5, v.eje6, v.eje7, v.eje8, v.ctda_eje, '003',
+       CASE WHEN UPPER(LTRIM(RTRIM(ISNULL(v.origen, N'')))) IN (N'CA' + NCHAR(209) + N'AGUATE', N'CANAGUATE', N'CG') THEN '004'
+            WHEN UPPER(LTRIM(RTRIM(ISNULL(v.origen, N'')))) IN (N'EL HATO', N'FINCA EL HATO') THEN '002'
+            ELSE '003' END
 FROM (VALUES
     (301, N'XKC986', N'', N'', N'', N'', N'FELIX NIÑO', N'91001059', N'CRUCEIRO', N'MONTERREY', N'', N'', N'FRUTA PALMA', N'01', 2, '2026-06-02T06:03:13', '2026-06-02T12:25:37', 2, 10510, 25280, 14770, 0, N'BRENDA ESTOR', 301, 0, N'', N'0', N'0', N'0', N'0', N'', N'', N'0', N'0', N'0'),
     (302, N'IAE319', N'', N'', N'', N'', N'OSUALDO TALERO', N'1101210520', N'CRUCEIRO', N'', N'', N'', N'FRUTA PALMA', N'01', 2, '2026-06-03T06:36:53', '2026-06-03T11:03:42', 2, 7910, 23300, 15390, 0, N'BRENDA ESTOR', 302, 0, N'', N'0', N'0', N'0', N'0', N'', N'', N'0', N'0', N'0'),
@@ -440,10 +455,13 @@ FROM (VALUES
     (399, N'TQB190', N'', N'', N'', N'', N'ROBINSON RIOS', N'1007513963', N'CRUCEIRO', N'', N'', N'', N'FRUTA PALMA', N'01', 2, '2026-10-24T12:59:28', '2026-10-24T15:48:08', 2, 8840, 21980, 13140, 0, N'BRENDA ESTOR', 399, 0, N'', N'0', N'0', N'0', N'0', N'', N'', N'0', N'0', N'0'),
     (400, N'TQB190', N'', N'', N'', N'', N'ROBINSON RIOS', N'1007513963', N'CRUCEIRO', N'SAN FERNANDO', N'', N'', N'FRUTA PALMA', N'01', 2, '2026-10-25T05:02:49', '2026-10-25T06:59:43', 2, 8820, 17400, 8580, 0, N'BRENDA ESTOR', 400, 0, N'', N'0', N'0', N'0', N'0', N'', N'', N'0', N'0', N'0')
 ) AS v (numero, placa, cliente, nit, direccion, telefono, conductor, cedula, origen, destino, transportista, observaciones, producto, codigo, proceso, f_entrada, f_salida, tipo, pesada1, pesada2, peso_neto, estado, usuario, n_registro, costo, camion, eje1, eje2, eje3, eje4, eje5, eje6, eje7, eje8, ctda_eje)
-WHERE NOT EXISTS (SELECT 1 FROM dbo.bBasculaRegistro r WHERE r.numero = v.numero);
+WHERE NOT EXISTS (SELECT 1 FROM dbo.bBasculaRegistro r WHERE r.coEquipo = '003' AND r.numero = v.numero);
 
-INSERT INTO dbo.bBasculaRegistro (numero, placa, cliente, nit, direccion, telefono, conductor, cedula, origen, destino, transportista, observaciones, producto, codigo, proceso, f_entrada, f_salida, tipo, pesada1, pesada2, peso_neto, estado, usuario, n_registro, costo, camion, eje1, eje2, eje3, eje4, eje5, eje6, eje7, eje8, ctda_eje)
-SELECT v.numero, v.placa, v.cliente, v.nit, v.direccion, v.telefono, v.conductor, v.cedula, v.origen, v.destino, v.transportista, v.observaciones, v.producto, v.codigo, v.proceso, v.f_entrada, v.f_salida, v.tipo, v.pesada1, v.pesada2, v.peso_neto, v.estado, v.usuario, v.n_registro, v.costo, v.camion, v.eje1, v.eje2, v.eje3, v.eje4, v.eje5, v.eje6, v.eje7, v.eje8, v.ctda_eje
+INSERT INTO dbo.bBasculaRegistro (numero, placa, cliente, nit, direccion, telefono, conductor, cedula, origen, destino, transportista, observaciones, producto, codigo, proceso, f_entrada, f_salida, tipo, pesada1, pesada2, peso_neto, estado, usuario, n_registro, costo, camion, eje1, eje2, eje3, eje4, eje5, eje6, eje7, eje8, ctda_eje, coEquipo, coFinca)
+SELECT v.numero, v.placa, v.cliente, v.nit, v.direccion, v.telefono, v.conductor, v.cedula, v.origen, v.destino, v.transportista, v.observaciones, v.producto, v.codigo, v.proceso, v.f_entrada, v.f_salida, v.tipo, v.pesada1, v.pesada2, v.peso_neto, v.estado, v.usuario, v.n_registro, v.costo, v.camion, v.eje1, v.eje2, v.eje3, v.eje4, v.eje5, v.eje6, v.eje7, v.eje8, v.ctda_eje, '003',
+       CASE WHEN UPPER(LTRIM(RTRIM(ISNULL(v.origen, N'')))) IN (N'CA' + NCHAR(209) + N'AGUATE', N'CANAGUATE', N'CG') THEN '004'
+            WHEN UPPER(LTRIM(RTRIM(ISNULL(v.origen, N'')))) IN (N'EL HATO', N'FINCA EL HATO') THEN '002'
+            ELSE '003' END
 FROM (VALUES
     (401, N'TQB190', N'', N'', N'', N'', N'ROBINSON RIOS', N'1007513963', N'CRUCEIRO', N'MOTERREY', N'', N'', N'FRUTA PALMA', N'01', 2, '2026-10-27T05:54:49', '2026-10-27T11:40:41', 2, 9040, 25560, 16520, 0, N'BRENDA ESTOR', 401, 0, N'', N'0', N'0', N'0', N'0', N'', N'', N'0', N'0', N'0'),
     (402, N'XKC986', N'', N'', N'', N'', N'FELIX NIÑO', N'91001059', N'CRUCEIRO', N'MONTEREY', N'', N'', N'FRUTA PALMA', N'01', 2, '2026-10-27T06:04:32', '2026-10-27T11:57:48', 2, 10760, 24490, 13730, 0, N'BRENDA ESTOR', 402, 0, N'', N'0', N'0', N'0', N'0', N'', N'', N'0', N'0', N'0'),
@@ -452,7 +470,7 @@ FROM (VALUES
     (405, N'TQB190', N'', N'', N'', N'', N'ROBINSON RIOS', N'1007513963', N'CRUCEIRO', N'MONTEREY', N'', N'', N'FRUTA PALMA', N'01', 2, '2026-10-30T06:24:08', '2026-10-30T11:05:46', 2, 8890, 23460, 14570, 0, N'BRENDA ESTOR', 405, 0, N'', N'0', N'0', N'0', N'0', N'', N'', N'0', N'0', N'0'),
     (406, N'TQB190', N'', N'', N'', N'', N'ROBINSON RIOS', N'1007513963', N'CRUCEIRO', N'CERESAGRO', N'', N'', N'FRUTA PALMA', N'01', 2, '2026-10-31T15:35:45', '2026-10-31T17:57:05', 2, 8870, 21700, 12830, 0, N'BRENDA ESTOR', 406, 0, N'', N'0', N'0', N'0', N'0', N'', N'', N'0', N'0', N'0')
 ) AS v (numero, placa, cliente, nit, direccion, telefono, conductor, cedula, origen, destino, transportista, observaciones, producto, codigo, proceso, f_entrada, f_salida, tipo, pesada1, pesada2, peso_neto, estado, usuario, n_registro, costo, camion, eje1, eje2, eje3, eje4, eje5, eje6, eje7, eje8, ctda_eje)
-WHERE NOT EXISTS (SELECT 1 FROM dbo.bBasculaRegistro r WHERE r.numero = v.numero);
+WHERE NOT EXISTS (SELECT 1 FROM dbo.bBasculaRegistro r WHERE r.coEquipo = '003' AND r.numero = v.numero);
 
 COMMIT TRANSACTION;
 

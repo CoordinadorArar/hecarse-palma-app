@@ -1,4 +1,8 @@
 const URL_DATOS = BASE_URL + 'dashboards/bascula/datos';
+const URL_EXCEL = BASE_URL + 'dashboards/bascula/excel';
+const CLAVE_COLAPSADAS = 'informeBascula.colapsadas';
+const HTML_EXCEL = '<i class="bi bi-file-earmark-excel me-1" aria-hidden="true"></i>Exportar a Excel';
+const COL_FACT = 'col-6 col-lg-3';
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 const DIAS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
@@ -13,7 +17,7 @@ const ESTADOS = {
     incompleto: { nombre: 'Pesaje incompleto', corto: 'Incompleto', clase: 'ig-e-alerta', icono: 'bi-hourglass-split' }
 };
 const ORDEN_FILTRO = ['fuera_regla', 'cumple', 'sin_tlc', 'incompleto'];
-const TABS = [['panel_viajes', 'bi-arrow-left-right', 'Báscula vs extractora'], ['panel_placas', 'bi-truck-front', 'Placas por día'], ['panel_conductores', 'bi-person-badge', 'Conductores']];
+const TABS = [['panel_viajes', 'bi-arrow-left-right', 'Báscula vs extractora'], ['panel_placas', 'bi-truck-front', 'Placas por día'], ['panel_conductores', 'bi-person-badge', 'Conductores'], ['panel_facturado', 'bi-receipt-cutoff', 'Báscula vs facturado']];
 const ZERO_RECORDS = 'Ningún registro coincide con la búsqueda';
 const SIN_EXTRACTORA = { 'SIN DESTINO': '#c5ccd3', 'MOVIMIENTO INTERNO': '#9aa5b1' };
 const DOM_TABLA = "<'gp-dt-barra'lf><'table-responsive't><'gp-dt-barra gp-dt-pie'ip>";
@@ -30,7 +34,8 @@ const FORMATOS = {
     pct: new Intl.NumberFormat('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 4 }),
     pctEje: new Intl.NumberFormat('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
     entero: new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0, useGrouping: 'always' }),
-    compacto: new Intl.NumberFormat('es-CO', { notation: 'compact', maximumFractionDigits: 1 })
+    compacto: new Intl.NumberFormat('es-CO', { notation: 'compact', maximumFractionDigits: 1 }),
+    cop: new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 })
 };
 
 const nulo = (valor) => valor == null || valor === '' || Number.isNaN(Number(valor));
@@ -75,7 +80,27 @@ const nombrePropio = (valor) => texto(valor).toLocaleLowerCase('es').replace(/(^
 const fincasViaje = (fila) => (Array.isArray(fila.fincas) ? fila.fincas : []).map(String);
 const nombresFincas = (codigos) => codigos.map((codigo) => `${codigo} ${estado.fincas[codigo] || ''}`.trim()).join(' · ');
 
-const estado = { turno: 0, respuesta: null, graficas: {}, tablas: [], pendientes: {}, tab: 'panel_viajes', filtro: null, regla: 0.02, tablaViajes: null, fincas: {}, firmaFincas: '', esperaFincas: null };
+const estado = { turno: 0, respuesta: null, graficas: {}, tablas: [], pendientes: {}, tab: 'panel_viajes', filtro: null, regla: 0.02, tablaViajes: null, fincas: {}, firmaFincas: '', esperaFincas: null, colapsadas: [], empresa: '', ocupado: false, exportando: false };
+
+const leerColapsadas = () => {
+    try {
+        const lista = JSON.parse(localStorage.getItem(CLAVE_COLAPSADAS) || '[]');
+
+        return Array.isArray(lista) ? lista.map(String) : [];
+    } catch (error) {
+        return [];
+    }
+};
+
+const guardarColapsada = (clave, colapsada) => {
+    const lista = leerColapsadas().filter((item) => item !== clave);
+
+    try {
+        localStorage.setItem(CLAVE_COLAPSADAS, JSON.stringify(colapsada ? [...lista, clave] : lista));
+    } catch (error) {
+        return;
+    }
+};
 
 const estadoVacio = (icono, titulo, cuerpo, extra = '') => `
     <div class="gp-estado-vacio text-center py-5">
@@ -84,19 +109,20 @@ const estadoVacio = (icono, titulo, cuerpo, extra = '') => `
         ${cuerpo}
     </div>`;
 
-const pedir = async (datos) => {
+const enviar = async (url, datos) => {
     const cuerpo = new FormData();
 
     Object.entries(datos).forEach(([clave, valor]) => (Array.isArray(valor) ? valor.forEach((item) => cuerpo.append(`${clave}[]`, item)) : cuerpo.append(clave, valor ?? '')));
 
-    let respuesta;
-
     try {
-        respuesta = await fetch(URL_DATOS, { method: 'POST', body: cuerpo, headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+        return await fetch(url, { method: 'POST', body: cuerpo, headers: { 'X-Requested-With': 'XMLHttpRequest' } });
     } catch (error) {
         throw Object.assign(new Error('Error de conexión.'), { status: 0 });
     }
+};
 
+const pedir = async (datos) => {
+    const respuesta = await enviar(URL_DATOS, datos);
     let resultado = null;
 
     try {
@@ -122,6 +148,12 @@ const ocupado = (activo) => {
         : '<i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i>Actualizar';
     cuerpo.setAttribute('aria-busy', activo ? 'true' : 'false');
     cuerpo.classList.toggle('inf-desactualizado', activo && Boolean(estado.respuesta));
+    estado.ocupado = activo;
+    habilitarExcel();
+};
+
+const habilitarExcel = () => {
+    if (!estado.exportando) $id('btn_excel').disabled = estado.ocupado || !estado.respuesta || !rango().valido;
 };
 
 const kpiEsqueleto = (col) => `<div class="${col}"><div class="inf-kpi d-block"><span class="placeholder col-6 mb-2"></span><span class="placeholder col-8 placeholder-lg"></span><span class="placeholder col-10 mt-2"></span></div></div>`;
@@ -192,8 +224,8 @@ const kpiRegla = (k, n) => {
     </div>`;
 };
 
-const kpi = (icono, etiqueta, valor, sub, claseIcono = '', ayuda = sub) => `<div class="col-6 col-md-3 col-xl-6 min-w-0">
-    <div class="inf-kpi">
+const kpi = (icono, etiqueta, valor, sub, claseIcono = '', ayuda = sub, columna = 'col-6 col-md-3 col-xl-6', claseKpi = '') => `<div class="${columna} min-w-0">
+    <div class="inf-kpi${claseKpi ? ` ${claseKpi}` : ''}">
         <span class="gp-icono${claseIcono ? ` ${claseIcono}` : ''} rounded-circle d-inline-flex align-items-center justify-content-center"><i class="bi ${icono}" aria-hidden="true"></i></span>
         <div class="min-w-0 flex-grow-1">
             <span class="gp-etiqueta-mini d-block">${etiqueta}</span>
@@ -401,15 +433,146 @@ const opcionesConductores = (lista) => {
 };
 
 const lienzo = (id, etiqueta) => `<div class="inf-grafica" id="${id}" role="img" aria-label="${escaparHtml(etiqueta)}"></div>`;
-const vacioGrafica = (mensaje = 'Sin pesajes en el periodo') => `<div class="tb-grafica-vacia"><i class="bi bi-bar-chart" aria-hidden="true"></i>${escaparHtml(mensaje)}</div>`;
+const vacioGrafica = (mensaje = 'Sin pesajes en el periodo', icono = 'bi-bar-chart') => `<div class="tb-grafica-vacia"><i class="bi ${icono}" aria-hidden="true"></i>${escaparHtml(mensaje)}</div>`;
 
-const seccion = (icono, titulo, unidad, cuerpo) => `<section>
+const seccion = (clave, icono, titulo, unidad, cuerpo) => {
+    const abierta = !estado.colapsadas.includes(clave);
+
+    return `<section>
     <div class="px-3 pt-3 pb-2 d-flex flex-wrap align-items-center gap-2">
         <h6 class="gp-seccion mb-0 me-auto border-0 pb-0"><i class="bi ${icono}" aria-hidden="true"></i>${titulo}</h6>
         ${unidad ? `<span class="gp-subtexto">${unidad}</span>` : ''}
+        <button type="button" class="btn btn-link btn-sm text-success p-0 gp-seccion-toggle ba-colapsar${abierta ? '' : ' collapsed'}" data-bs-toggle="collapse" data-bs-target="#sec_${clave}" aria-expanded="${abierta}" aria-controls="sec_${clave}" aria-label="${escaparHtml(`Mostrar u ocultar ${titulo}`)}" title="Mostrar u ocultar"><i class="bi bi-chevron-down gp-chevron" aria-hidden="true"></i></button>
     </div>
-    <div class="px-3 pb-3">${cuerpo}</div>
+    <div class="collapse${abierta ? ' show' : ''}" id="sec_${clave}"><div class="px-3 pb-3">${cuerpo}</div></div>
 </section>`;
+};
+
+const tablaEstatica = (columnas, filas, pie) => {
+    const celdas = (lista, etiqueta) => lista.map((celda, indice) => `<${etiqueta}${indice === 0 && etiqueta === 'th' ? ' scope="row"' : ''}${columnas[indice][1] ? ' class="inf-num"' : ''}>${celda}</${etiqueta}>`).join('');
+
+    return `<div class="table-responsive ig-ciclo-scroll">
+        <table class="table table-sm align-middle mb-0 gp-tabla inf-tabla">
+            <thead class="gp-thead"><tr>${columnas.map(([titulo, clase, ayuda]) => `<th scope="col"${clase ? ` class="${clase}"` : ''}${ayuda ? ` title="${ayuda}"` : ''}>${titulo}</th>`).join('')}</tr></thead>
+            <tbody>${filas.map(([clase, lista]) => `<tr${clase ? ` class="${clase}"` : ''}>${celdas(lista, 'td')}</tr>`).join('')}</tbody>
+            ${pie ? `<tfoot><tr>${celdas(pie, 'th')}</tr></tfoot>` : ''}
+        </table>
+    </div>`;
+};
+
+const plural = (cantidad, uno, varios) => `${f('entero', cantidad)} ${cantidad === 1 ? uno : varios}`;
+const noCuadra = (valor) => !nulo(valor) && Math.abs(Number(valor)) >= 1;
+const celdaDifTlc = (valor) => (nulo(valor) ? NULO : (noCuadra(valor) ? `<span class="ig-texto-rojo fw-semibold">${f('kgSigno', valor)}</span>` : '<span class="text-muted">0</span><span class="gp-subtexto ig-texto-verde"><i class="bi bi-check2 me-1" aria-hidden="true"></i>Cuadra</span>'));
+const doc = (valor, tachado = false) => (texto(valor) ? `<span class="badge gp-badge-doc font-monospace${tachado ? ' text-decoration-line-through' : ''}">${escaparHtml(valor)}</span>` : NULO);
+const celdaExtractora = (fila) => `<div class="gp-truncar ba-col-extractora" title="${escaparHtml(fila.extractora)}">${texto(fila.extractora) ? escaparHtml(fila.extractora) : NULO}</div>${texto(fila.nit) ? `<span class="gp-subtexto">NIT ${escaparHtml(fila.nit)}</span>` : ''}`;
+const rangoHtml = (desde, hasta) => `<span class="gp-rango-fecha">${fecha(desde)} <i class="bi bi-arrow-right" aria-hidden="true"></i> ${fecha(hasta)}</span>`;
+const detalleValor = (notas, ajuste) => {
+    const piezas = [(Array.isArray(notas) ? notas : []).map(texto).filter(Boolean).join(', '), Number(ajuste) ? `Ajuste ${f('cop', ajuste)}` : ''].filter(Boolean);
+
+    return piezas.length ? `<span class="gp-subtexto">${escaparHtml(piezas.join(' · '))}</span>` : '';
+};
+
+const sinPesaje = (valor, clase = '') => (Number(valor) > 0 ? `<span class="gp-subtexto ig-texto-ambar${clase}" title="TLC de la extractora en el periodo de la factura sin pesaje en báscula"><i class="bi bi-exclamation-circle me-1" aria-hidden="true"></i>${f('entero', valor)} TLC sin pesaje</span>` : '');
+
+const panelFacturado = (r, periodo) => {
+    const fact = r.facturacion || {};
+
+    if (!fact.disponible) {
+        const reintentar = fact.reintentar === true;
+
+        return estadoVacio('bi-cloud-slash', 'Facturación de Siesa no disponible', `<p class="text-muted ${reintentar ? 'mb-3' : 'mb-0'}">${escaparHtml(texto(fact.mensaje) || 'No se recibió información de facturación.')}</p>${reintentar ? '<button type="button" class="btn btn-outline-success btn-sm" data-accion="reintentar"><i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i>Reintentar</button>' : ''}`, 'inf-medallon-error');
+    }
+
+    const facturas = [...(fact.facturas || [])].sort((a, b) => texto(a.inicio).localeCompare(texto(b.inicio)) || texto(a.extractora).localeCompare(texto(b.extractora)) || texto(a.documento).localeCompare(texto(b.documento)));
+    const sinFacturar = fact.sinFacturar || [];
+    const notas = [...(fact.anuladas || []).map((fila) => ({ ...fila, anulada: true })), ...(fact.ajustesSinFactura || [])].sort((a, b) => texto(a.fecha).localeCompare(texto(b.fecha)));
+
+    if (!facturas.length && !sinFacturar.length && !notas.length) {
+        return estadoVacio('bi-receipt', `Sin facturas de venta ${periodo}`, '<p class="text-muted mb-0">No hay facturas FVE de las extractoras en el periodo consultado.</p>');
+    }
+
+    const t = fact.totales || {};
+    const total = (campo) => (nulo(t[campo]) ? sumar(facturas, campo) : Number(t[campo]));
+    const kgSin = nulo(t.kgSinFacturar) ? sumar(sinFacturar, 'kg') : Number(t.kgSinFacturar);
+    const tlcSin = sumar(sinFacturar, 'tlcs');
+    const extractorasSin = new Set(sinFacturar.map((fila) => texto(fila.nit) || texto(fila.extractora))).size;
+    const tlcFacturas = sumar(facturas, 'tlcs');
+    const descuadres = facturas.filter((fila) => noCuadra(fila.difTlc)).length;
+    const ajuste = total('ajusteValor');
+    const resumen = `${plural(facturas.length, 'factura', 'facturas')} · ${f('cop', total('valorFacturado'))}`;
+    const subTlc = descuadres ? `${f('entero', descuadres)} de ${plural(facturas.length, 'factura no cuadra', 'facturas no cuadran')}` : `Cuadra con TLC · TLC ${f('kg', total('kgTlc'), ' kg')}`;
+    const aviso = (r.filtros?.fincas || []).length > 0 && fact.porFinca === false
+        ? '<div class="px-3 pt-3"><div class="alert alert-info py-2 small mb-0 d-flex gap-2" role="status"><i class="bi bi-info-circle" aria-hidden="true"></i><span>La facturación de Siesa no se discrimina por finca: este comparativo muestra el total de la empresa y no aplica el filtro de fincas.</span></div></div>'
+        : '';
+    const kpis = `${aviso}<div class="p-3"><div class="row g-3">
+        ${kpi('bi-receipt', 'Kg facturado', f('kg', total('kgFacturado'), ' kg'), resumen, '', ajuste ? `Incluye ajustes NCE por ${f('cop', ajuste)}` : resumen, COL_FACT)}
+        ${kpi('bi-arrows-collapse', 'Dif. facturado vs TLC', f('kgSigno', total('difTlc'), ' kg'), facturas.length ? subTlc : 'Sin facturas', descuadres ? 'ba-icono-faltante' : '', 'Kg facturado − kg TLC de la extractora en el periodo de cada factura', COL_FACT, facturas.length ? (descuadres ? 'ig-kpi-critico' : 'ig-kpi-ok') : '')}
+        ${kpi('bi-box-seam', 'Dif. facturado vs báscula', f('kgSigno', total('difBascula'), ' kg'), `Báscula ${f('kg', total('kgBascula'), ' kg')} · referencia`, '', 'Kg facturado − kg báscula de las fincas en el periodo de cada factura (referencia)', COL_FACT)}
+        ${kpi('bi-hourglass-split', 'TLC sin facturar', f('kg', kgSin, ' kg'), `${f('entero', tlcSin)} TLC · ${plural(extractorasSin, 'extractora', 'extractoras')}`, '', undefined, COL_FACT, kgSin > 0 ? 'ig-kpi-alerta' : '')}
+    </div></div>`;
+
+    const tablaFacturas = tablaEstatica(
+        [['Factura'], ['Extractora'], ['Periodo facturado'], ['Kg facturado', 'text-end'], ['Kg TLC', 'text-end'], ['Dif. vs TLC', 'text-end', 'Kg facturado − kg TLC'], ['Kg báscula (ref.)', 'text-end'], ['Valor facturado', 'text-end']],
+        facturas.map((fila) => {
+            const chips = [
+                fila.parcial ? '<span class="gp-chip-fila ambar" title="El periodo de la factura se sale del rango consultado; los kg TLC y báscula se calculan sobre todo el periodo de la factura."><i class="bi bi-calendar-range me-1" aria-hidden="true"></i>Parcial</span>' : '',
+                fila.periodoPorFecha ? '<span class="gp-chip-fila gris" title="No se pudo leer el periodo en la nota de la factura; se usó la fecha de la factura."><i class="bi bi-question-circle me-1" aria-hidden="true"></i>Periodo estimado</span>' : ''
+            ].filter(Boolean).join('');
+
+            return [noCuadra(fila.difTlc) ? 'inf-fila-diferencia' : '', [
+                `${doc(fila.documento)}<span class="gp-subtexto">${fecha(fila.fecha)}${texto(fila.notas) ? `<i class="bi bi-chat-left-text text-muted ms-1" title="${escaparHtml(fila.notas)}" role="img" aria-label="Notas de la factura"></i>` : ''}</span>`,
+                celdaExtractora(fila),
+                rangoHtml(fila.inicio, fila.fin) + (chips ? `<div class="d-flex flex-wrap gap-1 mt-1">${chips}</div>` : ''),
+                `<span class="fw-semibold">${f('kg', fila.kgFacturado)}</span>`,
+                `${f('kg', fila.kgTlc)}<span class="gp-subtexto">${f('entero', fila.tlcs || 0)} TLC</span>`,
+                celdaDifTlc(fila.difTlc),
+                `${f('kg', fila.kgBascula)}<span class="gp-subtexto">Dif. ${f('kgSigno', fila.difBascula)}</span>${sinPesaje(fila.tlcsSinPesaje)}`,
+                f('cop', fila.valorFacturado) + detalleValor(fila.notasCredito, fila.ajusteValor)
+            ]];
+        }),
+        [
+            `Total<span class="gp-subtexto fw-normal">${plural(facturas.length, 'factura', 'facturas')}</span>`, '', '',
+            f('kg', total('kgFacturado')),
+            `${f('kg', total('kgTlc'))}<span class="gp-subtexto fw-normal">${f('entero', tlcFacturas)} TLC</span>`,
+            celdaDifTlc(total('difTlc')),
+            `${f('kg', total('kgBascula'))}<span class="gp-subtexto fw-normal">Dif. ${f('kgSigno', total('difBascula'))}</span>${sinPesaje(sumar(facturas, 'tlcsSinPesaje'), ' fw-normal')}`,
+            f('cop', total('valorFacturado')) + (ajuste ? `<span class="gp-subtexto fw-normal">Ajuste ${f('cop', ajuste)}</span>` : '')
+        ]
+    );
+
+    const tablaSin = tablaEstatica(
+        [['Extractora'], ['Rango'], ['Nº TLC', 'text-end'], ['Kg', 'text-end']],
+        sinFacturar.map((fila) => ['', [celdaExtractora(fila), rangoHtml(fila.desde, fila.hasta), f('entero', fila.tlcs), f('kg', fila.kg)]]),
+        [`Total<span class="gp-subtexto fw-normal">${plural(extractorasSin, 'extractora', 'extractoras')}</span>`, '', f('entero', tlcSin), f('kg', kgSin)]
+    );
+
+    const tablaNotas = `<p class="gp-subtexto mb-2">No suman en el comparativo; los ajustes solo afectan el valor ($).</p>` + tablaEstatica(
+        [['Documento'], ['Fecha'], ['Extractora'], ['Tipo'], ['Kg', 'text-end'], ['Valor', 'text-end'], ['Relacionado']],
+        notas.map((fila) => ['', [
+            doc(fila.documento, fila.anulada),
+            fecha(fila.fecha),
+            celdaExtractora(fila),
+            fila.anulada ? '<span class="ig-chip rojo">Anulada · refacturada</span>' : '<span class="ig-chip ambar">Ajuste de valor</span>',
+            fila.anulada ? f('kg', fila.kg) : NULO,
+            f('cop', fila.valor),
+            doc(fila.anulada ? fila.anuladaPor : fila.referencia)
+        ]])
+    );
+
+    return [
+        kpis,
+        seccion('fact_facturas', 'bi-receipt-cutoff', 'Facturas de venta', `${plural(facturas.length, 'factura', 'facturas')} · ${f('kg', total('kgFacturado'), ' kg')} · ${f('cop', total('valorFacturado'))}`, facturas.length ? tablaFacturas : vacioGrafica('Sin facturas de venta en el periodo', 'bi-receipt')),
+        sinFacturar.length ? seccion('fact_sin', 'bi-hourglass-split', 'TLC sin facturar', `${f('entero', tlcSin)} TLC · ${f('kg', kgSin, ' kg')}`, tablaSin) : '',
+        notas.length ? seccion('fact_notas', 'bi-journal-x', 'Anulaciones y ajustes sin factura', `${plural((fact.anuladas || []).length, 'anulada', 'anuladas')} · ${plural((fact.ajustesSinFactura || []).length, 'ajuste', 'ajustes')}`, tablaNotas) : ''
+    ].filter(Boolean).join('<hr class="m-0">');
+};
+
+const contadorFacturado = (r) => {
+    const fact = r.facturacion || {};
+    const cantidad = fact.disponible ? (fact.facturas || []).filter((fila) => noCuadra(fila.difTlc)).length : 0;
+
+    return cantidad ? `<span class="ig-chip rojo ms-1" title="Facturas que no cuadran con TLC">${f('entero', cantidad)}</span>` : '';
+};
 
 const tablaHtml = (id, columnas, pie = null) => `<table class="table table-sm align-middle mb-0 gp-tabla inf-tabla inf-tabla-fija w-100" id="${id}">
     <thead class="gp-thead"><tr>${columnas.map(([titulo, clase = '']) => `<th scope="col"${clase ? ` class="${clase}"` : ''}>${titulo}</th>`).join('')}</tr></thead>
@@ -581,10 +744,10 @@ const barraFuera = (valor, viajes) => {
     </div>`;
 };
 
-const pestanas = (paneles) => `<div class="card mb-3">
+const pestanas = (paneles, extras = []) => `<div class="card mb-3">
     <div class="card-body p-0">
         <ul class="nav nav-tabs nav-tabs-bordered px-3 pt-3" role="tablist">
-            ${TABS.map(([id, icono, titulo]) => `<li class="nav-item" role="presentation"><button type="button" class="nav-link${estado.tab === id ? ' active' : ''}" id="tab_${id}" data-bs-toggle="tab" data-bs-target="#${id}" role="tab" aria-controls="${id}" aria-selected="${estado.tab === id}"><i class="bi ${icono} me-1" aria-hidden="true"></i>${titulo}</button></li>`).join('')}
+            ${TABS.map(([id, icono, titulo], indice) => `<li class="nav-item" role="presentation"><button type="button" class="nav-link${estado.tab === id ? ' active' : ''}" id="tab_${id}" data-bs-toggle="tab" data-bs-target="#${id}" role="tab" aria-controls="${id}" aria-selected="${estado.tab === id}"><i class="bi ${icono} me-1" aria-hidden="true"></i>${titulo}${extras[indice] || ''}</button></li>`).join('')}
         </ul>
         <div class="tab-content">
             ${TABS.map(([id], indice) => `<div class="tab-pane fade${estado.tab === id ? ' show active' : ''}" id="${id}" role="tabpanel" aria-labelledby="tab_${id}" tabindex="0">${paneles[indice]}</div>`).join('')}
@@ -594,7 +757,7 @@ const pestanas = (paneles) => `<div class="card mb-3">
 
 const activarGraficas = (panel) => {
     (estado.pendientes[panel] || []).forEach(([clave, id, opciones]) => {
-        if (estado.graficas[clave] || !$id(id)) return;
+        if (estado.graficas[clave] || !$id(id) || $id(id).closest('.collapse:not(.show)')) return;
 
         estado.graficas[clave] = new ApexCharts($id(id), opciones());
         estado.graficas[clave].render();
@@ -613,7 +776,12 @@ const aplicarFiltro = () => {
     estado.tablaViajes.column(10).search(estado.filtro ? `^${estado.filtro}$` : '', true, false).draw();
 };
 
-const irATabla = () => $id('tabla_viajes')?.closest('section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+const irATabla = () => {
+    const cuerpo = $id('sec_viajes');
+
+    if (cuerpo && !cuerpo.classList.contains('show')) bootstrap.Collapse.getOrCreateInstance(cuerpo, { toggle: false }).show();
+    $id('tabla_viajes')?.closest('section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
 
 const filtrar = (clave, desdeKpi) => {
     estado.filtro = desdeKpi && clave === estado.filtro ? null : (clave || null);
@@ -689,6 +857,7 @@ const pintar = () => {
     if (desde) $id('filtro_desde').value = desde;
     if (hasta) $id('filtro_hasta').value = hasta;
     validar();
+    estado.colapsadas = leerColapsadas();
 
     if (!viajes.length) {
         const ultimo = texto(r.filtros?.ultimoPesaje).substring(0, 10);
@@ -699,6 +868,12 @@ const pintar = () => {
 
         $id('resultado_cuerpo').innerHTML = avisosHtml(r.avisos) + `<div class="card mb-3">${estadoVacio('bi-truck', `Sin pesajes ${periodo}${conFincas ? ' para las fincas seleccionadas' : ''}`,
             `<p class="text-muted ${botones ? 'mb-3' : 'mb-0'}">No hay viajes registrados en la báscula para el periodo seleccionado.</p>${botones ? `<div class="d-flex flex-wrap justify-content-center gap-2">${botones}</div>` : ''}`)}</div>`;
+
+        const fact = r.facturacion || {};
+
+        if (fact.disponible && ['facturas', 'sinFacturar', 'anuladas', 'ajustesSinFactura'].some((clave) => (fact[clave] || []).length)) {
+            $id('resultado_cuerpo').insertAdjacentHTML('beforeend', `<div class="card mb-3"><div class="card-body p-0"><div class="px-3 pt-3"><h6 class="gp-seccion mb-0 border-0 pb-0"><i class="bi bi-receipt-cutoff" aria-hidden="true"></i>Báscula vs facturado${contadorFacturado(r)}</h6></div>${panelFacturado(r, periodo)}</div></div>`);
+        }
         return;
     }
 
@@ -712,21 +887,22 @@ const pintar = () => {
 
     const paneles = [
         separar([
-            seccion('bi-bar-chart-line', `Báscula vs extractora ${por}`, 'kg · % no llegados', (r.dias || []).length ? lienzo('grafica_dias', `Kg báscula, kg extractora y porcentaje de kg no llegados ${por} ${periodo}. Kg no llegados del periodo ${f('pct', k.pctNoLlegados, ' %')}`) : vacioGrafica()),
-            seccion('bi-list-ul', 'Viajes del periodo', `${f('entero', viajes.length)} viajes · kg`, filtroEstados(n, viajes.length) + tablaHtml('tabla_viajes', [['Fecha'], ['Placa / finca'], ['Conductor'], ['Extractora'], ['Pesajes', 'text-end'], ['Kg báscula', 'text-end'], ['TLC / tiquete'], ['Kg extractora', 'text-end'], ['Dif. kg', 'text-end'], ['% pérdida', 'text-end'], ['Estado']])),
-            sinPesaje.length ? seccion('bi-receipt', 'TLC sin pesaje en báscula', `${f('entero', sinPesaje.length)} tiquetes · ${f('kg', k.kgTlcSinPesaje, ' kg')}`, tablaSinPesaje(sinPesaje)) : ''
+            seccion('dias', 'bi-bar-chart-line', `Báscula vs extractora ${por}`, 'kg · % no llegados', (r.dias || []).length ? lienzo('grafica_dias', `Kg báscula, kg extractora y porcentaje de kg no llegados ${por} ${periodo}. Kg no llegados del periodo ${f('pct', k.pctNoLlegados, ' %')}`) : vacioGrafica()),
+            seccion('viajes', 'bi-list-ul', 'Viajes del periodo', `${f('entero', viajes.length)} viajes · kg`, filtroEstados(n, viajes.length) + tablaHtml('tabla_viajes', [['Fecha'], ['Placa / finca'], ['Conductor'], ['Extractora'], ['Pesajes', 'text-end'], ['Kg báscula', 'text-end'], ['TLC / tiquete'], ['Kg extractora', 'text-end'], ['Dif. kg', 'text-end'], ['% pérdida', 'text-end'], ['Estado']])),
+            sinPesaje.length ? seccion('sin_pesaje', 'bi-receipt', 'TLC sin pesaje en báscula', `${f('entero', sinPesaje.length)} tiquetes · ${f('kg', k.kgTlcSinPesaje, ' kg')}`, tablaSinPesaje(sinPesaje)) : ''
         ]),
         separar([
-            seccion('bi-truck-front', `Placas ${por}`, ejes.mensual ? 'placas-día por extractora' : 'placas por extractora', placas.dias.length ? lienzo('grafica_placas', `Placas ${por} y extractora ${periodo}`) : vacioGrafica()),
-            seccion('bi-table', 'Detalle de placas', `${f('entero', totalPlacas)} placas · ${f('entero', unicas)} únicas`, tablaHtml('tabla_placas', [['Fecha'], ['Extractora'], ['Nº placas', 'text-end'], ['Placas']], ['', `Total del periodo<span class="gp-subtexto fw-normal">Placas por día sumadas</span>`, f('entero', totalPlacas), `${f('entero', unicas)} placas únicas`]))
+            seccion('placas_grafica', 'bi-truck-front', `Placas ${por}`, ejes.mensual ? 'placas-día por extractora' : 'placas por extractora', placas.dias.length ? lienzo('grafica_placas', `Placas ${por} y extractora ${periodo}`) : vacioGrafica()),
+            seccion('placas_tabla', 'bi-table', 'Detalle de placas', `${f('entero', totalPlacas)} placas · ${f('entero', unicas)} únicas`, tablaHtml('tabla_placas', [['Fecha'], ['Extractora'], ['Nº placas', 'text-end'], ['Placas']], ['', `Total del periodo<span class="gp-subtexto fw-normal">Placas por día sumadas</span>`, f('entero', totalPlacas), `${f('entero', unicas)} placas únicas`]))
         ]),
         separar([
-            seccion('bi-person-badge', 'Kg báscula por conductor', `${f('entero', conductores.length)} conductores · ${unidadKg}`, conductores.length ? `<div class="inf-grafica-scroll">${lienzo('grafica_conductores', `Kg báscula por conductor ${periodo}`)}</div>` : vacioGrafica()),
-            seccion('bi-table', 'Detalle por conductor', unidadKg, tablaHtml('tabla_conductores', [['Conductor'], ['Viajes', 'text-end'], ['Kg báscula', 'text-end'], ['Kg extractora', 'text-end'], ['No llegados kg', 'text-end'], ['Kg de más', 'text-end'], ['% no llegados', 'text-center'], ['Fuera de regla', 'text-end']]))
-        ])
+            seccion('conductores_grafica', 'bi-person-badge', 'Kg báscula por conductor', `${f('entero', conductores.length)} conductores · ${unidadKg}`, conductores.length ? `<div class="inf-grafica-scroll">${lienzo('grafica_conductores', `Kg báscula por conductor ${periodo}`)}</div>` : vacioGrafica()),
+            seccion('conductores_tabla', 'bi-table', 'Detalle por conductor', unidadKg, tablaHtml('tabla_conductores', [['Conductor'], ['Viajes', 'text-end'], ['Kg báscula', 'text-end'], ['Kg extractora', 'text-end'], ['No llegados kg', 'text-end'], ['Kg de más', 'text-end'], ['% no llegados', 'text-center'], ['Fuera de regla', 'text-end']]))
+        ]),
+        panelFacturado(r, periodo)
     ];
 
-    $id('resultado_cuerpo').innerHTML = avisosHtml(r.avisos) + pintarKpis(k, n, viajes) + pestanas(paneles);
+    $id('resultado_cuerpo').innerHTML = avisosHtml(r.avisos) + pintarKpis(k, n, viajes) + pestanas(paneles, ['', '', '', contadorFacturado(r)]);
 
     estado.pendientes = {
         panel_viajes: [['dias', 'grafica_dias', () => opcionesDias(r.dias, ejes)]],
@@ -751,10 +927,11 @@ const consultar = async () => {
         $id('resultado_cuerpo').innerHTML = skeleton();
     }
 
+    const empresa = $id('filtro_empresa').value;
     let respuesta;
 
     try {
-        respuesta = await pedir({ empresa: $id('filtro_empresa').value, fincas: $('#filtro_fincas').val() || [], desde: $id('filtro_desde').value, hasta: $id('filtro_hasta').value });
+        respuesta = await pedir({ empresa, fincas: $('#filtro_fincas').val() || [], desde: $id('filtro_desde').value, hasta: $id('filtro_hasta').value });
     } catch (error) {
         if (turno !== estado.turno) return;
 
@@ -769,8 +946,47 @@ const consultar = async () => {
     if (turno !== estado.turno) return;
 
     estado.respuesta = respuesta;
+    estado.empresa = empresa;
     ocupado(false);
     pintar();
+};
+
+const exportar = async () => {
+    const r = estado.respuesta;
+    const boton = $id('btn_excel');
+
+    if (!r || boton.disabled) return;
+
+    const desde = texto(r.filtros?.desde);
+    const hasta = texto(r.filtros?.hasta);
+
+    estado.exportando = true;
+    boton.disabled = true;
+    boton.innerHTML = '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>Exportando…';
+
+    try {
+        const respuesta = await enviar(URL_EXCEL, { empresa: estado.empresa, fincas: (r.filtros?.fincas || []).map(String), desde, hasta });
+
+        if (!respuesta.ok || (respuesta.headers.get('Content-Type') || '').includes('json')) {
+            const resultado = await respuesta.json().catch(() => null);
+
+            throw Object.assign(new Error(texto(resultado?.message) || 'No se pudo generar el archivo.'), { status: respuesta.status });
+        }
+
+        const nombre = (respuesta.headers.get('Content-Disposition') || '').match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i)?.[1];
+        const enlace = document.createElement('a');
+
+        enlace.href = URL.createObjectURL(await respuesta.blob());
+        enlace.download = nombre ? decodeURIComponent(nombre) : `informe_bascula_${desde}_${hasta}.xlsx`;
+        enlace.click();
+        setTimeout(() => URL.revokeObjectURL(enlace.href), 1000);
+    } catch (error) {
+        Swal.fire({ icon: error.status === 403 ? 'warning' : 'error', title: error.status === 403 ? 'Acción no permitida' : 'No se pudo exportar', html: escaparHtml(error.message), confirmButtonText: 'Entendido' });
+    }
+
+    estado.exportando = false;
+    boton.innerHTML = HTML_EXCEL;
+    habilitarExcel();
 };
 
 const rango = () => {
@@ -793,6 +1009,7 @@ const validar = () => {
     $id('error_hasta').textContent = actual.error;
     $id('fila_error_hasta').classList.toggle('d-none', !actual.error);
     $id('btn_consultar').disabled = !actual.valido;
+    habilitarExcel();
     document.querySelectorAll('[data-rango]').forEach((boton) => {
         const [desde, hasta] = RANGOS[boton.dataset.rango](hoy);
         const activo = desde === actual.desde && hasta === actual.hasta;
@@ -890,10 +1107,28 @@ $id('resultado_cuerpo').addEventListener('change', (evento) => {
 });
 
 $id('resultado_cuerpo').addEventListener('shown.bs.tab', (evento) => {
+    if (!evento.target.matches('[data-bs-toggle="tab"]')) return;
+
     estado.tab = texto(evento.target.dataset.bsTarget).replace('#', '');
     activarGraficas(estado.tab);
     $.fn.dataTable.tables({ visible: true, api: true }).columns.adjust();
 });
+
+['shown.bs.collapse', 'hidden.bs.collapse'].forEach((tipo) => $id('resultado_cuerpo').addEventListener(tipo, (evento) => {
+    if (!evento.target.matches('section > .collapse[id^="sec_"]')) return;
+
+    const abierta = tipo === 'shown.bs.collapse';
+
+    guardarColapsada(evento.target.id.slice(4), !abierta);
+
+    if (!abierta) return;
+
+    activarGraficas(estado.tab);
+    window.dispatchEvent(new Event('resize'));
+    $.fn.dataTable.tables({ visible: true, api: true }).columns.adjust();
+}));
+
+$id('btn_excel').addEventListener('click', exportar);
 
 validar();
 consultar();

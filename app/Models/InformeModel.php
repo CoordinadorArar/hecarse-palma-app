@@ -9,6 +9,28 @@ class InformeModel extends Model
     protected $useAutoIncrement = false;
     protected $returnType = 'array';
 
+    private const INICIO = 'COALESCE(FechaInicio, DATEFROMPARTS(TRY_CAST([Año] AS int), TRY_CAST(Mes AS int), 1))';
+    private const FIN    = 'COALESCE(FechaFin, EOMONTH(DATEFROMPARTS(TRY_CAST([Año] AS int), TRY_CAST(Mes AS int), 1)))';
+
+    private static ?bool $columnasRango = null;
+
+    public function tieneRangoFechas(): bool
+    {
+        return self::$columnasRango ??= (int) $this->db->query(
+            "SELECT CASE WHEN COL_LENGTH('dbo.Liquidacion', 'FechaInicio') IS NULL OR COL_LENGTH('dbo.Liquidacion', 'FechaFin') IS NULL THEN 0 ELSE 1 END AS existe"
+        )->getRow()->existe === 1;
+    }
+
+    private function ymd(string $fecha): string
+    {
+        return str_replace('-', '', $fecha);
+    }
+
+    private function filtrarRango($builder, array $rango)
+    {
+        return $builder->where('fecha >=', $this->ymd($rango[0]))->where('fecha <=', $this->ymd($rango[1]));
+    }
+
     public function updateContratos()
     {
         $db = $this->db;
@@ -24,7 +46,7 @@ class InformeModel extends Model
         return true;
     }
 
-    public function getReporteGeneral($anio, $mes)
+    public function getReporteGeneral(array $rango)
     {
         ini_set('sqlsrv.ClientBufferMaxKBSize', '51200');
         $builder = $this->db->table('dbo.vInformacionAgronomicoSiesaTotal');
@@ -49,8 +71,7 @@ class InformeModel extends Model
             TipoContrato
         ");
 
-        $builder->where('año', $anio);
-        $builder->where('mes', $mes);
+        $this->filtrarRango($builder, $rango);
 
         // 1. Generamos el SQL sin ejecutarlo aún
         $sql = $builder->getCompiledSelect();
@@ -62,65 +83,69 @@ class InformeModel extends Model
         return $query->getResultArray();
     }
 
-    public function getTemporales($anio, $mes)
+    public function getTemporales($anio, $mes, ?array $rango = null)
     {
-        return $this->db
+        $builder = $this->db
             ->table('dbo.vInformacionAgronomicoSiesaTotal')
             ->select('RazonTemporal, TipoContrato')
-            ->distinct()
-            ->where('año', $anio)
-            ->where('mes', $mes)
-            ->get()
-            ->getResultArray();
+            ->distinct();
+
+        if ($rango === null) {
+            $builder->where('año', $anio)->where('mes', $mes);
+        } else {
+            $this->filtrarRango($builder, $rango);
+        }
+
+        return $builder->get()->getResultArray();
     }
 
 
-    public function getEmpleadosSinTemporal($anio, $mes)
+    public function getEmpleadosSinTemporal(array $rango)
     {
-        return $this->db
+        return $this->filtrarRango($this->db
             ->table('dbo.vInformacionAgronomicoSiesaTotal')
             ->select('cedula')
             ->select('nombreTercero')
-            ->distinct()
-            ->where('año', $anio)
-            ->where('mes', $mes)
+            ->distinct(), $rango)
             ->where('TipoContrato', 'Temporal')
             ->where("(RazonTemporal IS NULL OR LTRIM(RTRIM(RazonTemporal)) = '')", null, false)
             ->get()
             ->getResultArray();
     }
 
-    public function verificarReporteProcesado($anio, $mes, $temporal, $tipoContrato)
+    public function verificarReporteProcesado($desde, $hasta, $temporal, $tipoContrato)
     {
-        $count = $this->db->table('Liquidacion')
-            ->where('Año', $anio)
-            ->where('Mes', $mes)
-            ->where('RazonTemporal', $temporal)
-            ->where('TipoContrato', $tipoContrato)
-            ->countAllResults();
+        $rangos = $this->db->query(
+            "SELECT DISTINCT CONVERT(varchar(10), x.inicio, 23) AS desde, CONVERT(varchar(10), x.fin, 23) AS hasta
+               FROM (SELECT " . self::INICIO . " AS inicio, " . self::FIN . " AS fin
+                       FROM Liquidacion WHERE RazonTemporal = ? AND TipoContrato = ?) x
+              WHERE x.inicio <= ? AND x.fin >= ?
+              ORDER BY desde, hasta",
+            [$temporal, $tipoContrato, $this->ymd($hasta), $this->ymd($desde)]
+        )->getResultArray();
 
-        return $count > 0;
+        $cruces = array_values(array_filter($rangos, fn ($r) => $r['desde'] !== $desde || $r['hasta'] !== $hasta));
+
+        return ['procesado' => count($cruces) < count($rangos), 'cruces' => $cruces];
     }
 
 
-    public function guardarReporteProcesado($datos, $anio, $mes, $temporal, $tipoContrato)
+    public function guardarReporteProcesado($datos, $desde, $hasta, $temporal, $tipoContrato)
     {
         if (empty($datos)) {
             return 0;
         }
 
+        [$anio, $mes] = [substr($desde, 0, 4), substr($desde, 5, 2)];
+
         $this->db->transBegin();
 
         try {
 
-            $builder = $this->db->table('Liquidacion');
-
-            // Eliminar registros anteriores
-            $builder->where('Año', $anio)
-                ->where('Mes', $mes)
-                ->where('RazonTemporal', $temporal)
-                ->where('TipoContrato', $tipoContrato)
-                ->delete();
+            $this->db->query(
+                "DELETE FROM Liquidacion WHERE RazonTemporal = ? AND TipoContrato = ? AND " . self::INICIO . " = ? AND " . self::FIN . " = ?",
+                [$temporal, $tipoContrato, $this->ymd($desde), $this->ymd($hasta)]
+            );
 
             $datosParaInsertar = [];
 
@@ -144,9 +169,9 @@ class InformeModel extends Model
 
             foreach ($datosParaInsertar as $row) {
 
-                $sql = "INSERT INTO Liquidacion 
-                    ([Año], Mes, Cedula, NombreEmpleado, TipoContrato, RazonTemporal, ValorEnviado, FechaProcesado)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+                $sql = "INSERT INTO Liquidacion
+                    ([Año], Mes, Cedula, NombreEmpleado, TipoContrato, RazonTemporal, ValorEnviado, FechaProcesado, FechaInicio, FechaFin)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
 
                 $query = $this->db->query($sql, [
@@ -157,7 +182,9 @@ class InformeModel extends Model
                     $row['TipoContrato'],
                     $row['RazonTemporal'],
                     $row['ValorEnviado'],
-                    $row['FechaProcesado']
+                    $row['FechaProcesado'],
+                    $this->ymd($desde),
+                    $this->ymd($hasta)
                 ]);
 
                 if ($query === false) {
@@ -178,13 +205,25 @@ class InformeModel extends Model
     }
 
 
-    public function existeCedulaPeriodo($cedula, $anio, $mes)
+    public function crucesCedulas(array $cedulas, $desde, $hasta)
     {
-        return $this->db->table('Liquidacion')
-            ->where('Cedula', $cedula)
-            ->where('Año', $anio)
-            ->where('Mes', $mes)
-            ->countAllResults() > 0;
+        return $this->db->query(
+            "SELECT DISTINCT TOP 50 x.cedula, CONVERT(varchar(10), x.inicio, 23) AS desde, CONVERT(varchar(10), x.fin, 23) AS hasta
+               FROM (SELECT LTRIM(RTRIM(CAST(Cedula AS varchar(30)))) AS cedula, " . self::INICIO . " AS inicio, " . self::FIN . " AS fin
+                       FROM Liquidacion
+                      WHERE CHARINDEX(',' + LTRIM(RTRIM(CAST(Cedula AS varchar(30)))) + ',', ?) > 0) x
+              WHERE x.inicio <= ? AND x.fin >= ? AND NOT (x.inicio = ? AND x.fin = ?)
+              ORDER BY cedula, desde, hasta",
+            [',' . implode(',', $cedulas) . ',', $this->ymd($hasta), $this->ymd($desde), $this->ymd($desde), $this->ymd($hasta)]
+        )->getResultArray();
+    }
+
+    public function existeCedulaPeriodo($cedula, $desde, $hasta)
+    {
+        return $this->db->query(
+            "SELECT COUNT(*) AS total FROM Liquidacion WHERE Cedula = ? AND " . self::INICIO . " = ? AND " . self::FIN . " = ?",
+            [$cedula, $this->ymd($desde), $this->ymd($hasta)]
+        )->getRow()->total > 0;
     }
 
     public function buscarCedula($cedula)
@@ -195,34 +234,41 @@ class InformeModel extends Model
             FROM dbo.nFuncionario f
             LEFT JOIN dbo.cTercero t ON t.codigo = f.proveedor
             LEFT JOIN dbo.SiesaContratos sc ON f.codigo collate SQL_Latin1_General_CP1_CI_AS = sc.codigoTercero
-            WHERE f.codigo = '$cedula'
+            WHERE f.codigo = ?
         ";
 
-        $query = $this->db->query($sql);
+        $query = $this->db->query($sql, [$cedula]);
         return $query->getRowArray();
     }
 
-    public function insertarNuevos($anio, $mes, $cedula, $nombre, $tipoContrato, $temporal, $valorTemporal)
+    public function insertarNuevos($desde, $hasta, $cedula, $nombre, $tipoContrato, $temporal, $valorTemporal)
     {
-        $fecha = date('Ymd H:i:s');
-
         $sql = "
-            INSERT INTO Liquidacion 
-            ([Año], Mes, Cedula, NombreEmpleado, TipoContrato, RazonTemporal, valorTemporal, FechaProcesado)
-            VALUES ('$anio', '$mes', '$cedula', '$nombre', '$tipoContrato', '$temporal', '$valorTemporal', '$fecha')
+            INSERT INTO Liquidacion
+            ([Año], Mes, Cedula, NombreEmpleado, TipoContrato, RazonTemporal, valorTemporal, FechaProcesado, FechaInicio, FechaFin)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ";
 
-        return $this->db->query($sql);
+        return $this->db->query($sql, [
+            substr($desde, 0, 4),
+            substr($desde, 5, 2),
+            $cedula,
+            $nombre,
+            $tipoContrato,
+            $temporal,
+            $valorTemporal,
+            date('Ymd H:i:s'),
+            $this->ymd($desde),
+            $this->ymd($hasta)
+        ]);
     }
 
-    public function actualizarValorTemporal($cedula, $valor, $anio, $mes)
+    public function actualizarValorTemporal($cedula, $valor, $desde, $hasta)
     {
-        return $this->db->table('Liquidacion')
-            ->where('Cedula', $cedula)
-            ->where('año', $anio)
-            ->where('mes', $mes)
-            ->set('ValorTemporal', $valor)
-            ->update();
+        return $this->db->query(
+            "UPDATE Liquidacion SET ValorTemporal = ? WHERE Cedula = ? AND " . self::INICIO . " = ? AND " . self::FIN . " = ?",
+            [$valor, $cedula, $this->ymd($desde), $this->ymd($hasta)]
+        );
     }
 
 

@@ -380,6 +380,7 @@ $routes->post('dashboards/produccion/historico', 'dashboards\TablerosController:
 $routes->post('dashboards/fertilizacion/datos', 'dashboards\TablerosController::datosFertilizacion');
 $routes->get('dashboards/bascula/(:num)', 'dashboards\TablerosController::bascula/$1');
 $routes->post('dashboards/bascula/datos', 'dashboards\TablerosController::datosBascula');
+$routes->post('dashboards/bascula/excel', 'dashboards\TablerosController::excelBascula');
 $routes->post('dashboards/tableros/fincas', 'dashboards\TablerosController::fincas');
 
 /** Rutas de la loseta de  "Reportes".*/

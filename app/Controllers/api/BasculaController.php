@@ -43,6 +43,22 @@ class BasculaController extends BaseController
             return $this->response->setJSON(['ok' => false, 'error' => 'tabla no soportada'])->setStatusCode(400);
         }
 
+        $modelo = new BasculaModel();
+        $fincas = $modelo->fincas();
+        $cos = array_column($fincas, 'co', 'codigo');
+        $codigo = $datos['codigoFinca'] ?? null;
+        $codigo = is_string($codigo) || is_int($codigo) ? trim((string) $codigo) : '';
+        $coEquipo = $codigo === '' ? '' : str_pad($codigo, 3, '0', STR_PAD_LEFT);
+
+        if ($coEquipo === '' || !in_array($coEquipo, $cos, true)) {
+            return $this->response->setJSON(['ok' => false, 'error' => 'codigoFinca inválido'])->setStatusCode(400);
+        }
+
+        if (!$modelo->columnasFinca()) {
+            return $this->response->setJSON(['ok' => false, 'error' => 'pendiente actualización de base de datos'])->setStatusCode(503);
+        }
+
+        $porLargo = BasculaModel::porLargo($fincas);
         $config = self::TABLAS[$tabla];
         $lote = (int) ($datos['lote'] ?? 0);
         $filas = [];
@@ -68,23 +84,26 @@ class BasculaController extends BaseController
 
             $registro[$config['llave']] = $numero;
             $registro['lote'] = $lote;
+            $registro['coEquipo'] = $coEquipo;
+            $registro['coFinca'] = BasculaModel::coFinca((string) $registro['origen'], $coEquipo, $porLargo, $cos);
             $filas[$numero] = $registro;
         }
 
-        $insertadas = (new BasculaModel())->insertarNuevos($config['destino'], $config['llave'], array_values($filas));
+        $insertadas = $modelo->insertarNuevos($config['destino'], $config['llave'], array_values($filas), ['coEquipo' => $coEquipo]);
 
         if ($insertadas === null) {
             return $this->response->setJSON(['ok' => false, 'error' => 'no se pudo guardar el lote'])->setStatusCode(500);
         }
 
         return $this->response->setJSON([
-            'ok'         => true,
-            'tabla'      => $tabla,
-            'lote'       => $lote,
-            'recibidas'  => count($datos['filas']),
-            'insertadas' => $insertadas,
-            'existentes' => count($filas) - $insertadas,
-            'omitidas'   => count($datos['filas']) - count($filas),
+            'ok'          => true,
+            'tabla'       => $tabla,
+            'lote'        => $lote,
+            'codigoFinca' => $coEquipo,
+            'recibidas'   => count($datos['filas']),
+            'insertadas'  => $insertadas,
+            'existentes'  => count($filas) - $insertadas,
+            'omitidas'    => count($datos['filas']) - count($filas),
         ])->setStatusCode(200);
     }
 }

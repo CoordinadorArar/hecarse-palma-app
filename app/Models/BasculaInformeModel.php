@@ -11,6 +11,8 @@ class BasculaInformeModel extends Model
 
     private const PLACA = "CAST(REPLACE(REPLACE(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(ISNULL(%s, '')))), '*', ''), ' ', ''), '-', ''), '.', '') AS varchar(50))";
 
+    private const SIESA = '[LinkedServerRDSSQL].[SUnoEE_AgroInvHecarse_Real].dbo.';
+
     private const NIT = "COALESCE(NULLIF(LTRIM(RTRIM(b.terceroExtractrora)), ''), NULLIF(LTRIM(RTRIM(b.empresaExtractora)), ''), NULLIF(LTRIM(RTRIM(b.planta)), ''))";
 
     public function ultimoPesaje(): ?string
@@ -20,8 +22,10 @@ class BasculaInformeModel extends Model
 
     public function pesajes(string $desde, string $hasta): array
     {
+        $coFinca = $this->db->query("SELECT COL_LENGTH('dbo.bBasculaRegistro', 'coFinca') AS l")->getRow()->l === null ? 'NULL' : "NULLIF(LTRIM(RTRIM(coFinca)), '')";
+
         return $this->db->query(
-            'SELECT numero, ' . sprintf(self::PLACA, 'placa') . " AS placa, LTRIM(RTRIM(ISNULL(conductor, ''))) AS conductor, LTRIM(RTRIM(ISNULL(cedula, ''))) AS cedula,
+            "SELECT numero, {$coFinca} AS coFinca, " . sprintf(self::PLACA, 'placa') . " AS placa, LTRIM(RTRIM(ISNULL(conductor, ''))) AS conductor, LTRIM(RTRIM(ISNULL(cedula, ''))) AS cedula,
                     LTRIM(RTRIM(ISNULL(origen, ''))) AS origen, LTRIM(RTRIM(ISNULL(destino, ''))) AS destino, CONVERT(char(19), f_entrada, 120) AS entrada,
                     CONVERT(char(19), f_salida, 120) AS salida, ISNULL(pesada1, 0) AS pesada1, ISNULL(pesada2, 0) AS pesada2, ISNULL(peso_neto, 0) AS neto
                FROM dbo.bBasculaRegistro WHERE CONVERT(date, f_entrada) BETWEEN ? AND ? ORDER BY f_entrada, numero",
@@ -54,7 +58,7 @@ class BasculaInformeModel extends Model
     public function fincasEmpresa(int $empresa): array
     {
         return $this->db->query(
-            "SELECT LTRIM(RTRIM(codigo)) AS codigo, LTRIM(RTRIM(ISNULL(descripcion, ''))) AS nombre FROM aFinca WHERE empresa = ? AND activo = 1 ORDER BY codigo",
+            "SELECT LTRIM(RTRIM(codigo)) AS codigo, LTRIM(RTRIM(ISNULL(descripcion, ''))) AS nombre, LTRIM(RTRIM(ISNULL(centroOperacion, ''))) AS co FROM aFinca WHERE empresa = ? AND activo = 1 ORDER BY codigo",
             [$empresa]
         )->getResultArray();
     }
@@ -69,5 +73,35 @@ class BasculaInformeModel extends Model
         )->getRow();
 
         return $fila === null || trim((string) $fila->nombre) === '' ? null : trim((string) $fila->nombre);
+    }
+
+    public function facturasSiesa(string $desde, string $hasta): array
+    {
+        return $this->siesa(
+            "SELECT LTRIM(RTRIM(b.f350_id_tipo_docto)) AS tipo, b.f350_consec_docto AS consec, CONVERT(char(10), b.f350_fecha, 23) AS fecha,
+                    CAST(ISNULL(b.f350_notas, '') AS varchar(2000)) AS notas, LTRIM(RTRIM(a.f200_id)) AS nit, LTRIM(RTRIM(ISNULL(a.f200_razon_social, ''))) AS razon,
+                    SUM(c.f470_cant_base) AS kg, SUM(c.f470_vlr_bruto - c.f470_vlr_dscto_linea) AS valor
+               FROM " . self::SIESA . 't350_co_docto_contable b
+               JOIN ' . self::SIESA . 't200_mm_terceros a ON a.f200_rowid = b.f350_rowid_tercero
+               JOIN ' . self::SIESA . 't470_cm_movto_invent c ON c.f470_rowid_docto_fact = b.f350_rowid
+               JOIN ' . self::SIESA . 't121_mc_items_extensiones ie ON ie.f121_id_cia = c.f470_id_cia AND ie.f121_rowid = c.f470_rowid_item_ext
+               JOIN ' . self::SIESA . "t120_mc_items d ON d.f120_rowid = ie.f121_rowid_item AND d.f120_id_cia = ie.f121_id_cia
+              WHERE b.f350_id_cia = 1 AND b.f350_id_tipo_docto IN ('FVE', 'NCE') AND b.f350_ind_estado <> 2
+                AND b.f350_fecha >= ? AND b.f350_fecha < DATEADD(day, 1, ?) AND LTRIM(RTRIM(d.f120_referencia)) = 'FRU0001'
+              GROUP BY b.f350_rowid, b.f350_id_tipo_docto, b.f350_consec_docto, b.f350_fecha, CAST(ISNULL(b.f350_notas, '') AS varchar(2000)), a.f200_id, a.f200_razon_social
+              ORDER BY b.f350_fecha, b.f350_id_tipo_docto, b.f350_consec_docto",
+            [str_replace('-', '', $desde), str_replace('-', '', $hasta)]
+        );
+    }
+
+    private function siesa(string $sql, array $binds): array
+    {
+        $query = $this->db->query($sql, $binds);
+
+        if ($query === false) {
+            throw new \RuntimeException('Error consultando Siesa: ' . json_encode($this->db->error(), JSON_UNESCAPED_UNICODE));
+        }
+
+        return $query->getResultArray();
     }
 }
