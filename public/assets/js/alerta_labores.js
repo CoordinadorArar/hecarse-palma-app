@@ -78,7 +78,7 @@
                     const ubic = [multi ? p.empresaNombre || p.empresa : '', p.fincaNombre || p.finca, p.loteNombre || p.lote].filter(Boolean).join(' · ');
                     const trab = p.trabajadores || [];
                     const nombres = trab.join(', ');
-                    const meta = (Number(p.cantidad) > 0 ? chip('ig-e-sin-dato', `${Number(p.cantidad).toLocaleString('es-CO', { maximumFractionDigits: 2 })} ${p.uMedida || ''}`.trim()) : '') +
+                    const meta = (Number(p.cantidad) > 0 ? chip('ig-e-sin-dato', `${Number(p.cantidad).toLocaleString('es-CO', { maximumFractionDigits: 3 })} ${p.uMedida || ''}`.trim()) : '') +
                         (trab.length ? `<span class="lpl-trab text-truncate" title="${esc(nombres)}"><i class="bi bi-people" aria-hidden="true"></i> ${esc(trab.length <= 2 ? nombres : `${trab.length} trabajadores`)}</span>` : '');
                     return `<div class="lpl-fila">
                         <div class="lpl-hora${hora ? '' : ' text-muted'}">${hora ? esc(hora) : '—'}</div>

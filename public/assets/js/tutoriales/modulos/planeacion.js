@@ -6,7 +6,7 @@ document.addEventListener('DOMContentLoaded', () => window.Tutoriales?.registrar
         const md = window.matchMedia('(min-width: 768px)').matches;
         const lg = window.matchMedia('(min-width: 992px)').matches;
         const botonera = document.querySelector('#vista_lote .pl-actividad .pl-botonera');
-        const registrar = document.querySelector('#vista_lote [data-accion="registrar"]');
+        const porRegistrar = document.querySelector('#vista_lote [data-chip="por-registrar"]');
         const cerrar = document.getElementById('btn_cerrar_plan');
         const kpis = document.getElementById('kpis');
 
@@ -22,7 +22,7 @@ document.addEventListener('DOMContentLoaded', () => window.Tutoriales?.registrar
             { id: 'pendientes', element: '#btn_pendientes', side: 'bottom', title: 'Pendientes', text: 'Consulte las actividades con saldo de días anteriores y trasládelas a este plan.', cuando: () => md },
             { id: 'ausentes', element: '#btn_ausentes', side: 'bottom', title: 'Ausentes', text: 'Registre a los trabajadores ausentes y reasigne sus cantidades. Use Imprimir para obtener la planilla del día.', cuando: () => md && !document.getElementById('btn_ausentes')?.disabled },
             { id: 'mas_opciones', element: '#btn_mas_opciones', side: 'bottom', title: 'Más opciones', text: 'Aquí encuentra Sugerencias, Pendientes, Ausentes e Imprimir.', cuando: () => !md },
-            { id: 'cierre_actividad', element: () => botonera || registrar, side: 'top', title: 'Cerrar la actividad', text: botonera ? 'Marque cada actividad como Completada, Parcial o No ejecutada al terminar la jornada.' : 'Una vez cerrada, use Registrar para llevarla al registro correspondiente.' },
+            { id: 'cierre_actividad', element: () => botonera || porRegistrar, side: 'top', title: 'Cerrar la actividad', text: botonera ? 'Marque cada actividad como Completada, Parcial o No ejecutada al terminar la jornada. Luego regístrela desde Labores, Fertilización o Producción › Planeaciones completadas.' : 'Las actividades cerradas quedan Por registrar: regístrelas desde Labores, Fertilización o Producción › Planeaciones completadas.' },
             { id: 'kebab', element: '#vista_lote .pl-actividad .pl-kebab > button', side: md ? 'left' : 'bottom', title: 'Más acciones', text: 'Desde este menú puede editar, duplicar, reabrir o eliminar la actividad, según su estado.' },
             { id: 'cerrar_plan', element: () => cerrar || document.getElementById('btn_reabrir_plan'), side: 'top', title: 'Cerrar el plan', text: cerrar ? 'Cuando todas las actividades estén cerradas, cierre el plan para bloquear cambios. El indicador junto a la fecha muestra si está Abierto o Cerrado.' : 'El plan está cerrado; si necesita corregirlo, use Reabrir plan.' },
             { id: 'fin', title: '¡Listo!', text: 'Ya conoce las opciones principales. Puede volver a ver este tutorial cuando quiera con el botón de ayuda (?) de la barra superior.' }

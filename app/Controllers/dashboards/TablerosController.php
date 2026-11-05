@@ -975,84 +975,38 @@ class TablerosController extends BaseController
 
         try {
             $d       = $this->basculaDatos(...$f);
-            $k       = $d['kpis'];
-            $fac     = $d['facturacion'];
             $nFincas = array_column($f[4], 'nombre', 'codigo');
             $empresa = array_column($this->model->getEmpresas(), 'razonSocial', 'id')[$f[0]] ?? $f[0];
             $pct     = static fn ($v) => $v === null ? null : $v / 100;
             $si      = static fn ($v) => $v ? 'Sí' : 'No';
             $estados = ['cumple' => 'Cumple', 'fuera_regla' => 'Fuera de regla', 'sin_tlc' => 'Sin TLC', 'incompleto' => 'Incompleto'];
             $info    = ['Empresa: ' . $empresa, 'Desde: ' . $f[1] . '   Hasta: ' . $f[2], 'Fincas: ' . ($f[3] === [] ? 'Todas' : implode(', ', array_map(static fn ($c) => $nFincas[$c] ?? $c, $f[3]))), 'Generado: ' . date('Y-m-d H:i')];
-            $sinFac  = $fac['disponible'] ? [] : [$fac['mensaje']];
-            $libro   = new Spreadsheet();
+            $viajes  = $d['viajes'];
+            usort($viajes, static fn ($a, $b) => [(string) $a['entrada'], (string) $a['fecha'], $a['numero']] <=> [(string) $b['entrada'], (string) $b['fecha'], $b['numero']]);
+            $suma       = static fn ($campo, $cond) => round(array_sum(array_map(static fn ($v) => $cond($v) ? (float) $v[$campo] : 0, $viajes)), 2);
+            $todos      = static fn () => true;
+            $sin2       = static fn ($v) => $v['estado'] === 'incompleto' || (float) $v['pesada2'] == 0;
+            $completos  = $suma('kgBascula', static fn ($v) => $v['estado'] !== 'incompleto');
+            $noLlegados = $suma('perdidaKg', static fn ($v) => (float) $v['perdidaKg'] > 0) + $suma('kgBascula', static fn ($v) => $v['estado'] === 'sin_tlc');
+            $libro      = new Spreadsheet();
             $libro->removeSheetByIndex(0);
 
-            $n       = static fn ($v) => [$v, '#,##0'];
-            $resumen = [
-                ['Viajes', $n($k['viajes'])], ['Kg báscula', $k['kgBascula']], ['Kg extractora', $k['kgExtractora']], ['Pérdida kg', $k['perdidaKg']],
-                ['% pérdida', [$pct($k['perdidaPct']), '0.00%']], ['Viajes cruzados con TLC', $n($k['cruzados'])], ['Viajes sin TLC', $n($k['sinTlc'])],
-                ['Viajes fuera de regla', $n($k['fueraRegla'])], ['Viajes que cumplen', $n($k['cumplen'])], ['Pesajes incompletos', $n($k['incompletos'])],
-                ['Kg no llegados', $k['kgNoLlegados']], ['% no llegados', [$pct($k['pctNoLlegados']), '0.00%']], ['Kg sin TLC', $k['kgSinTlc']],
-                ['Kg sobrante', $k['kgSobrante']], ['TLC sin pesaje', $n($k['tlcSinPesaje'])], ['Kg TLC sin pesaje', $k['kgTlcSinPesaje']],
-                ['Cumple regla del periodo', [$k['cumpleMes'] === null ? '' : $si($k['cumpleMes']), null]],
-            ];
+            $filas   = array_map(static fn ($v) => [
+                $v['fecha'], substr((string) $v['entrada'], 11, 8), $v['placa'], implode(', ', array_map(static fn ($c) => $nFincas[$c] ?? $c, $v['fincas'])), $v['conductor'], $v['cedula'], $v['extractora'],
+                $v['pesada1'], $sin2($v) ? null : $v['pesada2'], $sin2($v) ? null : $v['kgBascula'], implode(', ', $v['tlcs']), $v['tiquete'], $v['kgExtractora'], $v['perdidaKg'], $pct($v['perdidaPct']), $estados[$v['estado']] ?? $v['estado'], $si($v['parcial']),
+            ], $viajes);
+            $filas[] = array_replace(array_fill(0, 17, null), [0 => 'Total · ' . count($viajes) . ' viajes', 9 => $completos, 12 => $suma('kgExtractora', $todos), 13 => $suma('perdidaKg', $todos), 14 => $completos > 0 ? $noLlegados / $completos : null]);
 
-            if ($fac['disponible']) {
-                $t = $fac['totales'];
-                array_push($resumen, ['Kg facturado (Siesa)', $t['kgFacturado']], ['Valor facturado (Siesa)', $n($t['valorFacturado'])], ['Kg TLC de las facturas', $t['kgTlc']],
-                    ['Dif. facturado vs TLC', $t['difTlc']], ['Kg báscula de las facturas', $t['kgBascula']], ['Dif. facturado vs báscula', $t['difBascula']], ['Kg TLC sin facturar', $t['kgSinFacturar']]);
-            } else {
-                $resumen[] = ['Facturación Siesa', [$fac['mensaje'], null]];
-            }
-
-            $this->hojaBascula($libro, 'Resumen', $info, ['Indicador' => null, 'Valor' => '#,##0.00'], $resumen);
-
-            $this->hojaBascula($libro, 'Viajes', [], [
+            $hoja = $this->hojaBascula($libro, 'Viajes del periodo', $info, [
                 'Fecha' => null, 'Hora entrada' => null, 'Placa' => null, 'Fincas' => null, 'Conductor' => null, 'Cédula' => null, 'Extractora' => null,
                 '1.ª pesada' => '#,##0', '2.ª pesada' => '#,##0', 'Kg báscula' => '#,##0.00', 'TLC(s)' => null, 'Tiquete' => null, 'Kg extractora' => '#,##0.00',
                 'Dif. kg' => '#,##0.00', '% pérdida' => '0.00%', 'Estado' => null, 'Prorrateado' => null,
-            ], array_map(static fn ($v) => [
-                $v['fecha'], substr((string) $v['entrada'], 11, 8), $v['placa'], implode(', ', array_map(static fn ($c) => $nFincas[$c] ?? $c, $v['fincas'])), $v['conductor'], $v['cedula'], $v['extractora'],
-                $v['pesada1'], $v['pesada2'], $v['kgBascula'], implode(', ', $v['tlcs']), $v['tiquete'], $v['kgExtractora'], $v['perdidaKg'], $pct($v['perdidaPct']), $estados[$v['estado']] ?? $v['estado'], $si($v['parcial']),
-            ], $d['viajes']));
+            ], $filas);
 
-            $this->hojaBascula($libro, 'TLC sin pesaje', [], ['TLC' => null, 'Fecha' => null, 'Placa' => null, 'Conductor' => null, 'Tiquete' => null, 'Extractora' => null, 'Kg extractora' => '#,##0.00'],
-                array_map(static fn ($t) => [$t['tlc'], $t['fecha'], $t['placa'], $t['conductor'], $t['tiquete'], $t['extractora'], $t['kgExtractora']], $d['tlcSinPesaje']));
-
-            $placas = [];
-
-            foreach ($d['placas']['dias'] as $dia) {
-                foreach ((array) $dia['porExtractora'] as $ext => $p) {
-                    $placas[] = [$dia['fecha'], (string) $ext, $p['placas'], implode(', ', $p['lista'])];
-                }
-            }
-
-            $this->hojaBascula($libro, 'Placas', [], ['Fecha' => null, 'Extractora' => null, 'Nº placas' => '#,##0', 'Placas' => null], $placas);
-
-            $this->hojaBascula($libro, 'Conductores', [], [
-                'Cédula' => null, 'Conductor' => null, 'Viajes' => '#,##0', 'Kg báscula' => '#,##0.00', 'Kg extractora' => '#,##0.00', 'Pérdida kg' => '#,##0.00', '% pérdida' => '0.00%',
-                'Fuera de regla' => '#,##0', 'Kg sin TLC' => '#,##0.00', 'Kg sobrante' => '#,##0.00', 'Kg no llegados' => '#,##0.00', '% no llegados' => '0.00%',
-            ], array_map(static fn ($c) => [
-                $c['cedula'], $c['conductor'], $c['viajes'], $c['kgBascula'], $c['kgExtractora'], $c['perdidaKg'], $pct($c['perdidaPct']), $c['fueraRegla'], $c['kgSinTlc'], $c['kgSobrante'], $c['kgNoLlegados'], $pct($c['pctNoLlegados']),
-            ], $d['conductores']));
-
-            $this->hojaBascula($libro, 'Facturación', $fac['disponible'] ? ['Comparativo de kg facturados en Siesa contra TLC y báscula. No discrimina por finca.'] : $sinFac, $fac['disponible'] ? [
-                'Documento' => null, 'Fecha' => null, 'NIT' => null, 'Extractora' => null, 'Inicio periodo' => null, 'Fin periodo' => null, 'Periodo por fecha' => null, 'Parcial' => null,
-                'Kg facturado' => '#,##0.00', 'Valor facturado' => '#,##0', 'Ajuste valor' => '#,##0', 'Notas crédito' => null, 'Kg TLC' => '#,##0.00', 'TLCs' => '#,##0',
-                'Kg báscula' => '#,##0.00', 'TLC sin pesaje' => '#,##0', 'Dif. vs TLC' => '#,##0.00', 'Dif. vs báscula' => '#,##0.00', 'Notas' => null,
-            ] : [], array_map(static fn ($x) => [
-                $x['documento'], $x['fecha'], $x['nit'], $x['extractora'], $x['inicio'], $x['fin'], $si($x['periodoPorFecha']), $si($x['parcial']), $x['kgFacturado'], $x['valorFacturado'], $x['ajusteValor'],
-                implode(', ', $x['notasCredito']), $x['kgTlc'], $x['tlcs'], $x['kgBascula'], $x['tlcsSinPesaje'], $x['difTlc'], $x['difBascula'], $x['notas'],
-            ], $fac['facturas']));
-
-            $this->hojaBascula($libro, 'TLC sin facturar', $sinFac, $fac['disponible'] ? ['NIT' => null, 'Extractora' => null, 'TLCs' => '#,##0', 'Kg' => '#,##0.00', 'Desde' => null, 'Hasta' => null] : [],
-                array_map(static fn ($x) => [$x['nit'], $x['extractora'], $x['tlcs'], $x['kg'], $x['desde'], $x['hasta']], $fac['sinFacturar']));
-
-            $this->hojaBascula($libro, 'Notas crédito', $sinFac, $fac['disponible'] ? ['Tipo' => null, 'Factura' => null, 'Nota crédito' => null, 'Fecha' => null, 'NIT' => null, 'Extractora' => null, 'Kg' => '#,##0.00', 'Valor' => '#,##0', 'Notas' => null] : [],
-                array_merge(
-                    array_map(static fn ($x) => ['Anulación', $x['documento'], $x['anuladaPor'], $x['fecha'], $x['nit'], $x['extractora'], $x['kg'], $x['valor'], ''], $fac['anuladas']),
-                    array_map(static fn ($x) => ['Ajuste sin factura', $x['referencia'] ?? '', $x['documento'], $x['fecha'], $x['nit'], $x['extractora'], $x['kg'], $x['valor'], $x['notas']], $fac['ajustesSinFactura'])
-                ));
+            $encabezado = 3 + count($info);
+            $total      = $encabezado + count($filas);
+            $hoja->getStyle('A' . $total . ':Q' . $total)->getFont()->setBold(true);
+            $hoja->setAutoFilter('A' . $encabezado . ':Q' . ($total - 1));
 
             $libro->setActiveSheetIndex(0);
 
@@ -1071,7 +1025,7 @@ class TablerosController extends BaseController
             ->setBody($contenido);
     }
 
-    private function hojaBascula(Spreadsheet $libro, string $titulo, array $info, array $columnas, array $filas): void
+    private function hojaBascula(Spreadsheet $libro, string $titulo, array $info, array $columnas, array $filas): \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet
     {
         $hoja = $libro->createSheet();
         $hoja->setTitle($titulo);
@@ -1086,7 +1040,7 @@ class TablerosController extends BaseController
         if ($columnas === []) {
             $hoja->getColumnDimension('A')->setAutoSize(true);
 
-            return;
+            return $hoja;
         }
 
         $fila++;
@@ -1135,6 +1089,8 @@ class TablerosController extends BaseController
         }
 
         $hoja->freezePane('A' . ($encabezado + 1));
+
+        return $hoja;
     }
 
     private function filtrosBascula(): array|ResponseInterface

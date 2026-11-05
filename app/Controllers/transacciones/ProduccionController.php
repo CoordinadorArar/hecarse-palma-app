@@ -6,6 +6,7 @@ use App\Controllers\BaseController;
 use CodeIgniter\HTTP\RedirectResponse;
 use CodeIgniter\HTTP\ResponseInterface;
 
+use App\Models\PlaneacionModel;
 use App\Models\ProduccionModel;
 
 /**
@@ -161,6 +162,29 @@ class ProduccionController extends BaseController
             'pesoRacimo' => $peso,
             'existe'     => $peso > 0 ? 1 : 0,
         ]);
+    }
+
+    public function planeaciones(): ResponseInterface
+    {
+        if ($sinSesion = $this->sesionRequerida(['registrar', 'editar'], 'registrar o editar transacciones de producción')) {
+            return $sinSesion;
+        }
+
+        $empresa = $this->empresaValida();
+
+        if ($empresa === null) {
+            return $this->error('Debe seleccionar una empresa válida.');
+        }
+
+        try {
+            $planeaciones = (new PlaneacionModel())->registrables($empresa, ProduccionModel::TIPO);
+        } catch (\Throwable $e) {
+            log_message('error', 'Error consultando las planeaciones registrables: ' . $e->getMessage());
+
+            return $this->error('No se pudieron consultar las planeaciones.', 500);
+        }
+
+        return $this->response->setJSON(['success' => true, 'message' => '', 'planeaciones' => $planeaciones]);
     }
 
     public function buscarTiquete(): ResponseInterface
@@ -399,7 +423,13 @@ class ProduccionController extends BaseController
 
         unset($datos['racimosLineas'], $datos['confirmaFaltante'], $datos['totalTrabajadores'], $datos['lineasSinTrabajadores'], $datos['periodoCerrado']);
 
-        $datos['planeacionLinea'] = max(0, (int) $this->campo('planeacionLinea'));
+        $planeadas = PlaneacionModel::lineasPedidas($this->campo('planeacionLineas'), $this->campo('planeacionLinea'));
+
+        if (is_string($planeadas)) {
+            return $this->error($planeadas);
+        }
+
+        $datos += $planeadas;
 
         try {
             $resultado = $this->produccionModel->guardar($datos, $this->session->get('usu_id'));
@@ -446,7 +476,13 @@ class ProduccionController extends BaseController
 
         unset($datos['racimosLineas'], $datos['confirmaFaltante'], $datos['totalTrabajadores'], $datos['lineasSinTrabajadores'], $datos['periodoCerrado']);
 
-        $datos = $this->produccionModel->conservarReparto($datos, $antes);
+        $planeadas = PlaneacionModel::lineasPedidas($this->campo('planeacionLineas'), $this->campo('planeacionLinea'));
+
+        if (is_string($planeadas)) {
+            return $this->error($planeadas);
+        }
+
+        $datos = $this->produccionModel->conservarReparto($datos + $planeadas, $antes);
 
         try {
             $resultado = $this->produccionModel->actualizar($datos, $antes, $this->session->get('usu_id'));

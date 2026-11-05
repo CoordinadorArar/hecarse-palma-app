@@ -5,13 +5,17 @@ namespace App\Controllers\gestionpalma;
 use CodeIgniter\HTTP\RedirectResponse;
 use CodeIgniter\HTTP\ResponseInterface;
 
+use App\Models\MotivosAusenciaModel;
 use App\Models\VariedadesModel;
 use App\Models\UnidadesMedidaModel;
 
 class ParametrosAgronomicosController extends GestionPalmaController
 {
+    private const SIN_MOTIVOS = 'Falta ejecutar el script planeacion_ajustes_noviembre.sql';
+
     private $variedadesModel;
     private $unidadesMedidaModel;
+    private $motivosModel;
 
     public function __construct()
     {
@@ -19,6 +23,329 @@ class ParametrosAgronomicosController extends GestionPalmaController
 
         $this->variedadesModel     = new VariedadesModel();
         $this->unidadesMedidaModel = new UnidadesMedidaModel();
+        $this->motivosModel        = new MotivosAusenciaModel();
+    }
+
+    public function motivoAusencia($id_loseta): string|RedirectResponse
+    {
+        helper('ConstruirDataVista');
+
+        $data = construirVista($this->session->get('usu_id'), $id_loseta);
+
+        if ($data instanceof RedirectResponse) {
+            return $data;
+        }
+
+        $empresas   = $this->motivosModel->getEmpresas();
+        $empresaSel = $this->empresaSeleccionada($empresas);
+        $disponible = $this->motivosModel->disponible();
+
+        $filas = $disponible && $empresaSel > 0 ? $this->motivosModel->listar($empresaSel) : [];
+
+        $data['title']              = 'Gestión Palma · Motivos de ausencia';
+        $data['empresas']           = $empresas;
+        $data['empresa_sel']        = $empresaSel;
+        $data['tabla_motivos']      = $this->renderizarFilasMotivos($filas);
+        $data['total_motivos']      = count($filas);
+        $data['tabla_disponible']   = $disponible;
+        $data['mensaje_disponible'] = $disponible ? '' : self::SIN_MOTIVOS;
+
+        return view('gestionpalma/motivos_ausencia', $data);
+    }
+
+    public function listarMotivos(): ResponseInterface
+    {
+        if ($sinRequisitos = $this->requisitosMotivos()) {
+            return $sinRequisitos;
+        }
+
+        $empresa = $this->empresaValida();
+
+        if ($empresa === null) {
+            return $this->error('Debe seleccionar una empresa válida.');
+        }
+
+        $filas = $this->motivosModel->listar($empresa, $this->campo('estado'));
+
+        return $this->response->setJSON([
+            'success' => true,
+            'message' => '',
+            'total'   => count($filas),
+            'tabla'   => $this->renderizarFilasMotivos($filas),
+        ]);
+    }
+
+    public function obtenerMotivo(): ResponseInterface
+    {
+        if ($sinRequisitos = $this->requisitosMotivos()) {
+            return $sinRequisitos;
+        }
+
+        $empresa = $this->empresaValida();
+
+        if ($empresa === null) {
+            return $this->error('Debe seleccionar una empresa válida.');
+        }
+
+        $motivo = $this->motivosModel->obtener($empresa, $this->campo('codigo'));
+
+        if ($motivo === null) {
+            return $this->error('El motivo de ausencia no existe.');
+        }
+
+        return $this->response->setJSON([
+            'success' => true,
+            'motivo'  => [
+                'empresa'     => (int) $motivo['empresa'],
+                'codigo'      => trim((string) $motivo['codigo']),
+                'descripcion' => (string) $motivo['descripcion'],
+                'activo'      => (int) $motivo['activo'],
+                'usos'        => (int) ($motivo['usos'] ?? 0),
+            ],
+        ]);
+    }
+
+    public function crearMotivo(): ResponseInterface
+    {
+        if ($sinRequisitos = $this->requisitosMotivos()) {
+            return $sinRequisitos;
+        }
+
+        $empresa = $this->empresaValida();
+
+        if ($empresa === null) {
+            return $this->error('Debe seleccionar una empresa válida.');
+        }
+
+        $codigo = $this->codigoMotivoValido();
+
+        if (is_array($codigo)) {
+            return $this->error($codigo[0]);
+        }
+
+        if ($this->motivosModel->existe($empresa, $codigo)) {
+            return $this->error("Ya existe un motivo de ausencia con el código {$codigo}.");
+        }
+
+        $datos = $this->datosMotivo();
+
+        if (is_string($datos)) {
+            return $this->error($datos);
+        }
+
+        $this->motivosModel->crear($empresa, $codigo, $datos, $this->session->get('usu_id'));
+
+        return $this->respuestaTablaMotivos($empresa, 'Motivo de ausencia creado correctamente.');
+    }
+
+    public function actualizarMotivo(): ResponseInterface
+    {
+        if ($sinRequisitos = $this->requisitosMotivos()) {
+            return $sinRequisitos;
+        }
+
+        $empresa = $this->empresaValida();
+
+        if ($empresa === null) {
+            return $this->error('Debe seleccionar una empresa válida.');
+        }
+
+        $codigo = $this->codigoMotivoValido();
+
+        if (is_array($codigo)) {
+            return $this->error($codigo[0]);
+        }
+
+        if (! $this->motivosModel->existe($empresa, $codigo)) {
+            return $this->error('El motivo de ausencia no existe.');
+        }
+
+        $datos = $this->datosMotivo();
+
+        if (is_string($datos)) {
+            return $this->error($datos);
+        }
+
+        $this->motivosModel->actualizar($empresa, $codigo, $datos, $this->session->get('usu_id'));
+
+        return $this->respuestaTablaMotivos($empresa, 'Motivo de ausencia actualizado correctamente.');
+    }
+
+    public function eliminarMotivo(): ResponseInterface
+    {
+        if ($sinRequisitos = $this->requisitosMotivos()) {
+            return $sinRequisitos;
+        }
+
+        $empresa = $this->empresaValida();
+
+        if ($empresa === null) {
+            return $this->error('Debe seleccionar una empresa válida.');
+        }
+
+        $codigo = $this->campo('codigo');
+
+        if (! $this->motivosModel->existe($empresa, $codigo)) {
+            return $this->error('El motivo de ausencia no existe.');
+        }
+
+        $enUso = $this->motivosModel->enUso($empresa, $codigo);
+
+        if ($enUso > 0) {
+            return $this->error('No se puede eliminar: el motivo de ausencia está asignado a ' . number_format($enUso, 0, ',', '.') . ' ausencias.');
+        }
+
+        $this->motivosModel->eliminar($empresa, $codigo, $this->session->get('usu_id'));
+
+        return $this->respuestaTablaMotivos($empresa, 'Motivo de ausencia eliminado correctamente.');
+    }
+
+    public function cambiarEstadoMotivo(): ResponseInterface
+    {
+        if ($sinRequisitos = $this->requisitosMotivos()) {
+            return $sinRequisitos;
+        }
+
+        $empresa = $this->empresaValida();
+
+        if ($empresa === null) {
+            return $this->error('Debe seleccionar una empresa válida.');
+        }
+
+        $codigo = $this->campo('codigo');
+        $motivo = $this->motivosModel->obtener($empresa, $codigo);
+
+        if ($motivo === null) {
+            return $this->error('El motivo de ausencia no existe.');
+        }
+
+        $activo = (int) $motivo['activo'] === 1 ? 0 : 1;
+
+        $this->motivosModel->cambiarEstado($empresa, $codigo, $activo, $this->session->get('usu_id'));
+
+        return $this->respuestaTablaMotivos(
+            $empresa,
+            $activo === 1 ? 'Motivo de ausencia activado correctamente.' : 'Motivo de ausencia desactivado correctamente.'
+        );
+    }
+
+    private function requisitosMotivos(): ?ResponseInterface
+    {
+        if ($sinSesion = $this->sesionRequerida()) {
+            return $sinSesion;
+        }
+
+        return $this->motivosModel->disponible() ? null : $this->error(self::SIN_MOTIVOS . '.');
+    }
+
+    private function codigoMotivoValido(): string|array
+    {
+        $codigo = mb_strtoupper($this->campo('codigo'));
+
+        if ($codigo === '') {
+            return ['El código es obligatorio.'];
+        }
+
+        if (mb_strlen($codigo) > 10) {
+            return ['El código no puede superar los 10 caracteres.'];
+        }
+
+        if (preg_match('/\s/', $codigo)) {
+            return ['El código no puede contener espacios.'];
+        }
+
+        return $codigo;
+    }
+
+    private function datosMotivo(): array|string
+    {
+        $descripcion = $this->campo('descripcion');
+
+        if ($descripcion === '') {
+            return 'La descripción es obligatoria.';
+        }
+
+        if (mb_strlen($descripcion) > 100) {
+            return 'La descripción no puede superar los 100 caracteres.';
+        }
+
+        return [
+            'descripcion' => $descripcion,
+            'activo'      => $this->bit('activo'),
+        ];
+    }
+
+    private function respuestaTablaMotivos(int $empresa, string $mensaje): ResponseInterface
+    {
+        $filtroEmpresa = $this->request->getPost('filtro_empresa');
+
+        if ($filtroEmpresa !== null && $filtroEmpresa !== '' && is_numeric($filtroEmpresa)) {
+            $empresa = (int) $filtroEmpresa;
+        }
+
+        $filas = $this->motivosModel->listar($empresa, $this->campo('filtro_estado'));
+
+        return $this->response->setJSON([
+            'success' => true,
+            'message' => $mensaje,
+            'total'   => count($filas),
+            'tabla'   => $this->renderizarFilasMotivos($filas),
+        ]);
+    }
+
+    private function renderizarFilasMotivos(array $motivos): string
+    {
+        $html = '';
+
+        $aJs = static fn (string $texto) => htmlspecialchars(
+            str_replace(['\\', "'"], ['\\\\', "\\'"], str_replace(["\r", "\n", "\t"], ' ', $texto)),
+            ENT_QUOTES
+        );
+
+        foreach ($motivos as $m) {
+            $empresa     = (int) $m['empresa'];
+            $codigo      = trim((string) $m['codigo']);
+            $activo      = (int) $m['activo'] === 1 ? 1 : 0;
+            $usos        = (int) ($m['usos'] ?? 0);
+            $descripcion = trim((string) $m['descripcion']);
+            $usosFmt     = number_format($usos, 0, ',', '.');
+
+            $celdaUsos = $usos > 0
+                ? '<span class="badge gp-badge-doc rounded-pill px-2 py-1 font-monospace" title="' . $usosFmt
+                    . ' ausencias usan este motivo; no se puede eliminar mientras esté en uso.">' . $usosFmt . '</span>'
+                : '<span class="gp-chip-rol">0</span>';
+
+            $badge = $activo === 1
+                ? '<span class="badge gp-badge-abierto rounded-pill px-3 py-2"><i class="bi bi-check-circle-fill me-1" aria-hidden="true"></i>Activo</span>'
+                : '<span class="badge gp-badge-cerrado rounded-pill px-3 py-2"><i class="bi bi-slash-circle me-1" aria-hidden="true"></i>Inactivo</span>';
+
+            $tituloEstado = $activo === 1 ? 'Desactivar' : 'Activar';
+            $iconoEstado  = $activo === 1 ? 'bi bi-toggle-on' : 'bi bi-toggle-off';
+
+            $claveJs = $empresa . ',&#039;' . $aJs($codigo) . '&#039;';
+            $descJs  = $aJs($descripcion);
+
+            $botonEliminar = $usos > 0
+                ? '<button type="button" class="btn btn-outline-danger" title="En uso: no se puede eliminar" aria-label="Eliminar" disabled><i class="bi bi-trash" aria-hidden="true"></i></button>'
+                : '<button type="button" class="btn btn-outline-danger" title="Eliminar" aria-label="Eliminar" onclick="eliminarMotivo(' . $claveJs . ',&#039;' . $descJs . '&#039;)"><i class="bi bi-trash" aria-hidden="true"></i></button>';
+
+            $html .= '<tr data-empresa="' . $empresa . '" data-codigo="' . htmlspecialchars($codigo)
+                . '" data-activo="' . $activo . '" data-usos="' . $usos . '">'
+                . '<td class="text-center"><span class="badge gp-badge-doc rounded-pill px-2 py-1 font-monospace">' . htmlspecialchars($codigo) . '</span></td>'
+                . '<td data-order="' . htmlspecialchars($descripcion) . '">' . htmlspecialchars($descripcion) . '</td>'
+                . '<td class="text-center" data-order="' . $usos . '">' . $celdaUsos . '</td>'
+                . '<td class="text-center" data-order="' . $activo . '">' . $badge . '</td>'
+                . '<td class="text-center gp-col-sticky">'
+                . '<div class="btn-group btn-group-sm">'
+                . '<button type="button" class="btn btn-outline-secondary" title="Editar" aria-label="Editar" onclick="editarMotivo(' . $claveJs . ')"><i class="bi bi-pencil" aria-hidden="true"></i></button>'
+                . '<button type="button" class="btn btn-outline-primary" title="' . $tituloEstado . '" aria-label="' . $tituloEstado . '" onclick="cambiarEstadoMotivo(' . $claveJs . ')"><i class="' . $iconoEstado . '" aria-hidden="true"></i></button>'
+                . $botonEliminar
+                . '</div>'
+                . '</td>'
+                . '</tr>';
+        }
+
+        return $html;
     }
 
     /**

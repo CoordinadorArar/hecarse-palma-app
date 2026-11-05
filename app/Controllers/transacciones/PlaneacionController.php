@@ -5,7 +5,6 @@ namespace App\Controllers\transacciones;
 use CodeIgniter\HTTP\ResponseInterface;
 
 use App\Models\FertilizacionTransaccionModel;
-use App\Models\LaboresTransaccionModel;
 use App\Models\PlaneacionModel;
 use App\Models\PlaneacionSugerenciaModel;
 
@@ -21,6 +20,8 @@ class PlaneacionController extends LaboresController
 
     private const SIN_SUGERENCIAS = 'Falta ejecutar el script crear_planeacion_sugerencias.sql.';
 
+    private const SIN_AJUSTES = 'Falta ejecutar el script planeacion_ajustes_noviembre.sql.';
+
     private const MAX_ACTIVIDADES = 500;
 
     private array $detalle = [];
@@ -35,19 +36,12 @@ class PlaneacionController extends LaboresController
     protected function datosVista(int $empresa): array
     {
         $disponible = $this->laboresModel->planeacionDisponible();
-        $usuario    = (int) $this->session->get('usu_id');
-        $puede      = fn (string $modelo, string $accion): bool => ($modulo = (new $modelo())->idModulo()) > 0
-            && in_array($accion, $this->laboresModel->accionesPermitidas($usuario, $modulo), true);
 
         return [
             'fecha_defecto'      => date('Y-m-d', strtotime('+1 day')),
             'tablas_disponibles' => $disponible,
             'mensaje_tablas'     => $disponible ? '' : self::SIN_TABLAS,
-            'registrar_destino'  => [
-                'labores'       => $puede(LaboresTransaccionModel::class, 'registrar-labores'),
-                'fertilizacion' => $puede(FertilizacionTransaccionModel::class, 'registrar-fertilizacion'),
-                'produccion'    => in_array('registrar-produccion', $this->laboresModel->accionesPermitidas($usuario, ProduccionController::MODULO), true),
-            ],
+            'motivosAusencia'    => $disponible ? $this->laboresModel->motivosAusencia($empresa) : [],
         ];
     }
 
@@ -122,6 +116,10 @@ class PlaneacionController extends LaboresController
 
         if ($datos instanceof ResponseInterface) {
             return $datos;
+        }
+
+        if ($sinAjustes = $this->sinAjustes()) {
+            return $sinAjustes;
         }
 
         ['empresa' => $empresa, 'fecha' => $fecha] = $datos;
@@ -214,7 +212,7 @@ class PlaneacionController extends LaboresController
                 $conservar[$id] = true;
             }
 
-            $actividad = $this->actividadValida($empresa, $fecha, $orden, $fila, $ausentes, $usados);
+            $actividad = $this->actividadValida($empresa, $fecha, $orden, $fila, $ausentes, $usados, $existentes[$id] ?? null);
 
             if (is_string($actividad)) {
                 return $this->errorActividad($actividad, $orden);
@@ -244,6 +242,10 @@ class PlaneacionController extends LaboresController
 
         if ($datos instanceof ResponseInterface) {
             return $datos;
+        }
+
+        if ($sinAjustes = $this->sinAjustes()) {
+            return $sinAjustes;
         }
 
         ['empresa' => $empresa, 'fecha' => $fecha] = $datos;
@@ -303,7 +305,7 @@ class PlaneacionController extends LaboresController
                 }
             }
 
-            $cantidades = $this->repartir($linea['saldo'], array_column($trabajadores, 'cantidad'));
+            $cantidades = $this->laboresModel->repartir($linea['saldo'], array_column($trabajadores, 'cantidad'), PlaneacionModel::racimos($linea['uMedida']) ? 0 : 3);
             $referencia = $linea['referencia'] !== '' && $fertilizacion->planValido($empresa, $linea['referencia'], $linea['finca'], $fecha)
                 ? $linea['referencia'] : null;
 
@@ -338,6 +340,10 @@ class PlaneacionController extends LaboresController
             return $plan;
         }
 
+        if ($sinAjustes = $this->sinAjustes()) {
+            return $sinAjustes;
+        }
+
         $nit     = trim($this->campo('tercero'));
         $tercero = $nit === '' || strlen($nit) > 50 ? null : $this->laboresModel->tercero($plan['empresa'], $nit);
 
@@ -352,10 +358,11 @@ class PlaneacionController extends LaboresController
             return $this->error('El trabajador ' . $nombre . ' ya está marcado como ausente.');
         }
 
-        $motivo = trim($this->campo('motivo'));
+        $codigo = trim($this->campo('motivo'));
+        $motivo = $codigo === '' || strlen($codigo) > 10 ? null : $this->laboresModel->motivoAusencia($plan['empresa'], $codigo);
 
-        if (strlen($motivo) > 250) {
-            return $this->error('El campo "Motivo" admite máximo 250 caracteres.');
+        if ($motivo === null) {
+            return $this->error('Debe seleccionar un motivo de ausencia válido y activo.');
         }
 
         $recibido = trim($this->campo('reparto')) === '' ? [] : json_decode($this->campo('reparto'), true);
@@ -388,6 +395,7 @@ class PlaneacionController extends LaboresController
             $linea    = $lineas[$id];
             $etiqueta = $this->etiqueta($linea);
             $actuales = array_column($linea['trabajadores'], 'tercero');
+            $entero   = PlaneacionModel::racimos($linea['uMedida']);
             $nuevos   = 0;
             $suma     = 0;
 
@@ -396,7 +404,7 @@ class PlaneacionController extends LaboresController
             foreach (is_array($fila['asignaciones'] ?? null) ? array_values($fila['asignaciones']) : [] as $asignacion) {
                 $nitR      = is_array($asignacion) && ! is_array($asignacion['tercero'] ?? null) ? trim((string) ($asignacion['tercero'] ?? '')) : '';
                 $receptor  = $nitR === '' || strlen($nitR) > 50 ? null : $this->laboresModel->tercero($plan['empresa'], $nitR);
-                $cantidad  = $this->decimalDe(is_array($asignacion) ? ($asignacion['cantidad'] ?? null) : null);
+                $cantidad  = $this->cantidadDe(is_array($asignacion) ? ($asignacion['cantidad'] ?? null) : null, $entero);
 
                 if ($receptor === null) {
                     return $this->error('Un trabajador del reparto de la actividad ' . $etiqueta . ' no existe o está inactivo.');
@@ -411,7 +419,7 @@ class PlaneacionController extends LaboresController
                 }
 
                 if ($cantidad === null || $cantidad < 0) {
-                    return $this->error('La cantidad repartida a ' . $this->nombre($receptor) . ' debe ser un número mayor o igual a cero con máximo 2 decimales.');
+                    return $this->error('La cantidad repartida a ' . $this->nombre($receptor) . ' debe ser ' . $this->formato($entero) . '.');
                 }
 
                 if (! in_array($receptor['nit'], $actuales, true)) {
@@ -422,14 +430,14 @@ class PlaneacionController extends LaboresController
                     $nuevos++;
                 }
 
-                $suma += (int) round($cantidad * 100);
+                $suma += (int) round($cantidad * 1000);
 
                 $reparto[$id][$receptor['nit']] = ['tercero' => $receptor['nit'], 'cantidad' => $cantidad];
             }
 
-            if ($suma !== (int) round($afectadas[$id] * 100)) {
-                return $this->error('En la actividad ' . $etiqueta . ' la suma repartida (' . number_format($suma / 100, 2, '.', '')
-                    . ') no coincide con la cantidad de ' . $nombre . ' (' . number_format($afectadas[$id], 2, '.', '') . ').');
+            if ($suma !== (int) round($afectadas[$id] * 1000)) {
+                return $this->error('En la actividad ' . $etiqueta . ' la suma repartida (' . number_format($suma / 1000, 3, '.', '')
+                    . ') no coincide con la cantidad de ' . $nombre . ' (' . number_format($afectadas[$id], 3, '.', '') . ').');
             }
 
             if (count($actuales) - 1 + $nuevos < 1) {
@@ -446,7 +454,7 @@ class PlaneacionController extends LaboresController
         }
 
         return $this->resultado(fn () => $this->laboresModel->marcarAusencia(
-            $plan['id'], $tercero['nit'], $motivo, $this->usuarioRegistro(), array_keys($afectadas), $reparto, $this->session->get('usu_id')
+            $plan['id'], $tercero['nit'], $motivo['codigo'], (string) $motivo['descripcion'], $this->usuarioRegistro(), array_keys($afectadas), $reparto, $this->session->get('usu_id')
         ));
     }
 
@@ -475,12 +483,17 @@ class PlaneacionController extends LaboresController
             return $linea;
         }
 
+        if ($sinAjustes = $this->sinAjustes()) {
+            return $sinAjustes;
+        }
+
         if ($linea['estado'] !== 'PENDIENTE') {
             return $this->error('La actividad ' . $this->etiqueta($linea) . ' ya está cerrada.');
         }
 
+        $entero      = PlaneacionModel::racimos($linea['uMedida']);
         $estado      = strtoupper(trim($this->campo('estado')));
-        $ejecutada   = $this->decimalDe($this->campo('cantidadEjecutada'));
+        $ejecutada   = $this->cantidadDe($this->campo('cantidadEjecutada'), $entero);
         $observacion = trim($this->campo('observacionCierre'));
 
         if (! in_array($estado, PlaneacionModel::ESTADOS, true)) {
@@ -496,9 +509,10 @@ class PlaneacionController extends LaboresController
         } elseif ($estado === 'NO_EJECUTADA') {
             $ejecutada = 0.0;
         } elseif ($linea['cantidad'] > 0 && ($ejecutada === null || $ejecutada <= 0 || $ejecutada >= $linea['cantidad'])) {
-            return $this->error('La cantidad ejecutada debe ser mayor que cero y menor que la cantidad planeada (' . number_format($linea['cantidad'], 2, '.', '') . ').');
+            return $this->error('La cantidad ejecutada debe ser ' . ($entero ? 'un número entero ' : '') . 'mayor que cero y menor que la cantidad planeada ('
+                . number_format($linea['cantidad'], $entero ? 0 : 3, '.', '') . ')' . ($entero ? '.' : ' con máximo 3 decimales.'));
         } elseif ($ejecutada === null) {
-            return $this->error('La cantidad ejecutada debe ser un número mayor o igual a cero con máximo 2 decimales.');
+            return $this->error('La cantidad ejecutada debe ser ' . $this->formato($entero) . '.');
         } elseif ($ejecutada < 0) {
             return $this->error('La cantidad ejecutada no puede ser negativa.');
         }
@@ -602,7 +616,7 @@ class PlaneacionController extends LaboresController
             return $this->error('La actividad ' . $etiqueta . ' debe estar cerrada como COMPLETADA o PARCIAL con cantidad ejecutada (o sin cantidad planeada).');
         }
 
-        $cantidades = $this->repartir($linea['cantidadEjecutada'], array_column($linea['trabajadores'], 'cantidad'));
+        $registro = $this->laboresModel->registro($linea);
 
         return $this->response->setJSON([
             'success'       => true,
@@ -613,6 +627,7 @@ class PlaneacionController extends LaboresController
             'planeacion'    => $linea['planeacion'],
             'linea'         => $linea['id'],
             'fecha'         => $linea['fecha'],
+            'estado'        => $linea['estado'],
             'finca'         => $linea['finca'],
             'seccion'       => $linea['seccion'],
             'lote'          => $linea['lote'],
@@ -620,14 +635,35 @@ class PlaneacionController extends LaboresController
             'novedadNombre' => $linea['novedadNombre'],
             'uMedida'       => $linea['uMedida'],
             'referencia'    => $linea['referencia'],
-            'cantidad'      => $linea['cantidadEjecutada'],
-            'trabajadores'  => array_map(static fn ($t, $c) => [
-                'tercero'  => $t['tercero'],
-                'codigo'   => $t['codigo'],
-                'nombre'   => $t['nombre'],
-                'cantidad' => $c,
-            ], $linea['trabajadores'], $cantidades),
+            'cantidad'      => $registro['cantidad'],
+            'trabajadores'  => $registro['trabajadores'],
         ]);
+    }
+
+    public function pesoPromedio(): ResponseInterface
+    {
+        $datos = $this->empresaFecha(['consultar', 'registrar', 'editar'], 'consultar');
+
+        if ($datos instanceof ResponseInterface) {
+            return $datos;
+        }
+
+        $finca = trim($this->campo('finca'));
+        $lote  = trim($this->campo('lote'));
+
+        if ($finca === '' || $lote === '' || strlen($finca) > 50 || strlen($lote) > 50) {
+            return $this->error('Los campos "Finca" y "Lote" son obligatorios.');
+        }
+
+        try {
+            $peso = $this->laboresModel->pesoRacimo($datos['empresa'], $datos['fecha'], $finca, $lote);
+        } catch (\Throwable $e) {
+            log_message('error', 'Error consultando el peso promedio del racimo: ' . $e->getMessage());
+
+            return $this->error('No se pudo consultar el peso promedio del racimo.', 500);
+        }
+
+        return $this->response->setJSON(['success' => true, 'message' => '', 'pesoRacimo' => $peso['pesoRacimo'], 'periodo' => $peso['periodo']]);
     }
 
     public function sugerencias(): ResponseInterface
@@ -724,6 +760,10 @@ class PlaneacionController extends LaboresController
 
     private function actividadNueva(int $empresa, string $fecha): array|ResponseInterface
     {
+        if ($sinAjustes = $this->sinAjustes()) {
+            return $sinAjustes;
+        }
+
         $plan = $this->planDestino($empresa, $fecha);
 
         if ($plan instanceof ResponseInterface) {
@@ -971,7 +1011,7 @@ class PlaneacionController extends LaboresController
         return $linea;
     }
 
-    private function actividadValida(int $empresa, string $fecha, int $orden, array $fila, array $ausentes, array &$usados): array|string
+    private function actividadValida(int $empresa, string $fecha, int $orden, array $fila, array $ausentes, array &$usados, ?array $existente = null): array|string
     {
         $v             = [];
         $this->detalle = [];
@@ -1012,6 +1052,15 @@ class PlaneacionController extends LaboresController
 
         if (! $this->laboresModel->unidadValida($empresa, $v['uMedida'])) {
             return 'La unidad de medida ' . $v['uMedida'] . ' de la actividad ' . $orden . ' no existe.';
+        }
+
+        $entero = PlaneacionModel::racimos($v['uMedida']);
+
+        $conservada = $existente !== null && trim((string) $existente['novedad']) === $labor['codigo']
+            && strtoupper(trim((string) $existente['uMedida'])) === strtoupper($v['uMedida']);
+
+        if ($labor['claseLabor'] === 2 && ! $entero && ! $conservada) {
+            return 'La actividad ' . $orden . ' es de cosecha y se planea en racimos (RAC).';
         }
 
         if (! $this->laboresModel->fincaValida($empresa, $v['finca'])) {
@@ -1071,17 +1120,17 @@ class PlaneacionController extends LaboresController
                 return 'El campo "reasignadoDe" del trabajador ' . $this->nombre($tercero) . ' admite máximo 50 caracteres.';
             }
 
-            $cantidad = $this->decimalDe(is_array($recibido) ? ($recibido['cantidad'] ?? null) : null);
+            $cantidad = $this->cantidadDe(is_array($recibido) ? ($recibido['cantidad'] ?? null) : null, $entero);
 
             if ($cantidad === null || $cantidad < 0) {
-                return 'La cantidad de ' . $this->nombre($tercero) . ' en la actividad ' . $orden . ' debe ser un número mayor o igual a cero con máximo 2 decimales.';
+                return 'La cantidad de ' . $this->nombre($tercero) . ' en la actividad ' . $orden . ' debe ser ' . $this->formato($entero) . '.';
             }
 
             if ($error = $this->repetido($usados, $tercero + ['tercero' => $tercero['nit']], $v, 'actividad ' . $orden)) {
                 return $error;
             }
 
-            $suma += (int) round($cantidad * 100);
+            $suma += (int) round($cantidad * 1000);
 
             $trabajadores[$tercero['nit']] = ['tercero' => $tercero['nit'], 'cantidad' => $cantidad, 'reasignadoDe' => $reasignado === '' ? null : $reasignado];
         }
@@ -1090,12 +1139,21 @@ class PlaneacionController extends LaboresController
 
         $this->detalle = [];
 
+        if (strtoupper($v['uMedida']) === 'PAL' && $suma > 0) {
+            $palmas = $this->laboresModel->palmasLote($empresa, $v['finca'], $v['lote']);
+
+            if ($palmas > 0 && $suma > $palmas * 1000) {
+                return 'La actividad ' . $orden . ' planea ' . rtrim(rtrim(number_format($suma / 1000, 3, '.', ''), '0'), '.')
+                    . ' palmas y el lote ' . $v['lote'] . ' solo tiene ' . $palmas . ' palmas en producción.';
+            }
+        }
+
         return array_merge($v, [
             'horaInicio'   => $v['horaInicio'] === '' ? null : $v['horaInicio'],
             'horaFin'      => $v['horaFin'] === '' ? null : $v['horaFin'],
             'observacion'  => $v['observacion'] === '' ? null : $v['observacion'],
             'referencia'   => $v['referencia'] === '' ? null : $v['referencia'],
-            'cantidad'     => $suma / 100,
+            'cantidad'     => $suma / 1000,
             'trabajadores' => array_values($trabajadores),
         ]);
     }
@@ -1149,32 +1207,41 @@ class PlaneacionController extends LaboresController
         return $linea['orden'] . ' del ' . $linea['fecha'] . ' (' . $linea['novedad'] . ' lote ' . $linea['lote'] . ')';
     }
 
-    private function repartir(float $total, array $pesos): array
+    private function cantidadDe($valor, bool $entero): ?float
     {
-        $pesos = array_map(static fn ($p) => max(0.0, (float) $p), array_values($pesos));
-
-        if (array_sum($pesos) <= 0) {
-            $pesos = array_fill(0, count($pesos), 1.0);
+        if (is_array($valor)) {
+            return null;
         }
 
-        $suma     = array_sum($pesos);
-        $centavos = (int) round($total * 100);
-        $base     = [];
-        $restos   = [];
+        $valor = trim((string) ($valor ?? ''));
 
-        foreach ($pesos as $i => $peso) {
-            $exacto     = $centavos * $peso / $suma;
-            $base[$i]   = (int) floor($exacto);
-            $restos[$i] = $exacto - $base[$i];
+        if ($valor === '') {
+            return 0.0;
         }
 
-        arsort($restos);
-
-        foreach (array_slice(array_keys($restos), 0, max(0, $centavos - array_sum($base))) as $i) {
-            $base[$i]++;
+        if (preg_match($entero ? '/^-?\d{1,15}([.,]0{1,3})?$/' : '/^-?\d{1,15}([.,]\d{1,3})?$/', $valor) !== 1) {
+            return null;
         }
 
-        return array_map(static fn ($c) => $c / 100, $base);
+        return (float) str_replace(',', '.', $valor);
+    }
+
+    private function formato(bool $entero): string
+    {
+        return $entero ? 'un número entero mayor o igual a cero' : 'un número mayor o igual a cero con máximo 3 decimales';
+    }
+
+    private function sinAjustes(): ?ResponseInterface
+    {
+        try {
+            $disponible = $this->laboresModel->ajustesDisponibles();
+        } catch (\Throwable $e) {
+            log_message('error', 'Error verificando los ajustes de planeación: ' . $e->getMessage());
+
+            return $this->error('No se pudo verificar la planeación de labores.', 500);
+        }
+
+        return $disponible ? null : $this->error(self::SIN_AJUSTES, 503);
     }
 
     private function resultado(callable $accion, bool $conPlan = true): ResponseInterface

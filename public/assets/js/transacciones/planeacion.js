@@ -26,32 +26,71 @@ const fmt = (valor, decimales = 0) => Number(valor || 0).toLocaleString('es-CO',
     minimumFractionDigits: decimales, maximumFractionDigits: decimales
 });
 
-const cant = (valor) => {
-    const numero = Number(valor || 0);
-
-    return fmt(numero, Number.isInteger(Math.round(numero * 100) / 100) ? 0 : 2);
-};
+const cant = (valor) => Number(valor || 0).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 3 });
 
 const aNumero = (valor) => {
     const crudo = texto(valor).replace(/\s/g, '');
 
     if (crudo === '') return 0;
 
-    return /^\d+([.,]\d{1,2})?$/.test(crudo) ? Number(crudo.replace(',', '.')) : NaN;
+    return /^\d+([.,]\d{1,3})?$/.test(crudo) ? Number(crudo.replace(',', '.')) : NaN;
 };
 
 const valorInput = (numero) => (Number.isFinite(numero) ? String(numero).replace('.', ',') : '');
-const centavos = (valor) => Math.round(Number(valor || 0) * 100);
+const milesimas = (valor) => Math.round(Number(valor || 0) * 1000);
 const valorCant = (numero) => (numero > 0 ? valorInput(numero) : '');
 const cantUm = (valor, um = '') => (Number(valor) > 0 ? `${cant(valor)}${um ? ` ${escaparHtml(um)}` : ''}` : '<span class="text-muted">—</span>');
+const esRac = (um) => texto(um).toUpperCase() === 'RAC';
+const esPal = (um) => texto(um).toUpperCase() === 'PAL';
+const modoNum = (um) => (esRac(um) ? 'numeric' : 'decimal');
+const malaCant = (valor, um) => Number.isNaN(valor) || valor < 0 || (esRac(um) && !Number.isInteger(valor));
+const msgCant = (um) => (esRac(um) ? 'Use números enteros para racimos.' : 'Use números mayores o iguales a cero con máximo 3 decimales.');
 
-const repartir = (total, partes) => {
-    const centesimas = Math.round(total * 100);
-    const base = Math.floor(centesimas / partes);
-    const sobrante = centesimas - base * partes;
+const repartir = (total, partes, entero = false) => {
+    const escala = entero ? 1 : 1000;
+    const unidades = Math.round(total * escala);
+    const base = Math.floor(unidades / partes);
+    const sobrante = unidades - base * partes;
 
-    return Array.from({ length: partes }, (_, indice) => (base + (indice < sobrante ? 1 : 0)) / 100);
+    return Array.from({ length: partes }, (_, indice) => (base + (indice < sobrante ? 1 : 0)) / escala);
 };
+
+const pesos = new Map();
+
+const pesoDe = (finca, lote, fecha, alListo) => {
+    const clave = `${$id('empresa').value}|${finca}|${lote}|${fecha}`;
+
+    if (!pesos.has(clave)) {
+        pesos.set(clave, { estado: 'cargando', peso: 0 });
+        pedir('pesoPromedio', { empresa: $id('empresa').value, fecha, finca, lote })
+            .then((r) => Number(r.pesoRacimo) || 0)
+            .catch((error) => {
+                avisar(error);
+
+                return 0;
+            })
+            .then((peso) => {
+                pesos.set(clave, { estado: peso > 0 ? 'ok' : 'sin', peso });
+                alListo();
+            });
+    }
+
+    return pesos.get(clave);
+};
+
+const notaKg = (suma, kg) => {
+    if (!kg) return { sufijo: '', sub: '', pendiente: false };
+    if (kg.estado === 'cargando') return { sufijo: ' · Calculando kg…', sub: '', pendiente: false };
+    if (kg.estado === 'sin') return { sufijo: ' · Sin peso promedio del lote para esta fecha; no se estiman kg.', sub: '', pendiente: true };
+
+    return {
+        sufijo: suma > 0 ? ` · ≈ <span class="tx-estado-num">${fmt(suma * kg.peso)}</span> kg` : '',
+        sub: `<span class="gp-subtexto tx-num">Peso promedio ${fmt(kg.peso, 2)} kg/rac</span>`,
+        pendiente: false
+    };
+};
+
+const textoKg = (suma, kg) => (kg?.estado === 'ok' && suma > 0 ? ` · ≈ ${fmt(suma * kg.peso)} kg` : (kg?.estado === 'sin' ? ' · sin peso prom.' : (kg?.estado === 'cargando' ? ' · calculando kg…' : '')));
 
 const IDIOMA_SELECT2 = {
     noResults: () => 'No se encontraron resultados',
@@ -452,15 +491,14 @@ const pieActividad = (a) => {
         </div></div>`;
     }
 
-    const destino = DESTINOS[a.destino] || null;
     let integracion = '';
 
     if (Number(a.vinculada) === 1) {
         const numero = `${escaparHtml(a.tipoTransaccion)}-${escaparHtml(a.numeroTransaccion)}`;
 
         integracion = `<span class="pl-chip pl-e-registrada" title="Registrada en ${{ fertilizacion: 'Fertilización', produccion: 'Producción' }[a.destino] || 'Registro de labores'}"><i class="bi bi-journal-check" aria-hidden="true"></i>${numero}</span>`;
-    } else if (Number(a.registrable) === 1 && destino?.puede) {
-        integracion = `<button type="button" class="btn btn-sm btn-primary" data-accion="registrar" data-act="${a.id}"><i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Registrar</button>`;
+    } else if (Number(a.registrable) === 1) {
+        integracion = '<span class="gp-chip-fila tx-chip-neutro" data-chip="por-registrar" title="Regístrela desde Labores, Fertilización o Producción › Planeaciones completadas"><i class="bi bi-hourglass-split me-1" aria-hidden="true"></i>Por registrar</span>';
     }
 
     const reabrir = puede && Number(a.vinculada) !== 1 && Number(a.trasladada) !== 1
@@ -493,6 +531,7 @@ const tarjetaActividad = (a) => {
             </span>
             <span class="pl-cab-datos ms-auto d-flex align-items-end gap-3">
                 <span class="tx-dato text-end"><span class="gp-etiqueta-mini">Total</span><span class="tx-dato-valor">${cantUm(a.cantidad, a.uMedida)}</span></span>
+                ${Number(a.claseLabor) === 2 && esRac(a.uMedida) ? `<span class="tx-dato text-end"><span class="gp-etiqueta-mini">Kg est.</span><span class="tx-dato-valor"${Number(a.pesoRacimo) > 0 ? '' : ' title="Sin peso promedio del lote"'}>${Number(a.kgEstimado) > 0 ? `≈ ${fmt(a.kgEstimado)} kg` : '<span class="text-muted">—</span>'}</span></span>` : ''}
                 <span class="tx-dato text-end"><span class="gp-etiqueta-mini">Horario</span><span class="tx-dato-valor"><i class="bi bi-clock me-1" aria-hidden="true"></i>${escaparHtml(formatoHorario(a))}</span></span>
             </span>
             ${kebabActividad(a)}
@@ -830,15 +869,6 @@ const quitarTrabajador = async (id, tercero) => {
     guardarLista(lista, 'Trabajador quitado', a.id);
 };
 
-const registrar = (id) => {
-    const a = actividad(id);
-    const destino = DESTINOS[a?.destino];
-
-    if (!a || !destino?.puede || Number(a.registrable) !== 1) return;
-
-    window.open(`${destino.url}?planeacion=${encodeURIComponent(a.id)}`, '_blank');
-};
-
 const codigoTercero = (opcion) => texto(opcion.codigo ?? opcion.element?.dataset.codigo);
 
 const plantillaTercero = (opcion) => (opcion.nit
@@ -860,36 +890,109 @@ const fechaActividad = () => (form.sug ? $id('act_fecha').value || fechaPlan() :
 const laborOpcion = () => $id('act_labor').selectedOptions[0] || null;
 const umFormulario = () => $id('act_um').value;
 const grupoFormulario = () => texto(laborOpcion()?.dataset.grupo);
+const esCosechaForm = () => laborOpcion()?.dataset.clase === '2';
+const palmasForm = () => Number($id('act_lote').selectedOptions[0]?.dataset.palmas || 0);
 
 const errorCampo = (id, visible, mensaje = null) => {
     if (mensaje !== null) $id(id).textContent = mensaje;
     mostrar($id(id), visible);
 };
 
-const pintarIndicador = (elemento, asignado, meta, um, motivo = '') => {
-    const c = Number.isNaN(asignado) ? NaN : centavos(asignado);
-    const m = centavos(meta);
+const pintarMensaje = (elemento, clase, icono, html, sub = '') => {
+    elemento.className = `tx-reparto tx-reparto--${clase} pl-indicador`;
+    elemento.innerHTML = `<span class="tx-estado text-wrap"><i class="bi ${icono}" aria-hidden="true"></i><span>${html}</span></span>${sub}`;
+};
+
+const pintarIndicador = (elemento, asignado, meta, um, motivo = '', kg = null) => {
+    const c = Number.isNaN(asignado) ? NaN : milesimas(asignado);
+    const m = milesimas(meta);
     const clase = motivo || !(m > 0) || Number.isNaN(c) ? (motivo ? 'pendiente' : 'inactivo') : (c === m ? 'cuadrado' : (c > m ? 'excedido' : 'pendiente'));
     const icono = { cuadrado: 'bi-check-circle', excedido: 'bi-exclamation-octagon', pendiente: 'bi-hourglass-split', inactivo: 'bi-dash-circle' }[clase];
+    const nota = notaKg(motivo ? 0 : asignado, motivo ? null : kg);
+    const base = clase === 'excedido' && um === 'palmas'
+        ? `Excede en <span class="tx-estado-num">${cant(asignado - meta)}</span> palmas · <span class="tx-estado-num">${cant(asignado)} / ${cant(meta)}</span>`
+        : `Asignado <span class="tx-estado-num">${Number.isNaN(c) ? '—' : cant(asignado)} / ${cant(meta)}</span> ${escaparHtml(um)}`;
 
-    elemento.className = `tx-reparto tx-reparto--${clase} pl-indicador`;
-    elemento.innerHTML = `<span class="tx-estado"><i class="bi ${icono}" aria-hidden="true"></i>${motivo
-        ? escaparHtml(motivo)
-        : `Asignado <span class="tx-estado-num">${Number.isNaN(c) ? '—' : cant(asignado)} / ${cant(meta)}</span> ${escaparHtml(um)}`}</span><div class="tx-reparto-barra"><span></span></div>`;
+    pintarMensaje(elemento, clase, icono, `${motivo ? escaparHtml(motivo) : base}${nota.sufijo}`, `${nota.sub}<div class="tx-reparto-barra"><span></span></div>`);
     elemento.querySelector('.tx-reparto-barra span').style.width = `${m > 0 && !Number.isNaN(c) ? Math.min(100, Math.round(c * 100 / m)) : 0}%`;
 };
 
-const pintarTotal = (elemento, lista, um) => {
-    const invalida = lista.some((t) => Number.isNaN(t.cantidad) || t.cantidad < 0);
+const pintarTotal = (elemento, lista, um, kg = null) => {
+    const invalida = lista.some((t) => malaCant(t.cantidad, um));
     const suma = lista.reduce((total, t) => total + t.cantidad, 0);
+    const nota = notaKg(invalida ? 0 : suma, invalida ? null : kg);
 
-    elemento.className = `tx-reparto tx-reparto--${invalida ? 'pendiente' : 'inactivo'} pl-indicador`;
-    elemento.innerHTML = `<span class="tx-estado">${invalida
-        ? '<i class="bi bi-exclamation-octagon" aria-hidden="true"></i>Hay cantidades inválidas'
-        : `<i class="bi bi-calculator" aria-hidden="true"></i>${suma > 0 ? `Total <span class="tx-estado-num">${cant(suma)}</span> ${escaparHtml(um)}` : 'Sin cantidades asignadas'}`}</span>`;
+    pintarMensaje(elemento, invalida || nota.pendiente ? 'pendiente' : 'inactivo', invalida ? 'bi-exclamation-octagon' : 'bi-calculator', invalida
+        ? 'Hay cantidades inválidas'
+        : `${suma > 0 ? `Total <span class="tx-estado-num">${cant(suma)}</span> ${escaparHtml(um)}` : 'Sin cantidades asignadas'}${nota.sufijo}`, nota.sub);
 };
 
-const indicadorActividad = () => pintarTotal($id('act_indicador'), form.trabajadores, umFormulario() || '');
+const pintarCantidades = (elemento, lista, um, meta, palmas, lote, kg) => {
+    const suma = lista.reduce((total, t) => total + t.cantidad, 0);
+    const invalida = lista.some((t) => malaCant(t.cantidad, um));
+
+    if (!invalida && esPal(um) && lote && palmas > 0) pintarIndicador(elemento, suma, palmas, 'palmas');
+    else if (!invalida && meta > 0) pintarIndicador(elemento, suma, meta, um, '', kg);
+    else if (!invalida && esPal(um) && lote) pintarMensaje(elemento, 'inactivo', 'bi-dash-circle', 'El lote no tiene palmas en producción registradas.');
+    else pintarTotal(elemento, lista, um, kg);
+};
+
+const metaDe = (valor, um) => {
+    const numero = aNumero(valor);
+
+    return malaCant(numero, um) ? 0 : numero;
+};
+
+const excesoPalmas = (lista, um, palmas, lote) => {
+    const suma = lista.reduce((total, t) => total + (Number.isNaN(t.cantidad) ? 0 : t.cantidad), 0);
+
+    return esPal(um) && lote && palmas > 0 && milesimas(suma) > milesimas(palmas)
+        ? `La suma de palmas (${cant(suma)}) supera las ${cant(palmas)} palmas en producción del lote ${lote}.` : '';
+};
+
+const kgForm = () => {
+    const finca = $id('act_finca').value;
+    const lote = $id('act_lote').value;
+    const fecha = fechaActividad();
+
+    return esCosechaForm() && esRac(umFormulario()) && finca && lote && fecha ? pesoDe(finca, lote, fecha, refrescarKg) : null;
+};
+
+const celdaKg = (t, kg) => (kg?.estado === 'ok' && t?.cantidad > 0 ? `≈ ${fmt(t.cantidad * kg.peso)}` : '—');
+
+const indicadorActividad = () => {
+    const um = umFormulario() || '';
+    const lote = $id('act_lote').value;
+    const campo = $id('act_total');
+    const total = aNumero(campo.value);
+    const totalMalo = texto(campo.value) !== '' && malaCant(total, um);
+    const exceso = excesoPalmas(form.trabajadores, um, palmasForm(), lote);
+
+    pintarCantidades($id('act_indicador'), form.trabajadores, um, metaDe(campo.value, um), palmasForm(), lote, kgForm());
+    $id('act_total_um').textContent = um || '—';
+    campo.setAttribute('inputmode', modoNum(um));
+    campo.classList.toggle('is-invalid', totalMalo);
+    errorCampo('error_act_total', totalMalo, msgCant(um));
+    $id('act_repartir').disabled = !form.trabajadores.length || !(total > 0) || totalMalo;
+    errorCampo('error_act_palmas', exceso !== '', exceso);
+    $id('act_lote_palmas').textContent = `${fmt(palmasForm())} palmas en producción`;
+    mostrar($id('act_lote_palmas'), esPal(um) && Boolean(lote) && palmasForm() > 0);
+};
+
+const refrescarKg = () => {
+    const kg = kgForm();
+
+    $id('act_filas').querySelectorAll('[data-kg]').forEach((celda) => { celda.textContent = celdaKg(form.trabajadores[Number(celda.dataset.kg)], kg); });
+    indicadorActividad();
+};
+
+const repartirActividad = () => {
+    if ($id('act_repartir').disabled) return;
+
+    repartir(aNumero($id('act_total').value), form.trabajadores.length, esRac(umFormulario())).forEach((valor, i) => { form.trabajadores[i].cantidad = valor; });
+    pintarReparto();
+    $id('act_filas').querySelectorAll('[data-reparto]').forEach(destellar);
+};
 
 const duplicadoFormulario = (t) => {
     const novedad = $id('act_labor').value;
@@ -901,6 +1004,11 @@ const duplicadoFormulario = (t) => {
 };
 
 const pintarReparto = () => {
+    const um = umFormulario();
+    const cosecha = esCosechaForm() && esRac(um);
+    const kg = kgForm();
+
+    mostrar($id('act_th_kg'), cosecha);
     $id('act_contador').textContent = fmt(form.trabajadores.length);
     $id('act_filas').innerHTML = form.trabajadores.length ? form.trabajadores.map((t, i) => {
         const nombre = escaparHtml(t.nombre || t.tercero);
@@ -908,10 +1016,11 @@ const pintarReparto = () => {
 
         return `<tr class="${error ? 'pl-fila-dup' : ''}">
             <td><span class="font-monospace fw-semibold me-1">${escaparHtml(t.codigo)}</span><span class="gp-truncar d-inline-block align-bottom" title="${nombre}">${nombre}</span>${t.reasignadoDe ? `<span class="gp-chip-fila ambar ms-1">recibe de ${escaparHtml(codigoDe(t.reasignadoDe))}</span>` : ''}${error ? `<div class="invalid-feedback d-block">${escaparHtml(error)}</div>` : ''}</td>
-            <td class="text-end"><input type="text" class="form-control form-control-sm tx-input-num font-monospace ms-auto" data-reparto="${i}" value="${valorCant(t.cantidad)}" placeholder="Opcional" inputmode="decimal" maxlength="14" autocomplete="off" aria-label="Cantidad de ${nombre}"></td>
+            <td class="text-end"><input type="text" class="form-control form-control-sm tx-input-num font-monospace ms-auto${malaCant(t.cantidad, um) ? ' is-invalid' : ''}" data-reparto="${i}" value="${valorCant(t.cantidad)}" placeholder="Opcional" inputmode="${modoNum(um)}" maxlength="14" autocomplete="off" aria-label="Cantidad de ${nombre}"></td>
+            ${cosecha ? `<td class="text-end tx-num text-muted text-nowrap" data-kg="${i}">${celdaKg(t, kg)}</td>` : ''}
             <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger" data-quitar-reparto="${escaparHtml(t.tercero)}" title="Quitar a ${nombre}" aria-label="Quitar a ${nombre}"><i class="bi bi-x-lg" aria-hidden="true"></i></button></td>
         </tr>`;
-    }).join('') : '<tr><td colspan="3" class="text-center text-muted py-3">Seleccione los trabajadores de la actividad.</td></tr>';
+    }).join('') : `<tr><td colspan="${cosecha ? 4 : 3}" class="text-center text-muted py-3">Seleccione los trabajadores de la actividad.</td></tr>`;
     indicadorActividad();
 
     const fuera = form.sug && fechaActividad() === fechaPlan() ? form.trabajadores.filter((t) => nitsAusentes().has(t.tercero)) : [];
@@ -931,7 +1040,7 @@ const sincronizarTrabajadores = () => {
     pintarReparto();
 };
 
-const actualizarLabor = () => {
+const actualizarLabor = (forzar = true) => {
     $id('act_codigo').value = $id('act_labor').value;
     $id('act_codigo').classList.remove('is-invalid');
     errorCampo('error_act_labor', false);
@@ -940,6 +1049,17 @@ const actualizarLabor = () => {
 
     if (grupoFormulario() === '02') cargarPfa($id('act_pfa').dataset.previo || '');
 
+    const cosecha = esCosechaForm() && (forzar || esRac(umFormulario()));
+
+    if (cosecha) {
+        asegurarOpcion($id('act_um'), 'RAC');
+        $('#act_um').val('RAC').trigger('change.select2');
+        errorCampo('error_act_um', false);
+        $id('act_um').closest('.tx-select-ancho').classList.remove('is-invalid');
+    }
+
+    $id('act_um').disabled = cosecha;
+    mostrar($id('act_um_ayuda'), cosecha);
     pintarReparto();
 };
 
@@ -947,7 +1067,7 @@ const asegurarOpcion = (selector, valor) => {
     if (valor && ![...selector.options].some((o) => o.value === valor)) selector.add(new Option(valor, valor));
 };
 
-const opcionLote = (l) => `<option value="${escaparHtml(texto(l.codigo))}" data-nombre="${escaparHtml(texto(l.descripcion))}" data-seccion="${escaparHtml(texto(l.seccion))}">${escaparHtml(texto(l.codigo))} — ${escaparHtml(texto(l.descripcion))}</option>`;
+const opcionLote = (l) => `<option value="${escaparHtml(texto(l.codigo))}" data-nombre="${escaparHtml(texto(l.descripcion))}" data-seccion="${escaparHtml(texto(l.seccion))}" data-palmas="${Number(l.palmas) || 0}">${escaparHtml(texto(l.codigo))} — ${escaparHtml(texto(l.descripcion))}</option>`;
 
 const opcionPfa = (p) => `<option value="${escaparHtml(texto(p.numero))}">PFA-${escaparHtml(texto(p.numero))}${texto(p.observacion) ? ` — ${escaparHtml(texto(p.observacion))}` : ''}</option>`;
 
@@ -1060,9 +1180,10 @@ const abrirActividad = async (base = null, duplicar = false, sugerida = null) =>
     $id('act_hora_inicio').value = base ? texto(base.horaInicio) : '06:00';
     $id('act_hora_fin').value = base ? texto(base.horaFin) : '14:00';
     $id('act_observacion').value = base ? texto(base.observacion) : '';
+    $id('act_total').value = '';
     contarObservacion();
     $('#act_terceros').empty().append(form.trabajadores.map(opcionTercero)).trigger('change.select2');
-    actualizarLabor();
+    actualizarLabor(!editar);
     bootstrap.Modal.getOrCreateInstance($id('modalActividad')).show();
     await cargarLotes(base?.finca || '', base?.lote || '');
     pintarReparto();
@@ -1076,7 +1197,8 @@ const validarActividad = () => {
     const inicio = $id('act_hora_inicio').value;
     const fin = $id('act_hora_fin').value;
     const horaMal = Boolean(inicio) !== Boolean(fin) || (inicio && fin && fin <= inicio);
-    const invalidos = form.trabajadores.some((t) => Number.isNaN(t.cantidad) || t.cantidad < 0);
+    const invalidos = form.trabajadores.some((t) => malaCant(t.cantidad, um));
+    const exceso = excesoPalmas(form.trabajadores, um, palmasForm(), lote);
     const duplicados = form.trabajadores.map(duplicadoFormulario).filter(Boolean);
     const marcar = (id, error, invalido) => {
         errorCampo(error, invalido);
@@ -1098,7 +1220,14 @@ const validarActividad = () => {
 
     if (sinFecha || !finca || !lote || !labor || !um || !form.trabajadores.length) return 'Complete los campos obligatorios.';
     if (horaMal) return $id('error_act_horario').textContent;
-    if (invalidos) return 'Hay cantidades inválidas: use números mayores o iguales a cero con máximo 2 decimales.';
+    if (invalidos) return `Hay cantidades inválidas. ${msgCant(um)}`;
+
+    if (exceso) {
+        $id('act_filas').querySelector('[data-reparto]')?.focus();
+
+        return exceso;
+    }
+
     if (duplicados.length) return duplicados[0];
 
     return '';
@@ -1165,6 +1294,7 @@ const guardarActividad = async (otra = false) => {
     $('#act_um').val('').trigger('change.select2');
     $('#act_terceros').empty().trigger('change.select2');
     $id('act_observacion').value = '';
+    $id('act_total').value = '';
     contarObservacion();
     $id('chip_duplicada').textContent = '';
     mostrar($id('chip_duplicada'), false);
@@ -1183,8 +1313,8 @@ const resumenEdicion = () => {
 
     const final = cantidad >= 0 ? a.cantidad - t.cantidad + cantidad : NaN;
 
-    $id('edit_resumen').textContent = !(Number(a.cantidad) > 0) && centavos(final) === 0 ? 'Total de la actividad: sin cantidades'
-        : `Total de la actividad: ${Number(a.cantidad) > 0 ? cant(a.cantidad) : '—'} → ${centavos(final) > 0 ? `${cant(final)} ${a.uMedida}` : '—'}`;
+    $id('edit_resumen').textContent = !(Number(a.cantidad) > 0) && milesimas(final) === 0 ? 'Total de la actividad: sin cantidades'
+        : `Total de la actividad: ${Number(a.cantidad) > 0 ? cant(a.cantidad) : '—'} → ${milesimas(final) > 0 ? `${cant(final)} ${a.uMedida}` : '—'}`;
 };
 
 const abrirEdicionTrabajador = (id, tercero) => {
@@ -1199,6 +1329,7 @@ const abrirEdicionTrabajador = (id, tercero) => {
     $('#edit_tercero').empty().append(opcionTercero(t)).trigger('change');
     $id('edit_um').textContent = `(${a.uMedida})`;
     $id('edit_cantidad').value = valorCant(Number(t.cantidad));
+    $id('edit_cantidad').setAttribute('inputmode', modoNum(a.uMedida));
     errorCampo('error_edit_tercero', false);
     errorCampo('error_edit_cantidad', false);
     $id('edit_tercero').closest('.tx-select-ancho').classList.remove('is-invalid');
@@ -1224,10 +1355,12 @@ const guardarEdicionTrabajador = async (evento) => {
 
     errorCampo('error_edit_tercero', error !== '', error);
     $id('edit_tercero').closest('.tx-select-ancho').classList.toggle('is-invalid', error !== '');
-    errorCampo('error_edit_cantidad', !(cantidad >= 0));
-    $id('edit_cantidad').classList.toggle('is-invalid', !(cantidad >= 0));
+    const mala = malaCant(cantidad, a.uMedida);
 
-    if (error || !(cantidad >= 0)) return;
+    errorCampo('error_edit_cantidad', mala, msgCant(a.uMedida));
+    $id('edit_cantidad').classList.toggle('is-invalid', mala);
+
+    if (error || mala) return;
 
     const lista = pendientesPlan().map((x) => {
         const envio = aEnvio(x);
@@ -1271,6 +1404,7 @@ const abrirCierre = (id, clave) => {
     $id('cierre_marca').className = Number(a.cantidad) > 0 ? 'text-danger' : 'fw-normal text-muted';
     $id('cierre_marca').textContent = Number(a.cantidad) > 0 ? '*' : '(opcional)';
     $id('cierre_um').textContent = a.uMedida;
+    $id('cierre_cantidad').setAttribute('inputmode', modoNum(a.uMedida));
     $id('cierre_cantidad').value = '';
     $id('cierre_observacion').value = '';
     $id('contador_cierre').textContent = '0 / 250';
@@ -1296,11 +1430,12 @@ const guardarCierre = async (evento) => {
     const ejecutada = aNumero($id('cierre_cantidad').value);
     const observacion = texto($id('cierre_observacion').value);
     const planeada = Number(a.cantidad) > 0;
-    const errorCantidad = parcial && (planeada ? !(ejecutada > 0 && ejecutada < a.cantidad) : Number.isNaN(ejecutada));
+    const noEntero = parcial && esRac(a.uMedida) && Number.isFinite(ejecutada) && !Number.isInteger(ejecutada);
+    const errorCantidad = noEntero || (parcial && (planeada ? !(ejecutada > 0 && ejecutada < a.cantidad) : Number.isNaN(ejecutada)));
 
-    errorCampo('error_cierre_cantidad', errorCantidad, planeada
+    errorCampo('error_cierre_cantidad', errorCantidad, noEntero ? msgCant(a.uMedida) : (planeada
         ? `Indique una cantidad mayor que cero y menor que el total planeado (${cant(a.cantidad)} ${a.uMedida}).`
-        : (texto($id('cierre_cantidad').value).startsWith('-') ? 'La cantidad ejecutada no puede ser negativa.' : 'Use números mayores o iguales a cero con máximo 2 decimales.'));
+        : (texto($id('cierre_cantidad').value).startsWith('-') ? 'La cantidad ejecutada no puede ser negativa.' : msgCant(a.uMedida))));
     $id('cierre_cantidad').classList.toggle('is-invalid', errorCantidad);
     errorCampo('error_cierre_observacion', observacion === '');
     $id('cierre_observacion').classList.toggle('is-invalid', observacion === '');
@@ -1324,27 +1459,27 @@ const repartirPaso = (paso) => {
 
     paso.candidatos.forEach((c) => { if (!marcados.includes(c)) c.cantidad = 0; });
 
-    if (marcados.length) repartir(paso.cantidad, marcados.length).forEach((valor, i) => { marcados[i].cantidad = valor; });
+    if (marcados.length) repartir(paso.cantidad, marcados.length, esRac(paso.a.uMedida)).forEach((valor, i) => { marcados[i].cantidad = valor; });
 };
 
 const motivoPaso = (paso) => {
     const marcados = marcadosPaso(paso);
 
-    if (marcados.some((c) => Number.isNaN(c.cantidad) || c.cantidad < 0)) return 'Hay cantidades inválidas';
+    if (marcados.some((c) => malaCant(c.cantidad, paso.a.uMedida))) return 'Hay cantidades inválidas';
     if (!marcados.length) return paso.cantidad === 0 && paso.a.trabajadores.length > 1 ? '' : 'Seleccione al menos un trabajador';
 
     return '';
 };
 
 const pasoValido = (paso) => !motivoPaso(paso)
-    && centavos(marcadosPaso(paso).reduce((suma, c) => suma + c.cantidad, 0)) === centavos(paso.cantidad);
+    && milesimas(marcadosPaso(paso).reduce((suma, c) => suma + c.cantidad, 0)) === milesimas(paso.cantidad);
 
 const actualizarPaso = () => {
     const paso = aus.pasos[aus.i];
     const ultimo = aus.i === aus.pasos.length - 1;
 
     pintarIndicador($id('aus_indicador'), marcadosPaso(paso).reduce((suma, c) => suma + c.cantidad, 0), paso.cantidad, paso.a.uMedida, motivoPaso(paso));
-    $id('aus_siguiente').disabled = !pasoValido(paso);
+    $id('aus_siguiente').disabled = !pasoValido(paso) || !MOTIVOS_AUSENCIA.length;
     $id('aus_siguiente').innerHTML = ultimo ? '<i class="bi bi-check-lg me-1" aria-hidden="true"></i>Confirmar ausencia' : 'Siguiente<i class="bi bi-chevron-right ms-1" aria-hidden="true"></i>';
 
     if (ultimo) {
@@ -1355,7 +1490,7 @@ const actualizarPaso = () => {
 const candidatoHtml = (c, k) => `<div class="pl-candidato${c.marcado ? ' activo' : ''}">
     <input class="form-check-input" type="checkbox" id="aus_c_${k}" data-cand="${k}"${c.marcado ? ' checked' : ''}>
     <label class="form-check-label min-w-0" for="aus_c_${k}"><span class="font-monospace fw-semibold me-1">${escaparHtml(c.codigo || c.tercero)}</span><span class="gp-truncar d-inline-block align-bottom">${escaparHtml(c.nombre)}</span></label>
-    <input type="text" class="form-control form-control-sm tx-input-num font-monospace" data-cand-cant="${k}" value="${c.marcado ? valorInput(c.cantidad) : ''}" inputmode="decimal" maxlength="14" autocomplete="off" aria-label="Cantidad para ${escaparHtml(c.nombre)}"${c.marcado ? '' : ' disabled'}>
+    <input type="text" class="form-control form-control-sm tx-input-num font-monospace" data-cand-cant="${k}" value="${c.marcado ? valorInput(c.cantidad) : ''}" inputmode="${modoNum(aus.pasos[aus.i]?.a.uMedida)}" maxlength="14" autocomplete="off" aria-label="Cantidad para ${escaparHtml(c.nombre)}"${c.marcado ? '' : ' disabled'}>
 </div>`;
 
 const pintarAusencia = () => {
@@ -1392,6 +1527,21 @@ const pintarAusencia = () => {
     actualizarPaso();
 };
 
+const marcarMotivo = (invalido) => {
+    errorCampo('error_aus_motivo', invalido);
+    $id('aus_motivo').closest('.tx-select-ancho').classList.toggle('is-invalid', invalido);
+};
+
+const validarMotivo = () => {
+    const falta = !$id('aus_motivo').value;
+
+    marcarMotivo(falta);
+
+    if (falta) $id('aus_motivo').nextElementSibling?.querySelector('.select2-selection')?.focus();
+
+    return !falta;
+};
+
 const enviarAusencia = async (reparto) => {
     const ok = await ejecutar('ausencia', {
         planeacion: estado.plan.id,
@@ -1425,10 +1575,33 @@ const abrirAusencia = async (tercero) => {
     });
 
     $id('aus_titulo').textContent = `Reasignar a ${persona.codigo || tercero} · ${persona.nombre}`;
-    $id('aus_motivo').value = '';
+    $('#aus_motivo').val('').trigger('change.select2');
+    marcarMotivo(false);
 
     if (!aus.pasos.length) {
-        if (await confirmar(`¿Marcar ausente a ${persona.codigo || tercero}?`, 'No tiene actividades pendientes en el plan.', 'Sí, marcar ausente')) enviarAusencia([]);
+        if (!MOTIVOS_AUSENCIA.length) {
+            Toast.fire({ icon: 'warning', title: 'Registre motivos en Maestros Palma › Configuración › Motivos de ausencia.' });
+
+            return;
+        }
+
+        const { value } = await Swal.fire({
+            icon: 'question',
+            title: escaparHtml(`¿Marcar ausente a ${persona.codigo || tercero}?`),
+            text: 'No tiene actividades pendientes en el plan.',
+            input: 'select',
+            inputOptions: Object.fromEntries(MOTIVOS_AUSENCIA.map((m) => [m.codigo, `${escaparHtml(m.codigo)} — ${escaparHtml(m.descripcion)}`])),
+            inputPlaceholder: 'Seleccione el motivo…',
+            showCancelButton: true,
+            confirmButtonText: 'Sí, marcar ausente',
+            cancelButtonText: 'Cancelar',
+            inputValidator: (valor) => (valor ? undefined : 'Seleccione el motivo de la ausencia.')
+        });
+
+        if (!value) return;
+
+        $('#aus_motivo').val(value).trigger('change.select2');
+        enviarAusencia([]);
 
         return;
     }
@@ -1680,7 +1853,10 @@ const firmaPla = (f) => JSON.stringify(envioPla(f));
 const vaciaPla = (f) => !f.id && !campoPla(f, 'labor').value && !f.trabajadores.length && !texto(campoPla(f, 'obs').value);
 const tipoPla = (f) => (f.eliminada ? 'eliminada' : (!f.id ? 'nueva' : (firmaPla(f) !== f.original ? 'editada' : '')));
 const suciaPla = () => pla.filas.some((f) => (f.id ? f.eliminada || firmaPla(f) !== f.original : !vaciaPla(f)));
-const invalidaPla = (f) => f.trabajadores.some((t) => Number.isNaN(t.cantidad) || t.cantidad < 0);
+const invalidaPla = (f) => f.trabajadores.some((t) => malaCant(t.cantidad, campoPla(f, 'um').value));
+const cosechaPla = (f) => campoPla(f, 'labor').selectedOptions[0]?.dataset.clase === '2';
+const palmasPla = (f) => Number(campoPla(f, 'lote').selectedOptions[0]?.dataset.palmas || 0);
+const kgPla = (f) => (cosechaPla(f) && esRac(campoPla(f, 'um').value) && pla.finca && campoPla(f, 'lote').value ? pesoDe(pla.finca, campoPla(f, 'lote').value, fechaPlan(), refrescarPla) : null);
 
 const erroresPla = (f, claves) => {
     const d = datosPla(f);
@@ -1703,7 +1879,8 @@ const erroresPla = (f, claves) => {
         agregar('inicio', 'Horario', d.horaInicio && d.horaFin ? 'La hora fin debe ser posterior a la de inicio.' : 'Indique la hora de inicio y la hora fin, o deje ambas vacías.');
     }
     if (!f.trabajadores.length) agregar('trab', 'Trabajadores', 'Seleccione al menos un trabajador.');
-    else if (invalidaPla(f)) agregar('detalle', 'Cantidades', 'Hay cantidades inválidas: use números mayores o iguales a cero con máximo 2 decimales.');
+    else if (invalidaPla(f)) agregar('detalle', 'Cantidades', `Hay cantidades inválidas. ${msgCant(d.uMedida)}`);
+    else if (excesoPalmas(f.trabajadores, d.uMedida, palmasPla(f), d.lote)) agregar('detalle', 'Palmas', excesoPalmas(f.trabajadores, d.uMedida, palmasPla(f), d.lote));
 
     f.dups.forEach((mensaje, i) => { if (mensaje) agregar('trab', `${texto(f.trabajadores[i].codigo) || f.trabajadores[i].tercero} duplicado`, mensaje); });
 
@@ -1765,7 +1942,7 @@ const cargarPfaPla = async (f) => {
 
 const crearFilaPla = (d = {}, despues = null) => {
     const plantilla = document.createElement('template');
-    const f = { uid: ++pla.uid, id: d.id || null, trabajadores: (d.trabajadores || []).map((t) => ({ ...t })), referencia: texto(d.referencia), servidor: '', errores: [], dups: [], umLabor: '' };
+    const f = { uid: ++pla.uid, id: d.id || null, trabajadores: (d.trabajadores || []).map((t) => ({ ...t })), referencia: texto(d.referencia), servidor: '', errores: [], dups: [], umLabor: '', total: '' };
     const comun = { width: '100%', language: IDIOMA_SELECT2, dropdownParent: $('#modalPlanilla') };
 
     plantilla.innerHTML = filaPlaHtml(f.uid);
@@ -1804,8 +1981,20 @@ const crearFilaPla = (d = {}, despues = null) => {
 };
 
 const pintarDetallePla = (f) => {
-    f.det.firstElementChild.innerHTML = `<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
-            <span class="gp-etiqueta-mini">Cantidades por trabajador <span class="fw-normal text-muted">(opcional)</span></span>
+    const um = campoPla(f, 'um').value;
+
+    f.det.firstElementChild.innerHTML = `<div class="d-flex flex-wrap align-items-start justify-content-between gap-2 mb-2">
+            <span class="gp-etiqueta-mini mt-1">Cantidades por trabajador <span class="fw-normal text-muted">(opcional)</span></span>
+            <div class="min-w-0">
+                <div class="input-group input-group-sm pl-total-grupo">
+                    <span class="input-group-text">Total</span>
+                    <input type="text" class="form-control font-monospace text-end tx-num" data-total value="${escaparHtml(f.total)}" inputmode="${modoNum(um)}" placeholder="0" maxlength="14" autocomplete="off" aria-label="Total del grupo">
+                    <span class="input-group-text" data-total-um>${escaparHtml(um || '—')}</span>
+                    <button type="button" class="btn btn-outline-success" data-pla="repartir"><i class="bi bi-distribute-horizontal me-1" aria-hidden="true"></i>Repartir</button>
+                </div>
+                <div class="invalid-feedback d-block d-none" data-total-error></div>
+                <div class="form-text mt-1">Reparte el total en partes iguales; luego puede ajustar cada trabajador.</div>
+            </div>
             <div class="tx-reparto tx-reparto--inactivo pl-indicador ms-auto" data-indicador></div>
         </div>
         ${f.trabajadores.length ? `<div class="pl-planilla-reparto">${f.trabajadores.map((t, i) => {
@@ -1815,7 +2004,7 @@ const pintarDetallePla = (f) => {
                 <span class="font-monospace fw-semibold">${escaparHtml(t.codigo || t.tercero)}</span>
                 <span class="gp-truncar flex-grow-1" title="${nombre}">${nombre}</span>
                 ${t.reasignadoDe ? `<span class="gp-chip-fila ambar">recibe de ${escaparHtml(codigoDe(t.reasignadoDe))}</span>` : ''}
-                <input type="text" class="form-control form-control-sm tx-input-num font-monospace" data-cant="${i}" value="${valorCant(t.cantidad)}" placeholder="Opcional" inputmode="decimal" maxlength="14" autocomplete="off" aria-label="Cantidad de ${nombre}">
+                <input type="text" class="form-control form-control-sm tx-input-num font-monospace${malaCant(t.cantidad, um) ? ' is-invalid' : ''}" data-cant="${i}" value="${valorCant(t.cantidad)}" placeholder="Opcional" inputmode="${modoNum(um)}" maxlength="14" autocomplete="off" aria-label="Cantidad de ${nombre}">
                 <div class="invalid-feedback d-block d-none w-100 mt-0" data-dup></div>
             </div>`;
     }).join('')}</div>` : '<span class="small text-muted">Seleccione los trabajadores de la fila.</span>'}`;
@@ -1849,7 +2038,9 @@ const pintarFilaPla = (f, numero) => {
         control.setAttribute('aria-invalid', String(malo));
         (control.closest('.tx-select-ancho') || control).classList.toggle('is-invalid', malo || (campo === 'codigo' && control.dataset.desconocido === '1'));
 
-        if (control.disabled !== f.eliminada) control.disabled = f.eliminada;
+        const bloqueado = f.eliminada || (campo === 'um' && cosechaPla(f) && esRac(control.value));
+
+        if (control.disabled !== bloqueado) control.disabled = bloqueado;
     });
 
     f.tr.querySelector('[data-pla="duplicar"]').disabled = f.eliminada || estado.guardando;
@@ -1859,9 +2050,14 @@ const pintarFilaPla = (f, numero) => {
     eliminar.setAttribute('aria-label', eliminar.title);
     eliminar.innerHTML = `<i class="bi ${f.eliminada ? 'bi-arrow-counterclockwise' : 'bi-trash'}" aria-hidden="true"></i>`;
 
+    const palmas = palmasPla(f);
+    const conTope = !invalida && esPal(d.uMedida) && Boolean(d.lote) && palmas > 0;
+    const kg = kgPla(f);
+
     mostrar(boton, f.trabajadores.length > 0 && !f.eliminada);
-    boton.classList.toggle('pl-mal', invalida);
-    boton.innerHTML = `<i class="bi bi-people" aria-hidden="true"></i><span class="tx-chip-cont verde">${fmt(f.trabajadores.length)}</span>${invalida ? 'Cantidades inválidas' : (suma > 0 ? `Total <span class="tx-num">${cant(suma)}</span>` : 'Sin cantidades')}`;
+    boton.classList.toggle('pl-mal', invalida || (conTope && milesimas(suma) > milesimas(palmas)));
+    boton.innerHTML = `<i class="bi bi-people" aria-hidden="true"></i><span class="tx-chip-cont verde">${fmt(f.trabajadores.length)}</span>${invalida ? 'Cantidades inválidas'
+        : (conTope ? `<span class="tx-num">${cant(suma)} / ${cant(palmas)}</span> palmas` : (suma > 0 ? `Total <span class="tx-num">${cant(suma)}</span>${textoKg(suma, kg)}` : 'Sin cantidades'))}`;
     boton.setAttribute('aria-expanded', String(pla.abierta === f.uid));
     mas.textContent = `+${ocultos}`;
     mostrar(mas, ocultos > 0);
@@ -1874,8 +2070,20 @@ const pintarFilaPla = (f, numero) => {
     if (pla.abierta !== f.uid) return;
 
     const indicador = f.det.querySelector('[data-indicador]');
+    const total = aNumero(f.total);
+    const totalMalo = texto(f.total) !== '' && malaCant(total, d.uMedida);
+    const campoTotal = f.det.querySelector('[data-total]');
 
-    if (indicador) pintarTotal(indicador, f.trabajadores, d.uMedida);
+    if (indicador) pintarCantidades(indicador, f.trabajadores, d.uMedida, metaDe(f.total, d.uMedida), palmas, d.lote, kg);
+
+    if (campoTotal) {
+        campoTotal.classList.toggle('is-invalid', totalMalo);
+        campoTotal.setAttribute('inputmode', modoNum(d.uMedida));
+        f.det.querySelector('[data-total-um]').textContent = d.uMedida || '—';
+        f.det.querySelector('[data-total-error]').textContent = msgCant(d.uMedida);
+        mostrar(f.det.querySelector('[data-total-error]'), totalMalo);
+        f.det.querySelector('[data-pla="repartir"]').disabled = estado.guardando || !f.trabajadores.length || !(total > 0) || totalMalo;
+    }
 
     f.det.querySelectorAll('[data-item]').forEach((item) => {
         const i = Number(item.dataset.item);
@@ -2006,6 +2214,23 @@ const alternarDetallePla = (f) => {
     if (pla.abierta) pintarDetallePla(f);
 
     refrescarPla();
+};
+
+const repartirPla = (f) => {
+    const boton = f?.det.querySelector('[data-pla="repartir"]');
+
+    if (!boton || boton.disabled) return;
+
+    const um = campoPla(f, 'um').value;
+
+    repartir(aNumero(f.total), f.trabajadores.length, esRac(um)).forEach((valor, i) => { f.trabajadores[i].cantidad = valor; });
+    f.det.querySelectorAll('[data-cant]').forEach((campo) => {
+        campo.value = valorCant(f.trabajadores[Number(campo.dataset.cant)].cantidad);
+        campo.classList.remove('is-invalid');
+    });
+    f.servidor = '';
+    refrescarPla();
+    f.det.querySelectorAll('.pl-planilla-item').forEach(destellar);
 };
 
 const irAFilaPla = (f) => {
@@ -2240,6 +2465,11 @@ const cambiarCampoPla = (f, control) => {
 
         if (umLabor && (!um.value || um.value === f.umLabor)) $(um).val(umLabor).trigger('change.select2');
 
+        if (cosechaPla(f)) {
+            asegurarOpcion(um, 'RAC');
+            $(um).val('RAC').trigger('change.select2');
+        }
+
         f.umLabor = umLabor;
         cargarPfaPla(f);
     } else if (campo === 'trab') {
@@ -2275,8 +2505,10 @@ const iniciarPlanilla = () => {
             const valor = aNumero(cantidad.value);
 
             f.trabajadores[Number(cantidad.dataset.cant)].cantidad = valor;
-            cantidad.classList.toggle('is-invalid', Number.isNaN(valor));
+            cantidad.classList.toggle('is-invalid', malaCant(valor, campoPla(f, 'um').value));
         }
+
+        if (evento.target.matches('[data-total]')) f.total = evento.target.value;
 
         f.servidor = '';
         refrescarPla();
@@ -2292,6 +2524,7 @@ const iniciarPlanilla = () => {
             detalle: () => alternarDetallePla(f),
             duplicar: () => duplicarFilaPla(f),
             eliminar: () => eliminarFilaPla(f),
+            repartir: () => repartirPla(f),
             ir: () => irAFilaPla(pla.filas.find((x) => x.uid === Number(boton.dataset.uid)))
         })[boton.dataset.pla]?.();
     });
@@ -2312,6 +2545,7 @@ const iniciarPlanilla = () => {
         } else if (evento.key === 'Enter' && control.matches('#pla_filas input:not(.select2-search__field)')) {
             evento.preventDefault();
 
+            if (control.matches('[data-total]')) repartirPla(filaDe(control));
             if (control.dataset.campo === 'codigo') control.dispatchEvent(new Event('change', { bubbles: true }));
             if (control.dataset.campo === 'obs' && filaDe(control) === pla.filas[pla.filas.length - 1]) nuevaFilaPla();
         }
@@ -2366,6 +2600,12 @@ const iniciarSelect2 = () => {
             ? $(`<span><span class="font-monospace">${escaparHtml(codigoTercero(opcion) || opcion.id)}</span> ${escaparHtml(nombreCorto(opcion.text))}</span>`)
             : opcion.text)
     });
+    $id('aus_motivo').innerHTML = MOTIVOS_AUSENCIA.length
+        ? '<option value=""></option>' + MOTIVOS_AUSENCIA.map((m) => `<option value="${escaparHtml(m.codigo)}">${escaparHtml(m.codigo)} — ${escaparHtml(m.descripcion)}</option>`).join('')
+        : '<option value="">No hay motivos activos</option>';
+    $id('aus_motivo').disabled = !MOTIVOS_AUSENCIA.length;
+    mostrar($id('aus_motivo_vacio'), !MOTIVOS_AUSENCIA.length);
+    $('#aus_motivo').select2({ width: '100%', language: IDIOMA_SELECT2, dropdownParent: $('#modalAusencia'), placeholder: MOTIVOS_AUSENCIA.length ? 'Seleccione el motivo…' : 'No hay motivos activos' });
     $('#edit_tercero').select2({
         ...selectTerceros('#modalEditarTrabajador'),
         placeholder: 'Código, identificación o nombre…',
@@ -2993,7 +3233,6 @@ const ACCIONES = {
     completar: (d) => ejecutar('cerrarActividad', { linea: d.act, estado: 'COMPLETADA', cantidadEjecutada: '', observacionCierre: '' }, 'Actividad completada', Number(d.act), 'No se pudo cerrar la actividad'),
     parcial: (d) => abrirCierre(d.act, 'PARCIAL'),
     noejecutada: (d) => abrirCierre(d.act, 'NO_EJECUTADA'),
-    registrar: (d) => registrar(d.act),
     'editar-trab': (d) => abrirEdicionTrabajador(d.act, d.tercero),
     'ausente-trab': (d) => abrirAusencia(d.tercero),
     'quitar-trab': (d) => quitarTrabajador(d.act, d.tercero),
@@ -3076,8 +3315,16 @@ document.addEventListener('DOMContentLoaded', () => {
     $('#act_um').on('change', () => {
         errorCampo('error_act_um', false);
         $id('act_um').closest('.tx-select-ancho').classList.remove('is-invalid');
-        indicadorActividad();
+        pintarReparto();
     });
+    $id('act_total').addEventListener('input', indicadorActividad);
+    $id('act_total').addEventListener('keydown', (evento) => {
+        if (evento.key !== 'Enter') return;
+
+        evento.preventDefault();
+        repartirActividad();
+    });
+    $id('act_repartir').addEventListener('click', repartirActividad);
     ['act_hora_inicio', 'act_hora_fin'].forEach((id) => $id(id).addEventListener('change', () => {
         errorCampo('error_act_horario', false);
         ['act_hora_inicio', 'act_hora_fin'].forEach((x) => $id(x).classList.remove('is-invalid'));
@@ -3102,8 +3349,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const valor = aNumero(campo.value);
 
         form.trabajadores[Number(campo.dataset.reparto)].cantidad = valor;
-        campo.classList.toggle('is-invalid', Number.isNaN(valor));
-        indicadorActividad();
+        campo.classList.toggle('is-invalid', malaCant(valor, umFormulario()));
+        refrescarKg();
     });
     $id('act_filas').addEventListener('click', (evento) => {
         const boton = evento.target.closest('[data-quitar-reparto]');
@@ -3166,7 +3413,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         paso.manual = true;
         paso.candidatos[Number(campo.dataset.candCant)].cantidad = valor;
-        campo.classList.toggle('is-invalid', Number.isNaN(valor));
+        campo.classList.toggle('is-invalid', malaCant(valor, paso.a.uMedida));
         actualizarPaso();
     });
     $id('aus_cuerpo').addEventListener('click', (evento) => {
@@ -3182,8 +3429,9 @@ document.addEventListener('DOMContentLoaded', () => {
         aus.i = Math.max(0, aus.i - 1);
         pintarAusencia();
     });
+    $('#aus_motivo').on('change', () => marcarMotivo(false));
     $id('aus_siguiente').addEventListener('click', () => {
-        if (!pasoValido(aus.pasos[aus.i])) return;
+        if (!pasoValido(aus.pasos[aus.i]) || ((aus.i === 0 || aus.i === aus.pasos.length - 1) && !validarMotivo())) return;
 
         if (aus.i < aus.pasos.length - 1) {
             aus.i++;

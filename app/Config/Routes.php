@@ -223,6 +223,13 @@ $routes->post('gestion-palma/parametros/unidad-medida/crear', 'gestionpalma\Para
 $routes->post('gestion-palma/parametros/unidad-medida/actualizar', 'gestionpalma\ParametrosAgronomicosController::actualizarUnidad');
 $routes->post('gestion-palma/parametros/unidad-medida/eliminar', 'gestionpalma\ParametrosAgronomicosController::eliminarUnidad');
 $routes->post('gestion-palma/parametros/unidad-medida/cambiar-estado', 'gestionpalma\ParametrosAgronomicosController::cambiarEstadoUnidad');
+$routes->get('gestion-palma/parametros/motivo-ausencia/(:num)', 'gestionpalma\ParametrosAgronomicosController::motivoAusencia/$1');
+$routes->post('gestion-palma/parametros/motivo-ausencia/listar', 'gestionpalma\ParametrosAgronomicosController::listarMotivos');
+$routes->post('gestion-palma/parametros/motivo-ausencia/obtener', 'gestionpalma\ParametrosAgronomicosController::obtenerMotivo');
+$routes->post('gestion-palma/parametros/motivo-ausencia/crear', 'gestionpalma\ParametrosAgronomicosController::crearMotivo');
+$routes->post('gestion-palma/parametros/motivo-ausencia/actualizar', 'gestionpalma\ParametrosAgronomicosController::actualizarMotivo');
+$routes->post('gestion-palma/parametros/motivo-ausencia/eliminar', 'gestionpalma\ParametrosAgronomicosController::eliminarMotivo');
+$routes->post('gestion-palma/parametros/motivo-ausencia/cambiar-estado', 'gestionpalma\ParametrosAgronomicosController::cambiarEstadoMotivo');
 $routes->get('gestion-palma/lotes/registro/(:num)', 'gestionpalma\LotesController::registro/$1');
 $routes->post('gestion-palma/lotes/registro/listar', 'gestionpalma\LotesController::listarLotes');
 $routes->post('gestion-palma/lotes/registro/obtener', 'gestionpalma\LotesController::obtenerLote');
@@ -318,6 +325,7 @@ $routes->post('transacciones/produccion/periodos', 'transacciones\ProduccionCont
 $routes->post('transacciones/produccion/eliminar', 'transacciones\ProduccionController::eliminar');
 $routes->post('transacciones/produccion/actualizar', 'transacciones\ProduccionController::actualizar');
 $routes->post('transacciones/produccion/habilitar', 'transacciones\ProduccionController::habilitar');
+$routes->post('transacciones/produccion/planeaciones', 'transacciones\ProduccionController::planeaciones');
 $routes->get('transacciones/labores/(:num)', 'transacciones\LaboresController::index/$1');
 $routes->post('transacciones/labores/periodos', 'transacciones\LaboresController::periodos');
 $routes->post('transacciones/labores/secciones', 'transacciones\LaboresController::secciones');
@@ -330,6 +338,7 @@ $routes->post('transacciones/labores/consultar', 'transacciones\LaboresControlle
 $routes->post('transacciones/labores/detalle', 'transacciones\LaboresController::detalle');
 $routes->post('transacciones/labores/eliminar', 'transacciones\LaboresController::eliminar');
 $routes->post('transacciones/labores/habilitar', 'transacciones\LaboresController::habilitar');
+$routes->post('transacciones/labores/planeaciones', 'transacciones\LaboresController::planeaciones');
 $routes->get('transacciones/fertilizacion/(:num)', 'transacciones\FertilizacionController::index/$1');
 $routes->post('transacciones/fertilizacion/periodos', 'transacciones\FertilizacionController::periodos');
 $routes->post('transacciones/fertilizacion/secciones', 'transacciones\FertilizacionController::secciones');
@@ -344,6 +353,7 @@ $routes->post('transacciones/fertilizacion/consultar', 'transacciones\Fertilizac
 $routes->post('transacciones/fertilizacion/detalle', 'transacciones\FertilizacionController::detalle');
 $routes->post('transacciones/fertilizacion/eliminar', 'transacciones\FertilizacionController::eliminar');
 $routes->post('transacciones/fertilizacion/habilitar', 'transacciones\FertilizacionController::habilitar');
+$routes->post('transacciones/fertilizacion/planeaciones', 'transacciones\FertilizacionController::planeaciones');
 $routes->get('transacciones/planeacion/(:num)', 'transacciones\PlaneacionController::index/$1');
 $routes->post('transacciones/planeacion/plan', 'transacciones\PlaneacionController::plan');
 $routes->post('transacciones/planeacion/pendientes', 'transacciones\PlaneacionController::pendientes');
@@ -362,6 +372,7 @@ $routes->post('transacciones/planeacion/cerrarPlan', 'transacciones\PlaneacionCo
 $routes->post('transacciones/planeacion/reabrirPlan', 'transacciones\PlaneacionController::reabrirPlan');
 $routes->post('transacciones/planeacion/eliminar', 'transacciones\PlaneacionController::eliminar');
 $routes->post('transacciones/planeacion/precarga', 'transacciones\PlaneacionController::precarga');
+$routes->post('transacciones/planeacion/pesoPromedio', 'transacciones\PlaneacionController::pesoPromedio');
 $routes->post('transacciones/planeacion/sugerencias', 'transacciones\PlaneacionController::sugerencias');
 $routes->post('transacciones/planeacion/sugerencias/aprobar', 'transacciones\PlaneacionController::aprobarSugerencia');
 $routes->post('transacciones/planeacion/sugerencias/rechazar', 'transacciones\PlaneacionController::rechazarSugerencia');

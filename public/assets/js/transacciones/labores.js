@@ -449,11 +449,12 @@ const tarjetaLinea = (linea, indice) => {
         ? CHIP_PENDIENTE
         : `${fmt(valorLinea(linea))}${faltaTarifa ? ' <i class="bi bi-exclamation-triangle tx-texto-ambar" title="Hay trabajadores sin tarifa" aria-label="Hay trabajadores sin tarifa"></i>' : ''}`;
 
-    return `<div class="tx-tarjeta${faltaTarifa ? ' tx-tarjeta--sintarifa' : ''}${linea.marca ? ` ${linea.marca}` : ''}" data-linea="${linea.id}"${linea.cargando ? ' aria-busy="true"' : ''}>
+    return `<div class="tx-tarjeta${linea.planeacion ? ' tx-tarjeta--planeada' : ''}${faltaTarifa ? ' tx-tarjeta--sintarifa' : ''}${linea.marca ? ` ${linea.marca}` : ''}" data-linea="${linea.id}"${linea.cargando ? ' aria-busy="true"' : ''}>
         <div class="tx-tarjeta-cab tx-tarjeta-cab--fija flex-wrap">
             <span class="gp-chip-fila tx-chip-neutro font-monospace">#${indice + 1}</span>
             <span><span class="font-monospace fw-semibold">${escaparHtml(linea.novedad)}</span> — <span class="gp-truncar d-inline-block align-bottom" title="${labor}">${escaparHtml(linea.novedadNombre)}</span></span>
             <span class="gp-chip-fila tx-chip-neutro">${escaparHtml(linea.uMedida)}</span>
+            ${linea.planeacion ? chipPlaneacion(linea.planeacion) : ''}
             <span class="tx-sep">&middot;</span>
             ${periodoActual() && !fechaEnPeriodo(linea.fecha)
         ? `<span class="text-nowrap text-danger" title="La fecha de la línea está fuera del periodo seleccionado"><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>${fechaCorta(linea.fecha)}</span>`
@@ -561,6 +562,7 @@ const pintarLineas = () => {
 
     $id('res_lineas').textContent = fmt(lineas.length);
     $id('res_valor').textContent = fmt(valor);
+    pintarPlaneadas();
 };
 
 const habilitarTipo = (activo) => {
@@ -665,6 +667,7 @@ const cargarPlanes = async (finca, valor = '', estricto = false) => {
     reiniciarSelect('referencia', finca ? 'Cargando planes…' : 'Seleccione una finca primero');
     selector.dataset.previo = '';
     mostrar($id('ayuda_sin_planes'), false);
+    pintarPlaneadas();
 
     if (!finca) return;
 
@@ -694,6 +697,7 @@ const cargarPlanes = async (finca, valor = '', estricto = false) => {
     selector.dataset.previo = selector.value;
     mostrar($id('ayuda_sin_planes'), filas.length === 0);
     $('#referencia').trigger('change.select2');
+    pintarPlaneadas();
 
     if (vencida && estricto) {
         errorCampo('error_referencia', true);
@@ -710,7 +714,7 @@ const confirmarCambio = async (id, titulo, accion) => {
 
     if (selector.value === (selector.dataset.previo || '')) return;
 
-    if (estado.lineas.length > 0 && (selector.dataset.previo || !estado.planeacionLinea)) {
+    if (estado.lineas.length > 0 && (selector.dataset.previo || planeadas().length === 0)) {
         const respuesta = await Swal.fire({
             icon: 'warning',
             title: titulo,
@@ -1095,9 +1099,6 @@ const limpiarTodo = () => {
 const quitarPlaneacion = () => {
     const url = new URL(window.location.href);
 
-    estado.planeacionLinea = null;
-    mostrar($id('nota_planeacion'), false);
-
     if (!url.searchParams.has('planeacion')) return;
 
     url.searchParams.delete('planeacion');
@@ -1157,7 +1158,6 @@ const precargarPlaneacion = async () => {
     const anio = fecha.substring(0, 4);
     const anios = Array.from($id('anio').options);
     const finca = texto(datos.finca);
-    const lote = texto(datos.lote);
 
     $('#tipo').val(opcionTipo.value).trigger('change');
 
@@ -1191,33 +1191,262 @@ const precargarPlaneacion = async () => {
         if ($id('referencia').value) await cargarLotes(finca, '');
     }
 
-    const nueva = {
+    agregarPlaneaciones([{ ...datos, linea: Number(linea) }]);
+};
+
+const ESTADOS_PLA = { COMPLETADA: 'Completada', PARCIAL: 'Parcial' };
+const pla = { filas: [], cargando: false, error: '', seleccion: new Set(), turno: 0 };
+
+const planeadas = () => estado.lineas.filter((linea) => linea.planeacion);
+const plaAgregada = (id) => estado.lineas.some((linea) => linea.planeacion?.id === id);
+const cantPla = (valor, um) => Number(valor || 0).toLocaleString('es-CO', { maximumFractionDigits: /RAC/i.test(um) ? 0 : 3 });
+const sinTildes = (valor) => texto(valor).normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
+const pluralPla = (cantidad, uno, varios) => `${fmt(cantidad)} ${cantidad === 1 ? uno : varios}`;
+
+const chipPlaneacion = (planeacion) => `<span class="gp-chip-ambito seccion text-nowrap" title="Planeación del ${fechaCorta(planeacion.fecha)}${ESTADOS_PLA[planeacion.estado] ? ` · ${ESTADOS_PLA[planeacion.estado]}` : ''}"><i class="bi bi-calendar-check me-1" aria-hidden="true"></i>Planeación</span>`;
+
+const lineaPlaneada = (dato) => {
+    const lote = texto(dato.lote);
+    const fecha = texto(dato.fecha).substring(0, 10);
+
+    return {
         id: estado.secuencia++,
-        novedad: texto(datos.novedad),
-        novedadNombre: texto(datos.novedadNombre),
-        uMedida: texto(datos.uMedida),
+        novedad: texto(dato.novedad),
+        novedadNombre: texto(dato.novedadNombre),
+        uMedida: texto(dato.uMedida),
         fecha,
-        finca,
-        seccion: texto(datos.seccion),
+        finca: texto(dato.finca),
+        seccion: texto(dato.seccion),
         lote,
-        cantidad: Number(datos.cantidad || 0),
+        cantidad: Number(dato.cantidad || 0),
         jornales: 0,
         manual: true,
         marca: 'tx-flash',
         cargando: true,
         insumos: insumosDeLote(lote),
-        trabajadores: (datos.trabajadores || []).map((trabajador) => ({
+        planeacion: { id: Number(dato.linea), fecha, estado: texto(dato.estado).toUpperCase() },
+        trabajadores: (dato.trabajadores || []).map((trabajador) => ({
             tercero: texto(trabajador.tercero), terceroNombre: texto(trabajador.nombre), terceroCodigo: texto(trabajador.codigo),
             cantidad: Number(trabajador.cantidad || 0), jornales: 0, precio: null, existe: 0
         }))
     };
+};
 
-    estado.lineas.push(nueva);
-    estado.planeacionLinea = Number(linea);
-    poner('nota_planeacion_texto', `Precargado desde la planeación del ${fechaCorta(fecha)} · ${nueva.novedad} — ${nueva.novedadNombre} · Lote ${lote}. Revise y guarde.`);
-    mostrar($id('nota_planeacion'), true);
+const agregarPlaneaciones = (lista) => {
+    const nuevas = lista.map(lineaPlaneada);
+
+    estado.lineas.push(...nuevas);
     pintarLineas();
-    precioLinea(nueva);
+    nuevas.forEach(precioLinea);
+
+    return nuevas;
+};
+
+const pintarPlaneadas = () => {
+    const total = planeadas().length;
+    const boton = $id('btn_planeaciones');
+
+    poner('nota_planeacion_texto', `${pluralPla(total, 'actividad', 'actividades')} de la planeación en el detalle. Revise los valores y guarde.`);
+    mostrar($id('nota_planeacion'), total > 0);
+
+    if (!boton) return;
+
+    const disponibles = pla.filas.filter((fila) => !plaAgregada(Number(fila.linea))).length;
+    const bloqueado = CFG.referencia && (!$id('cap_finca').value || !$id('referencia').value);
+
+    poner('cont_planeaciones', fmt(disponibles));
+    $id('cont_planeaciones').classList.toggle('verde', disponibles > 0);
+    boton.disabled = bloqueado;
+    boton.title = bloqueado ? 'Seleccione la finca y la referencia primero' : 'Planeaciones completadas';
+};
+
+const motivoPla = (fila) => {
+    const fecha = texto(fila.fecha).substring(0, 10);
+    const referencia = texto(fila.referencia);
+
+    if (!fechaEnPeriodo(fecha)) return 'Fuera del periodo';
+
+    if (CFG.referencia && referencia && referencia !== $id('referencia').value) return `Otra referencia (${referencia})`;
+
+    if (!CFG.referencia && !$id('todas_fechas').checked && fecha !== $id('fecha').value) return 'Fecha distinta; active Todas las fechas';
+
+    return '';
+};
+
+const defectoPla = () => {
+    const [inicio, fin] = rangoPeriodo();
+    const fecha = $id('fecha').value;
+    const periodo = (CFG.referencia || $id('todas_fechas').checked) && inicio && fin;
+
+    return { pla_desde: periodo ? inicio : fecha, pla_hasta: periodo ? fin : fecha, pla_finca: CFG.referencia ? texto($id('cap_finca').value) : '', pla_buscar: '' };
+};
+
+const filtrosAplicados = () => Object.entries(defectoPla()).some(([id, valor]) => texto($id(id).value) !== valor);
+
+const limpiarFiltrosPla = () => {
+    Object.entries(defectoPla()).forEach(([id, valor]) => { $id(id).value = valor; });
+    pintarPla();
+};
+
+const seleccionablePla = (fila) => !plaAgregada(Number(fila.linea)) && motivoPla(fila) === '';
+
+const visiblesPla = () => {
+    const desde = $id('pla_desde').value;
+    const hasta = $id('pla_hasta').value;
+    const finca = $id('pla_finca').value;
+    const termino = sinTildes($id('pla_buscar').value);
+
+    return pla.filas.filter((fila) => {
+        const fecha = texto(fila.fecha).substring(0, 10);
+        const busqueda = sinTildes([fila.lote, fila.loteNombre, fila.novedad, fila.novedadNombre, ...(fila.trabajadores || []).flatMap((trabajador) => [trabajador.codigo, trabajador.nombre])].join(' '));
+
+        return (!desde || fecha >= desde) && (!hasta || fecha <= hasta) && (!finca || texto(fila.finca) === finca) && (!termino || busqueda.includes(termino));
+    }).sort((a, b) => texto(b.fecha).localeCompare(texto(a.fecha)) || texto(a.finca).localeCompare(texto(b.finca)) || texto(a.lote).localeCompare(texto(b.lote)));
+};
+
+const filaPla = (fila) => {
+    const id = Number(fila.linea);
+    const agregada = plaAgregada(id);
+    const motivo = agregada ? '' : motivoPla(fila);
+    const libre = !agregada && motivo === '';
+    const marcada = agregada || pla.seleccion.has(id);
+    const trabajadores = fila.trabajadores || [];
+    const codigos = escaparHtml(trabajadores.map((trabajador) => texto(trabajador.codigo) || texto(trabajador.tercero)).join(', '));
+    const um = texto(fila.uMedida);
+    const nombre = escaparHtml(texto(fila.novedadNombre));
+    const completada = texto(fila.estado).toUpperCase() === 'COMPLETADA';
+
+    return `<tr data-pla="${id}" class="${marcada ? 'table-active' : ''}${libre ? '' : ' text-muted'}"${libre ? ' style="cursor:pointer"' : ''}>
+        <td class="text-center"><input class="form-check-input" type="checkbox" data-pla-check="${id}" aria-label="Seleccionar ${escaparHtml(texto(fila.novedad))} del lote ${escaparHtml(texto(fila.lote))} del ${fechaCorta(fila.fecha)}"${marcada ? ' checked' : ''}${libre ? '' : ' disabled'}></td>
+        <td class="text-nowrap">${fechaCorta(fila.fecha)}</td>
+        <td class="font-monospace text-nowrap">${escaparHtml(texto(fila.finca))} / ${escaparHtml(texto(fila.lote))}</td>
+        <td><span class="font-monospace fw-semibold">${escaparHtml(texto(fila.novedad))}</span> <span class="gp-truncar d-inline-block align-bottom" title="${nombre}">${nombre}</span></td>
+        <td class="text-end tx-num text-nowrap">${cantPla(fila.cantidad, um)} ${escaparHtml(um)}</td>
+        <td><div class="d-flex flex-wrap gap-1"><span class="gp-chip-fila ${completada ? 'verde' : 'ambar'}">${completada ? 'Completada' : 'Parcial'}</span>${agregada ? '<span class="gp-chip-fila tx-chip-neutro">Agregada</span>' : ''}</div>${motivo ? `<span class="gp-subtexto mt-1">${escaparHtml(motivo)}</span>` : ''}</td>
+        <td><span class="tx-chip-cont${trabajadores.length ? ' verde' : ''}" title="${codigos}">${fmt(trabajadores.length)}</span><span class="gp-subtexto gp-truncar font-monospace mt-1" title="${codigos}">${codigos}</span></td>
+    </tr>`;
+};
+
+const estadoPla = (icono, titulo, detalle, boton = '', chico = false) => `<div class="gp-estado-vacio text-center py-5">
+    <div class="gp-medallon${chico ? ' chico' : ''} d-inline-flex align-items-center justify-content-center rounded-circle mb-3"><i class="bi ${icono}" aria-hidden="true"></i></div>
+    <h6 class="mb-1">${titulo}</h6>${detalle ? `<p class="text-muted mb-0">${detalle}</p>` : ''}${boton ? `<div class="mt-3">${boton}</div>` : ''}
+</div>`;
+
+const seleccionPla = () => {
+    const total = pla.seleccion.size;
+    const todas = $id('pla_todas');
+    const libres = Array.from(document.querySelectorAll('#pla_cuerpo [data-pla-check]:not(:disabled)'));
+
+    $id('pla_seleccion').innerHTML = `<strong>${fmt(total)}</strong> ${total === 1 ? 'seleccionada' : 'seleccionadas'}`;
+    $id('pla_agregar').disabled = total === 0;
+    libres.forEach((check) => {
+        check.checked = pla.seleccion.has(Number(check.dataset.plaCheck));
+        check.closest('tr').classList.toggle('table-active', check.checked);
+    });
+
+    if (!todas) return;
+
+    const marcadas = libres.filter((check) => check.checked).length;
+
+    todas.disabled = libres.length === 0;
+    todas.checked = libres.length > 0 && marcadas === libres.length;
+    todas.indeterminate = marcadas > 0 && marcadas < libres.length;
+};
+
+const pintarPla = () => {
+    const cuerpo = $id('pla_cuerpo');
+    const visibles = visiblesPla();
+    const desde = $id('pla_desde').value;
+    const hasta = $id('pla_hasta').value;
+    const limpiar = '<button type="button" class="btn btn-outline-secondary btn-sm" data-pla-limpiar><i class="bi bi-eraser me-1" aria-hidden="true"></i>Limpiar filtros</button>';
+
+    poner('pla_rango', desde && hasta && desde !== hasta ? `${fechaCorta(desde)} – ${fechaCorta(hasta)}` : (desde || hasta ? fechaCorta(desde || hasta) : 'Todas las fechas'));
+    mostrar($id('pla_limpiar_col'), !pla.cargando && filtrosAplicados());
+    ['pla_desde', 'pla_hasta', 'pla_buscar'].forEach((id) => { $id(id).disabled = pla.cargando; });
+    $id('pla_finca').disabled = pla.cargando || CFG.referencia;
+    pla.seleccion = new Set([...pla.seleccion].filter((id) => visibles.some((fila) => Number(fila.linea) === id && seleccionablePla(fila))));
+    cuerpo.setAttribute('aria-busy', String(pla.cargando));
+
+    if (pla.cargando) {
+        cuerpo.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-success" role="status"><span class="visually-hidden">Consultando planeaciones…</span></div></div>';
+    } else if (pla.error) {
+        cuerpo.innerHTML = estadoPla('bi-wifi-off', 'No se pudieron consultar las planeaciones', escaparHtml(pla.error), '<button type="button" class="btn btn-outline-secondary btn-sm" data-pla-reintentar><i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i>Reintentar</button>', true);
+    } else if (pla.filas.length === 0) {
+        cuerpo.innerHTML = estadoPla('bi-calendar-x', 'No hay planeaciones completadas por registrar', 'Las actividades cerradas como Completada o Parcial en la planeación aparecen aquí hasta que se registren.');
+    } else if (visibles.length === 0) {
+        cuerpo.innerHTML = estadoPla('bi-funnel', 'Ninguna planeación coincide con el filtro', '', limpiar);
+    } else {
+        cuerpo.innerHTML = `<div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0 gp-tabla">
+                <thead class="gp-thead">
+                    <tr>
+                        <th class="text-center" style="width:44px"><input class="form-check-input" type="checkbox" id="pla_todas" aria-label="Seleccionar todas"></th>
+                        <th style="width:100px">Fecha</th>
+                        <th style="width:130px">Finca / Lote</th>
+                        <th style="min-width:220px">Labor</th>
+                        <th class="text-end" style="width:120px">Ejecutado</th>
+                        <th style="width:190px">Estado</th>
+                        <th style="width:170px">Trabajadores</th>
+                    </tr>
+                </thead>
+                <tbody>${visibles.map(filaPla).join('')}</tbody>
+            </table>
+        </div>`;
+    }
+
+    seleccionPla();
+};
+
+const cargarPla = async () => {
+    if (!$id('btn_planeaciones')) return;
+
+    const turno = ++pla.turno;
+
+    pla.cargando = true;
+    pla.error = '';
+    pintarPla();
+
+    try {
+        const resultado = await pedir('planeaciones', { empresa: empresaId() });
+
+        if (turno !== pla.turno) return;
+
+        pla.filas = resultado.planeaciones || [];
+    } catch (error) {
+        if (turno !== pla.turno) return;
+
+        pla.error = error.message;
+    }
+
+    pla.cargando = false;
+    pintarPla();
+    pintarPlaneadas();
+};
+
+const abrirPla = () => {
+    if ($id('btn_planeaciones').disabled) return;
+
+    pla.seleccion = new Set();
+    Object.entries(defectoPla()).forEach(([id, valor]) => { $id(id).value = valor; });
+    bootstrap.Modal.getOrCreateInstance($id('modalPlaneaciones')).show();
+    cargarPla();
+};
+
+const agregarPla = () => {
+    const lista = pla.filas.filter((fila) => pla.seleccion.has(Number(fila.linea)) && seleccionablePla(fila));
+
+    if (lista.length === 0) return;
+
+    if (estado.lineas.length + lista.length > MAX_LINEAS || planeadas().length + lista.length > 50) {
+        Toast.fire({ icon: 'warning', title: planeadas().length + lista.length > 50 ? 'Máximo 50 actividades planeadas por transacción' : `Máximo ${MAX_LINEAS} líneas por transacción` });
+
+        return;
+    }
+
+    pla.seleccion = new Set();
+    bootstrap.Modal.getOrCreateInstance($id('modalPlaneaciones')).hide();
+    agregarPlaneaciones(lista);
+    Toast.fire({ icon: 'success', title: `${pluralPla(lista.length, 'actividad agregada', 'actividades agregadas')} al detalle` });
 };
 
 const alertaBloqueo = (fila, accion) => {
@@ -1438,9 +1667,11 @@ const guardar = async () => {
     let fallo = null;
 
     try {
+        const vinculos = planeadas().length && !EXT.activo?.() ? { planeacionLineas: JSON.stringify(planeadas().map((linea) => linea.planeacion.id)) } : {};
+
         resultado = estado.edicion
-            ? await pedir('actualizar', { ...cuerpoBase(), numero: estado.edicion })
-            : await pedir('guardar', { ...cuerpoBase(), ...(estado.planeacionLinea && !EXT.activo?.() ? { planeacionLinea: estado.planeacionLinea } : {}) });
+            ? await pedir('actualizar', { ...cuerpoBase(), ...vinculos, numero: estado.edicion })
+            : await pedir('guardar', { ...cuerpoBase(), ...vinculos });
     } catch (error) {
         fallo = error;
     }
@@ -1453,6 +1684,8 @@ const guardar = async () => {
 
     if (fallo) {
         EXT.error?.(fallo);
+
+        if (/actividad planeada/i.test(fallo.message)) cargarPla();
 
         const numeroLinea = CFG.referencia && !EXT.activo?.() && /insumo/i.test(fallo.message) ? fallo.message.match(/l[ií]nea (\d+)/i) : null;
         const lineaError = numeroLinea ? estado.lineas[Number(numeroLinea[1]) - 1] : null;
@@ -1473,6 +1706,7 @@ const guardar = async () => {
     if (estado.edicion) {
         Toast.fire({ icon: 'success', title: `Transacción ${escaparHtml(numero)} actualizada` });
         limpiarTodo();
+        cargarPla();
 
         if (typeof volverConsulta === 'function' && $id('tab_consulta')) volverConsulta(numero, true);
 
@@ -1483,6 +1717,7 @@ const guardar = async () => {
     const resumen = EXT.activo?.() ? EXT.resumen() : `${escaparHtml(fmt(lineas))} ${lineas === 1 ? 'línea' : 'líneas'}`;
 
     limpiarTodo();
+    cargarPla();
     Swal.fire({
         icon: 'success',
         title: 'Transacción registrada',
@@ -1735,7 +1970,7 @@ document.addEventListener('DOMContentLoaded', () => {
         errorCampo('error_referencia', false);
         await cargarLotes($id('cap_finca').value, $id('cap_seccion').disabled ? '' : $id('cap_seccion').value);
 
-        if (!estado.planeacionLinea || estado.lineas.length === 0) return;
+        if (planeadas().length === 0) return;
 
         estado.lineas.filter((linea) => linea.insumos.length === 0).forEach((linea) => { linea.insumos = insumosDeLote(linea.lote); });
         liquidar();
@@ -1860,10 +2095,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const respuesta = await Swal.fire({
                 icon: 'warning',
-                title: `¿Eliminar la línea ${escaparHtml(String(estado.lineas.indexOf(actual) + 1))}?`,
-                html: `Se eliminarán también los ${escaparHtml(String(actual.trabajadores.length))} trabajadores registrados en ella.`,
+                title: actual.planeacion ? '¿Quitar la actividad planeada?' : `¿Eliminar la línea ${escaparHtml(String(estado.lineas.indexOf(actual) + 1))}?`,
+                html: actual.planeacion ? 'Volverá a estar disponible en Planeaciones completadas.' : `Se eliminarán también los ${escaparHtml(String(actual.trabajadores.length))} trabajadores registrados en ella.`,
                 showCancelButton: true,
-                confirmButtonText: 'Sí, eliminar',
+                confirmButtonText: actual.planeacion ? 'Sí, quitar' : 'Sí, eliminar',
                 confirmButtonColor: '#d6293e',
                 cancelButtonText: 'Cancelar',
                 focusCancel: true
@@ -1897,6 +2132,44 @@ document.addEventListener('DOMContentLoaded', () => {
             e.returnValue = '';
         }
     });
+
+    if ($id('btn_planeaciones')) {
+        $id('btn_planeaciones').addEventListener('click', abrirPla);
+        $('#cap_finca, #referencia').on('change', pintarPlaneadas);
+        ['pla_desde', 'pla_hasta', 'pla_finca', 'pla_buscar'].forEach((id) => $id(id).addEventListener('input', pintarPla));
+        $id('pla_agregar').addEventListener('click', agregarPla);
+        $id('modalPlaneaciones').addEventListener('click', (evento) => {
+            if (evento.target.closest('[data-pla-limpiar]')) limpiarFiltrosPla();
+
+            if (evento.target.closest('[data-pla-reintentar]')) cargarPla();
+
+            const fila = evento.target.closest('tr[data-pla]');
+            const check = fila?.querySelector('[data-pla-check]');
+
+            if (!check || check.disabled || evento.target === check) return;
+
+            check.checked = !check.checked;
+            check.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+        $id('modalPlaneaciones').addEventListener('change', (evento) => {
+            const check = evento.target.closest('[data-pla-check]');
+
+            if (evento.target.id === 'pla_todas') {
+                document.querySelectorAll('#pla_cuerpo [data-pla-check]:not(:disabled)').forEach((item) => {
+                    if (evento.target.checked) pla.seleccion.add(Number(item.dataset.plaCheck));
+                    else pla.seleccion.delete(Number(item.dataset.plaCheck));
+                });
+            }
+
+            if (check) {
+                if (check.checked) pla.seleccion.add(Number(check.dataset.plaCheck));
+                else pla.seleccion.delete(Number(check.dataset.plaCheck));
+            }
+
+            if (check || evento.target.id === 'pla_todas') seleccionPla();
+        });
+        cargarPla();
+    }
 
     if (PERMISOS.registrar) precargarPlaneacion();
 });
