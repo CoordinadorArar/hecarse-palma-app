@@ -160,20 +160,21 @@ const celdaPct = (valor) => {
     return `<span${clase ? ` class="${clase}"` : ''}>${f('pct', numero, ' %')}</span>`;
 };
 const chipPct = (valor) => (nulo(valor) ? NULO : `<span class="ig-chip ig-chip-pct ${Number(valor) > estado.regla ? 'rojo' : 'verde'}">${f('pct', valor, ' %')}</span>`);
+const celdaKgCero = (valor) => (Number(valor) ? f('kg', valor) : `<span class="text-muted">${f('kg', 0)}</span>`);
 const placa = (valor) => (texto(valor) ? `<span class="badge gp-badge-doc font-monospace">${escaparHtml(valor)}</span>` : NULO);
 
 const conteos = (k) => ({ cumple: Number(k.cumplen) || 0, fuera_regla: Number(k.fueraRegla) || 0, sin_tlc: Number(k.sinTlc) || 0, incompleto: Number(k.incompletos) || 0 });
 
 const kpiRegla = (k, n) => {
     const regla = estado.regla;
-    const pct = k.perdidaPct;
-    const sin = nulo(pct);
+    const pct = k.pctNoLlegados;
+    const sin = nulo(pct) || !(Number(k.kgBascula) > 0);
     const fuera = !sin && Number(pct) > regla;
     const cumple = typeof k.cumpleMes === 'boolean' ? k.cumpleMes : !fuera;
     const cruzados = Number(k.cruzados) || 0;
     const veces = fuera && regla > 0 ? Number(pct) / regla : 0;
     const chip = sin
-        ? '<span class="ig-chip ig-e-sin-dato">Sin cruce</span>'
+        ? '<span class="ig-chip ig-e-sin-dato">Sin pesajes</span>'
         : (cumple ? '<span class="ig-chip verde"><i class="bi bi-check-circle me-1" aria-hidden="true"></i>Cumple</span>' : '<span class="ig-chip rojo"><i class="bi bi-x-octagon me-1" aria-hidden="true"></i>No cumple</span>');
     const claves = Object.keys(ESTADOS);
     const segmentos = claves.filter((clave) => n[clave] > 0).map((clave) => `<span class="${ESTADOS[clave].clase}" style="flex:${n[clave]} 1 0" title="${ESTADOS[clave].nombre}: ${f('entero', n[clave])}"></span>`).join('');
@@ -182,9 +183,8 @@ const kpiRegla = (k, n) => {
 
     return `<div class="col-12 col-xl-4">
         <div class="inf-kpi ba-regla${sin ? '' : (cumple ? ' ig-kpi-ok' : ' ig-kpi-critico')}">
-            <div class="d-flex align-items-center justify-content-between gap-2"><span class="gp-etiqueta-mini">Regla de pérdida neta · máx. ${f('pct', regla, ' %')}</span>${chip}</div>
-            <div class="d-flex flex-wrap align-items-baseline gap-2"><span class="ba-regla-valor${fuera ? ' ig-texto-rojo' : ''}">${f('pct', pct, ' %')}</span>${veces > 1 ? `<span class="tb-variacion text-muted">≈ ${f('entero', Math.round(veces))} veces el máximo</span>` : ''}</div>
-            <span class="gp-subtexto">Pérdida neta: ${sin ? '—' : f(Number(k.perdidaKg) < 0 ? 'kgSigno' : 'kg', k.perdidaKg, ' kg')}</span>
+            <div class="d-flex align-items-center justify-content-between gap-2"><span class="gp-etiqueta-mini">Regla de kg no llegados · máx. ${f('pct', regla, ' %')}</span>${chip}</div>
+            <div class="d-flex flex-wrap align-items-baseline gap-2"><span class="ba-regla-valor${fuera ? ' ig-texto-rojo' : ''}">${sin ? '—' : f('pct', pct, ' %')}</span>${veces > 1 ? `<span class="tb-variacion text-muted">≈ ${f('entero', Math.round(veces))} veces el máximo</span>` : ''}</div>
             <span class="gp-subtexto">${cruzados ? `${f('entero', n.fuera_regla)} de ${f('entero', cruzados)} viajes cruzados fuera de regla (${f('pctEje', (n.fuera_regla / cruzados) * 100, ' %')})` : 'Sin viajes cruzados con TLC en el periodo'}</span>
             <div class="ba-distribucion" role="img" aria-label="${escaparHtml(`Distribución de viajes. ${resumen}`)}">${segmentos}</div>
             <div class="ig-leyenda">${leyenda}</div>
@@ -222,20 +222,20 @@ const kpiEstado = (clave, cantidad, kg) => {
 const pintarKpis = (k, n, viajes) => {
     const kgEstado = viajes.reduce((total, viaje) => ({ ...total, [viaje.estado]: (total[viaje.estado] || 0) + (Number(viaje.kgBascula) || 0) }), {});
     const tlc = Number(k.tlcSinPesaje) || 0;
-    const kgBascula = Number(k.kgBascula) || 0;
+    const plural = (cantidad) => `${f('entero', cantidad)} ${cantidad === 1 ? 'viaje' : 'viajes'}`;
     const sinTlc = Number(k.sinTlc) || 0;
-    const pctNoLlegados = kgBascula > 0 ? f('pctEje', (Number(k.kgNoLlegados) / kgBascula) * 100, ' %') : '';
-    const subNoLlegados = kgBascula > 0 ? `${pctNoLlegados} de kg báscula${sinTlc ? ` · ${f('entero', sinTlc)} sin TLC` : ''}` : 'Sin pesajes completos';
-    const ayudaNoLlegados = kgBascula > 0
-        ? `Báscula − extractora, incluidos los viajes sin TLC. ${pctNoLlegados} de kg báscula.${sinTlc ? ` Incluye el peso neto de ${f('entero', sinTlc)} ${sinTlc === 1 ? 'viaje' : 'viajes'} sin TLC (${f('kg', k.kgSinTlc || 0, ' kg')}), que no tienen registro en la extractora.` : ''}`
-        : subNoLlegados;
+    const conFaltante = Number(k.viajesFaltante) || 0;
+    const sobrante = Number(k.kgSobrante) || 0;
+    const subNoLlegados = [conFaltante ? `${plural(conFaltante)} con faltante` : '', sinTlc ? `${f('entero', sinTlc)} sin TLC` : ''].filter(Boolean).join(' · ') || 'Sin faltantes';
+    const ayudaNoLlegados = `Faltantes de viajes cruzados: ${f('kg', (Number(k.kgNoLlegados) || 0) - (Number(k.kgSinTlc) || 0), ' kg')} en ${plural(conFaltante)} + peso neto de viajes sin TLC: ${f('kg', k.kgSinTlc || 0, ' kg')} en ${plural(sinTlc)}. Los kg de más en extractora no compensan.`;
+    const subExtractora = sobrante > 0 ? `+${f('kg', sobrante, ' kg')} de más en ${plural(Number(k.viajesSobrante) || 0)}` : 'Solo viajes cruzados';
 
     return `<div class="row g-3 mb-3">
         ${kpiRegla(k, n)}
         <div class="col-12 col-xl-8"><div class="row g-3 h-100">
             ${kpi('bi-truck', 'Viajes en báscula', f('entero', k.viajes), `${f('entero', k.cruzados)} cruzados · ${f('entero', k.sinTlc)} sin TLC`)}
             ${kpi('bi-box-seam', 'Kg báscula', f('kg', k.kgBascula, ' kg'), 'Peso neto finca')}
-            ${kpi('bi-buildings', 'Kg extractora', f('kg', k.kgExtractora, ' kg'), 'Solo viajes cruzados')}
+            ${kpi('bi-buildings', 'Kg extractora', f('kg', k.kgExtractora, ' kg'), subExtractora, '', sobrante > 0 ? 'Kg que la extractora registró por encima de la báscula. No se restan de los kg no llegados.' : subExtractora)}
             ${kpi('bi-graph-down-arrow', 'Kg no llegados', f('kg', k.kgNoLlegados, ' kg'), subNoLlegados, Number(k.kgNoLlegados) > 0 ? 'ba-icono-faltante' : '', ayudaNoLlegados)}
         </div></div>
     </div>
@@ -301,11 +301,11 @@ const opcionesDias = (dias, ejes) => {
 
         if (!filas) return null;
 
-        const kgBascula = suma(filas, 'kgBascula');
-        const kgExtractora = suma(filas, 'kgExtractora');
-        const pct = ejes.mensual ? (kgBascula > 0 ? ((kgBascula - kgExtractora) / kgBascula) * 100 : null) : (nulo(filas[0].perdidaPct) ? null : Number(filas[0].perdidaPct));
+        const kgBascula = suma(filas, 'kgBasculaTotal');
+        const noLlegados = suma(filas, 'kgNoLlegados');
+        const pct = ejes.mensual ? (kgBascula > 0 ? (noLlegados / kgBascula) * 100 : null) : (nulo(filas[0].pctNoLlegados) ? null : Number(filas[0].pctNoLlegados));
 
-        return { kgBascula, kgExtractora, pct, total: filas.some((fila) => !nulo(fila.kgBasculaTotal)) ? suma(filas, 'kgBasculaTotal') : null };
+        return { kgBascula, kgExtractora: suma(filas, 'kgExtractora'), pct, noLlegados };
     });
     const valores = (campo) => puntos.map((punto) => (punto ? punto[campo] : null));
     const regla = estado.regla;
@@ -317,27 +317,23 @@ const opcionesDias = (dias, ejes) => {
     const magnitud = 10 ** Math.floor(Math.log10(crudo));
     const paso = Math.max(0.01, [1, 2, 5, 10].map((factor) => factor * magnitud).find((valor) => valor >= crudo));
     const ejePct = { min: Math.floor(minimo / paso) * paso, max: Math.ceil(maximo / paso) * paso };
-    const titulo = (indice) => {
-        const total = puntos[indice]?.total;
-
-        return ejes.titulos[indice] + (nulo(total) ? '' : ` · Total báscula del ${ejes.mensual ? 'mes' : 'día'}: ${f('kg', total, ' kg')}`);
-    };
+    const titulo = (indice) => ejes.titulos[indice] + (puntos[indice] ? ` · No llegados ${f('kg', puntos[indice].noLlegados, ' kg')}` : '');
 
     return {
         ...base,
         chart: { ...base.chart, type: 'line' },
         series: [
-            { name: 'Kg báscula (cruzados)', type: 'column', data: valores('kgBascula') },
+            { name: 'Kg báscula', type: 'column', data: valores('kgBascula') },
             { name: 'Kg extractora', type: 'column', data: valores('kgExtractora') },
-            { name: '% pérdida neta', type: 'line', data: pcts }
+            { name: '% no llegados', type: 'line', data: pcts }
         ],
         colors: ['#2f7a4b', '#4a5b6c', '#f0a500'],
         stroke: { width: [0, 0, 3], curve: 'straight' },
         markers: { size: [0, 0, 4], strokeColors: '#fff', strokeWidth: 2 },
         xaxis: ejeX(base, ejes),
         yaxis: [
-            { ...base.yaxis, seriesName: ['Kg báscula (cruzados)', 'Kg extractora'] },
-            { seriesName: '% pérdida neta', opposite: true, ...ejePct, tickAmount: Math.max(1, Math.round((ejePct.max - ejePct.min) / paso)), labels: { style: { colors: '#5c6b7a' }, formatter: (valor) => f('pctEje', valor, ' %') } }
+            { ...base.yaxis, seriesName: ['Kg báscula', 'Kg extractora'] },
+            { seriesName: '% no llegados', opposite: true, ...ejePct, tickAmount: Math.max(1, Math.round((ejePct.max - ejePct.min) / paso)), labels: { style: { colors: '#5c6b7a' }, formatter: (valor) => f('pctEje', valor, ' %') } }
         ],
         annotations: { yaxis: [{ y: regla, yAxisIndex: 1, borderColor: '#dc3545', strokeDashArray: 4, label: { text: `Regla ${f('pct', regla, ' %')}`, position: 'left', textAnchor: 'start', offsetY: -6, borderWidth: 0, style: { color: '#dc3545', background: 'transparent', fontSize: '11px', fontWeight: 700 } } }] },
         tooltip: {
@@ -398,7 +394,7 @@ const opcionesConductores = (lista) => {
             custom: ({ dataPointIndex }) => {
                 const conductor = lista[dataPointIndex] || {};
 
-                return `<div class="inf-tooltip"><div class="fw-semibold mb-1">${escaparHtml(nombreConductor(conductor))}</div>${fila('Kg báscula', f('kg', conductor.kgBascula, ' kg'))}${fila('Kg extractora', f('kg', conductor.kgExtractora, ' kg'))}${fila('Kg no llegados', f('kg', conductor.kgNoLlegados, ' kg'))}${fila('% pérdida neta', f('pct', conductor.perdidaPct, ' %'))}</div>`;
+                return `<div class="inf-tooltip"><div class="fw-semibold mb-1">${escaparHtml(nombreConductor(conductor))}</div>${fila('Kg báscula', f('kg', conductor.kgBascula, ' kg'))}${fila('Kg extractora', f('kg', conductor.kgExtractora, ' kg'))}${fila('Kg no llegados', f('kg', conductor.kgNoLlegados, ' kg'))}${fila('Kg de más', f('kg', conductor.kgSobrante || 0, ' kg'))}${fila('% no llegados', f('pct', conductor.pctNoLlegados, ' %'))}</div>`;
             }
         }
     };
@@ -471,6 +467,11 @@ const crearTablaViajes = (viajes) => {
             } },
             { data: 'conductor', render: (valor, tipo, fila) => (tipo === 'display' ? `<div class="gp-truncar" title="${escaparHtml(valor)}">${texto(valor) ? escaparHtml(valor) : NULO}</div>${texto(fila.cedula) ? `<span class="gp-subtexto">C.C. ${escaparHtml(fila.cedula)}</span>` : ''}` : `${texto(valor)} ${texto(fila.cedula)}`) },
             { data: 'extractora', render: (valor, tipo) => (tipo === 'display' ? `<div class="gp-truncar ba-col-extractora" title="${escaparHtml(valor)}">${texto(valor) ? escaparHtml(valor) : NULO}</div>` : texto(valor)) },
+            { data: (fila) => (fila.estado === 'incompleto' || !Number(fila.pesada2) ? null : fila.pesada2), ...numerica((valor, fila) => {
+                const celda = `<span class="text-muted small me-1">2.ª</span>${nulo(valor) ? NULO : `<span class="fw-semibold">${f('kg', valor)}</span>`}<span class="gp-subtexto">1.ª ${f('kg', fila.pesada1)}</span>`;
+
+                return fila.parcial ? `<div title="Pesos totales del vehículo (sin prorrateo)">${celda}</div>` : celda;
+            }) },
             { data: 'kgBascula', ...numerica((valor, fila) => (fila.estado === 'incompleto' ? `${NULO}<span class="gp-subtexto">Solo 1.ª pesada</span>` : f('kg', valor)) + (fila.parcial ? `<span class="gp-subtexto" title="${escaparHtml(`Carga mixta (${fincasViaje(fila).join(' · ')}): kg báscula, kg extractora y diferencia prorrateados a las fincas seleccionadas.`)}"><i class="bi bi-pie-chart me-1" aria-hidden="true"></i>Prorrateado</span>` : '')) },
             { data: 'tlc', type: 'num', render: (valor, tipo, fila) => {
                 const lista = listaTlc(fila);
@@ -490,12 +491,16 @@ const crearTablaViajes = (viajes) => {
             const filas = api.rows({ search: 'applied' }).data().toArray();
             const kgExtractora = sumar(filas, 'kgExtractora');
             const dif = sumar(filas, 'perdidaKg');
-            const cruzado = kgExtractora + dif;
+            const completos = sumar(filas, 'kgBascula', (fila) => fila.estado !== 'incompleto');
+            const noLlegados = sumar(filas, 'perdidaKg', (fila) => Number(fila.perdidaKg) > 0) + sumar(filas, 'kgBascula', (fila) => fila.estado === 'sin_tlc');
             const prorrateados = filas.filter((fila) => fila.parcial).length;
+            const incompletos = filas.filter((fila) => fila.estado === 'incompleto').length;
             const pie = [
                 `Total<span class="gp-subtexto fw-normal">${f('entero', filas.length)} viajes${prorrateados ? ` · ${f('entero', prorrateados)} prorrateados` : ''}</span>`, '', '', '',
-                f('kg', sumar(filas, 'kgBascula', (fila) => fila.estado !== 'incompleto')), '',
-                f('kg', kgExtractora), `${celdaDif(dif)}<span class="gp-subtexto fw-normal">No llegados ${f('kg', sumar(filas, 'kgBascula', (fila) => fila.estado !== 'incompleto') - sumar(filas, 'kgExtractora', (fila) => fila.estado !== 'incompleto'))}</span>`, cruzado > 0 ? celdaPct((dif / cruzado) * 100) : NULO, ''
+                incompletos ? `<span class="gp-subtexto fw-normal">${f('entero', incompletos)} sin 2.ª pesada</span>` : '',
+                f('kg', completos), '',
+                f('kg', kgExtractora), `${celdaDif(dif)}<span class="gp-subtexto fw-normal">De más ${f('kg', Math.abs(sumar(filas, 'perdidaKg', (fila) => Number(fila.perdidaKg) < 0)))}</span>`,
+                `${completos > 0 ? celdaPct((noLlegados / completos) * 100) : NULO}<span class="gp-subtexto fw-normal">No llegados ${f('kg', noLlegados)}</span>`, ''
             ];
 
             api.columns().every(function (indice) {
@@ -540,21 +545,21 @@ const crearTablaConductores = (conductores) => {
             { data: 'viajes', ...numerica((valor) => f('entero', valor)) },
             { data: 'kgBascula', ...numerica((valor) => f('kg', valor)) },
             { data: 'kgExtractora', ...numerica((valor) => f('kg', valor)) },
-            { data: 'perdidaKg', ...numerica(celdaDif) },
-            { data: 'kgNoLlegados', ...numerica((valor) => (Number(valor) ? f('kg', valor) : `<span class="text-muted">${f('kg', valor || 0)}</span>`)) },
-            { data: 'perdidaPct', ...numerica(chipPct), className: 'text-center' },
+            { data: 'kgNoLlegados', ...numerica(celdaKgCero) },
+            { data: 'kgSobrante', ...numerica(celdaKgCero) },
+            { data: 'pctNoLlegados', ...numerica(chipPct), className: 'text-center' },
             { data: 'fueraRegla', ...numerica((valor, fila) => barraFuera(valor, fila.viajes)) }
         ],
         footerCallback: function () {
             const api = this.api();
             const filas = api.rows({ search: 'applied' }).data().toArray();
-            const kgExtractora = sumar(filas, 'kgExtractora');
-            const dif = sumar(filas, 'perdidaKg');
+            const kgBascula = sumar(filas, 'kgBascula');
+            const noLlegados = sumar(filas, 'kgNoLlegados');
             const viajes = sumar(filas, 'viajes');
             const pie = [
                 `Total<span class="gp-subtexto fw-normal">${f('entero', filas.length)} conductores</span>`,
-                f('entero', viajes), f('kg', sumar(filas, 'kgBascula')), f('kg', kgExtractora), celdaDif(dif), f('kg', sumar(filas, 'kgNoLlegados')),
-                kgExtractora + dif > 0 ? chipPct((dif / (kgExtractora + dif)) * 100) : NULO,
+                f('entero', viajes), f('kg', kgBascula), f('kg', sumar(filas, 'kgExtractora')), celdaKgCero(noLlegados), celdaKgCero(sumar(filas, 'kgSobrante')),
+                kgBascula > 0 ? chipPct((noLlegados / kgBascula) * 100) : NULO,
                 barraFuera(sumar(filas, 'fueraRegla'), viajes)
             ];
 
@@ -605,7 +610,7 @@ const aplicarFiltro = () => {
     if (!estado.tablaViajes) return;
 
     estado.tablaViajes.settings()[0].oLanguage.sZeroRecords = estado.filtro ? `Ningún viaje con estado «${ESTADOS[estado.filtro].nombre}» en el periodo` : ZERO_RECORDS;
-    estado.tablaViajes.column(9).search(estado.filtro ? `^${estado.filtro}$` : '', true, false).draw();
+    estado.tablaViajes.column(10).search(estado.filtro ? `^${estado.filtro}$` : '', true, false).draw();
 };
 
 const irATabla = () => $id('tabla_viajes')?.closest('section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -707,8 +712,8 @@ const pintar = () => {
 
     const paneles = [
         separar([
-            seccion('bi-bar-chart-line', `Báscula vs extractora ${por}`, 'kg · % pérdida neta', (r.dias || []).length ? lienzo('grafica_dias', `Kg báscula, kg extractora y porcentaje de pérdida neta ${por} ${periodo}. Pérdida neta del periodo ${f('pct', k.perdidaPct, ' %')}`) : vacioGrafica()),
-            seccion('bi-list-ul', 'Viajes del periodo', `${f('entero', viajes.length)} viajes · kg`, filtroEstados(n, viajes.length) + tablaHtml('tabla_viajes', [['Fecha'], ['Placa / finca'], ['Conductor'], ['Extractora'], ['Kg báscula', 'text-end'], ['TLC / tiquete'], ['Kg extractora', 'text-end'], ['Dif. kg', 'text-end'], ['% pérdida', 'text-end'], ['Estado']])),
+            seccion('bi-bar-chart-line', `Báscula vs extractora ${por}`, 'kg · % no llegados', (r.dias || []).length ? lienzo('grafica_dias', `Kg báscula, kg extractora y porcentaje de kg no llegados ${por} ${periodo}. Kg no llegados del periodo ${f('pct', k.pctNoLlegados, ' %')}`) : vacioGrafica()),
+            seccion('bi-list-ul', 'Viajes del periodo', `${f('entero', viajes.length)} viajes · kg`, filtroEstados(n, viajes.length) + tablaHtml('tabla_viajes', [['Fecha'], ['Placa / finca'], ['Conductor'], ['Extractora'], ['Pesajes', 'text-end'], ['Kg báscula', 'text-end'], ['TLC / tiquete'], ['Kg extractora', 'text-end'], ['Dif. kg', 'text-end'], ['% pérdida', 'text-end'], ['Estado']])),
             sinPesaje.length ? seccion('bi-receipt', 'TLC sin pesaje en báscula', `${f('entero', sinPesaje.length)} tiquetes · ${f('kg', k.kgTlcSinPesaje, ' kg')}`, tablaSinPesaje(sinPesaje)) : ''
         ]),
         separar([
@@ -717,7 +722,7 @@ const pintar = () => {
         ]),
         separar([
             seccion('bi-person-badge', 'Kg báscula por conductor', `${f('entero', conductores.length)} conductores · ${unidadKg}`, conductores.length ? `<div class="inf-grafica-scroll">${lienzo('grafica_conductores', `Kg báscula por conductor ${periodo}`)}</div>` : vacioGrafica()),
-            seccion('bi-table', 'Detalle por conductor', unidadKg, tablaHtml('tabla_conductores', [['Conductor'], ['Viajes', 'text-end'], ['Kg báscula', 'text-end'], ['Kg extractora', 'text-end'], ['Pérdida neta kg', 'text-end'], ['No llegados kg', 'text-end'], ['% pérdida neta', 'text-center'], ['Fuera de regla', 'text-end']]))
+            seccion('bi-table', 'Detalle por conductor', unidadKg, tablaHtml('tabla_conductores', [['Conductor'], ['Viajes', 'text-end'], ['Kg báscula', 'text-end'], ['Kg extractora', 'text-end'], ['No llegados kg', 'text-end'], ['Kg de más', 'text-end'], ['% no llegados', 'text-center'], ['Fuera de regla', 'text-end']]))
         ])
     ];
 
