@@ -247,7 +247,7 @@ $plan         = ! empty($planeacion['habilitada']) ? $planeacion : ['habilitada'
                                     <tbody id="ig_act_filas"></tbody>
                                 </table>
                             </div>
-                            <div class="invalid-feedback d-block d-none" id="ig_act_error_cantidades">Hay cantidades inválidas: use números mayores o iguales a cero con máximo 2 decimales.</div>
+                            <div class="invalid-feedback d-block d-none" id="ig_act_error_cantidades">Hay cantidades inválidas. Use números mayores o iguales a cero con máximo 3 decimales.</div>
                         </div>
                         <div class="modal-footer py-2 justify-content-between">
                             <small class="text-muted d-none d-sm-inline"><span class="text-danger">*</span> Campos obligatorios</small>

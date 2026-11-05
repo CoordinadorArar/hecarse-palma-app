@@ -254,6 +254,10 @@ a.pl-chip:hover {
   flex: 0 1 300px;
 }
 
+.pl-total-grupo {
+  max-width: 340px;
+}
+
 .pl-candidatos {
   display: flex;
   flex-direction: column;
@@ -487,6 +491,10 @@ a.pl-chip:hover {
 
   .pl-indicador {
     flex-basis: 100%;
+  }
+
+  .pl-total-grupo {
+    max-width: none;
   }
 
   .pl-acciones-fin {

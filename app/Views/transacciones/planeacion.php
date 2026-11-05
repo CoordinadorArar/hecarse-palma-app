@@ -2,7 +2,6 @@
 <?php
 $permisos   = $permisos ?? ['registrar' => false, 'consultar' => false, 'editar' => false, 'eliminar' => false];
 $disponible = ! empty($tablas_disponibles);
-$destinos   = $registrar_destino ?? ['labores' => false, 'fertilizacion' => false, 'produccion' => false];
 $verSugerencias = ! empty($permisos['consultar']) || ! empty($permisos['registrar']);
 ?>
 
@@ -206,6 +205,7 @@ $verSugerencias = ! empty($permisos['consultar']) || ! empty($permisos['registra
                                     </select>
                                 </div>
                                 <div class="invalid-feedback d-block d-none" id="error_act_lote">Seleccione el lote.</div>
+                                <div class="form-text d-none" id="act_lote_palmas"></div>
                             </div>
                             <div class="col-12">
                                 <label class="form-label mb-1 small fw-semibold text-muted" for="act_labor">Labor <span class="text-danger">*</span></label>
@@ -215,7 +215,7 @@ $verSugerencias = ! empty($permisos['consultar']) || ! empty($permisos['registra
                                         <select class="form-select" id="act_labor">
                                             <option value="">Seleccione una opción…</option>
                                             <?php foreach ($labores ?? [] as $labor): ?>
-                                                <option value="<?= esc(trim((string) $labor['codigo']), 'attr') ?>" data-um="<?= esc(trim((string) $labor['uMedida']), 'attr') ?>" data-grupo="<?= esc(trim((string) $labor['grupo']), 'attr') ?>" data-nombre="<?= esc(trim((string) $labor['descripcion']), 'attr') ?>"><?= esc(trim((string) $labor['codigo'])) ?> — <?= esc(trim((string) $labor['descripcion'])) ?></option>
+                                                <option value="<?= esc(trim((string) $labor['codigo']), 'attr') ?>" data-um="<?= esc(trim((string) $labor['uMedida']), 'attr') ?>" data-grupo="<?= esc(trim((string) $labor['grupo']), 'attr') ?>" data-clase="<?= (int) ($labor['claseLabor'] ?? 0) ?>" data-nombre="<?= esc(trim((string) $labor['descripcion']), 'attr') ?>"><?= esc(trim((string) $labor['codigo'])) ?> — <?= esc(trim((string) $labor['descripcion'])) ?></option>
                                             <?php endforeach; ?>
                                         </select>
                                     </div>
@@ -233,6 +233,7 @@ $verSugerencias = ! empty($permisos['consultar']) || ! empty($permisos['registra
                                     </select>
                                 </div>
                                 <div class="invalid-feedback d-block d-none" id="error_act_um">Seleccione la unidad de medida.</div>
+                                <div class="form-text d-none" id="act_um_ayuda">La cosecha se planea en racimos.</div>
                             </div>
                             <div class="col-6 col-md-4">
                                 <label class="form-label mb-1 small fw-semibold text-muted" for="act_hora_inicio">Hora inicio</label>
@@ -272,8 +273,17 @@ $verSugerencias = ! empty($permisos['consultar']) || ! empty($permisos['registra
                         </div>
                         <div class="invalid-feedback d-block d-none" id="error_act_terceros">Seleccione al menos un trabajador.</div>
                         <div class="form-text mb-3">Código (ej. CR150), identificación o nombre. Mínimo 3 caracteres.</div>
-                        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
-                            <span class="form-text m-0">Cantidad por trabajador opcional; el total es informativo.</span>
+                        <div class="d-flex flex-wrap align-items-start justify-content-between gap-2 mb-2">
+                            <div class="flex-grow-1 min-w-0">
+                                <div class="input-group input-group-sm pl-total-grupo">
+                                    <span class="input-group-text">Total</span>
+                                    <input type="text" id="act_total" class="form-control font-monospace text-end tx-num" inputmode="decimal" placeholder="0" maxlength="14" autocomplete="off" aria-label="Total del grupo">
+                                    <span class="input-group-text" id="act_total_um">—</span>
+                                    <button type="button" class="btn btn-outline-success" id="act_repartir" disabled><i class="bi bi-distribute-horizontal me-1" aria-hidden="true"></i>Repartir</button>
+                                </div>
+                                <div class="invalid-feedback d-block d-none" id="error_act_total"></div>
+                                <div class="form-text mt-1">Reparte el total en partes iguales; luego puede ajustar cada trabajador.</div>
+                            </div>
                             <div class="tx-reparto tx-reparto--inactivo pl-indicador" id="act_indicador"></div>
                         </div>
                         <div class="table-responsive">
@@ -282,12 +292,14 @@ $verSugerencias = ! empty($permisos['consultar']) || ! empty($permisos['registra
                                     <tr>
                                         <th>Trabajador</th>
                                         <th class="text-end">Cantidad <span class="fw-normal text-muted">(opcional)</span></th>
+                                        <th class="text-end d-none" id="act_th_kg">Kg est.</th>
                                         <th class="text-center"><span class="visually-hidden">Quitar</span></th>
                                     </tr>
                                 </thead>
                                 <tbody id="act_filas"></tbody>
                             </table>
                         </div>
+                        <div class="invalid-feedback d-block d-none" id="error_act_palmas"></div>
                     </div>
                     <div class="modal-footer py-2 justify-content-between">
                         <small class="text-muted d-none d-sm-inline"><span class="text-danger">*</span> Campos obligatorios</small>
@@ -391,7 +403,7 @@ $verSugerencias = ! empty($permisos['consultar']) || ! empty($permisos['registra
                             <div class="col-12 col-sm-6">
                                 <label class="form-label mb-1 small fw-semibold text-muted" for="edit_cantidad">Cantidad <span class="text-muted fw-normal" id="edit_um"></span></label>
                                 <input type="text" class="form-control font-monospace text-end tx-num" id="edit_cantidad" placeholder="Opcional" inputmode="decimal" maxlength="14" autocomplete="off">
-                                <div class="invalid-feedback d-block d-none" id="error_edit_cantidad">Use números mayores o iguales a cero con máximo 2 decimales.</div>
+                                <div class="invalid-feedback d-block d-none" id="error_edit_cantidad">Use números mayores o iguales a cero con máximo 3 decimales.</div>
                                 <span class="gp-subtexto tx-num mt-1" id="edit_resumen" aria-live="polite"></span>
                             </div>
                         </div>
@@ -424,8 +436,12 @@ $verSugerencias = ! empty($permisos['consultar']) || ! empty($permisos['registra
                         <span class="gp-subtexto" id="aus_contador"></span>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label mb-1 small fw-semibold text-muted" for="aus_motivo">Motivo <span class="fw-normal">(opcional)</span></label>
-                        <input type="text" class="form-control" id="aus_motivo" maxlength="250" autocomplete="off" placeholder="Ej. Incapacidad, permiso">
+                        <label class="form-label mb-1 small fw-semibold text-muted" for="aus_motivo">Motivo <span class="text-danger">*</span></label>
+                        <div class="tx-select-ancho">
+                            <select class="form-select" id="aus_motivo"></select>
+                        </div>
+                        <div class="invalid-feedback d-block d-none" id="error_aus_motivo">Seleccione el motivo de la ausencia.</div>
+                        <div class="form-text tx-texto-ambar d-none" id="aus_motivo_vacio">Registre motivos en Maestros Palma › Configuración › Motivos de ausencia.</div>
                     </div>
                     <div id="aus_cuerpo"></div>
                 </div>
@@ -593,11 +609,10 @@ $verSugerencias = ! empty($permisos['consultar']) || ! empty($permisos['registra
         'editar'    => ! empty($permisos['editar']),
         'eliminar'  => ! empty($permisos['eliminar']),
     ]) ?>;
-    const DESTINOS = <?= json_encode([
-        'labores'       => ['url' => base_url('transacciones/labores/' . $id_loseta), 'puede' => ! empty($destinos['labores'])],
-        'fertilizacion' => ['url' => base_url('transacciones/fertilizacion/' . $id_loseta), 'puede' => ! empty($destinos['fertilizacion'])],
-        'produccion'    => ['url' => base_url('transacciones/produccion/' . $id_loseta), 'puede' => ! empty($destinos['produccion'])],
-    ]) ?>;
+    const MOTIVOS_AUSENCIA = <?= json_encode(array_values(array_map(static fn ($m) => [
+        'codigo'      => trim((string) $m['codigo']),
+        'descripcion' => trim((string) $m['descripcion']),
+    ], $motivosAusencia ?? []))) ?>;
 </script>
 <script src="<?= asset_url('public/assets/js/transacciones/planeacion.js') ?>"></script>
 <script src="<?= asset_url('public/assets/js/tutoriales/modulos/planeacion.js') ?>"></script>

@@ -7,6 +7,7 @@ use CodeIgniter\HTTP\RedirectResponse;
 use CodeIgniter\HTTP\ResponseInterface;
 
 use App\Models\LaboresTransaccionModel;
+use App\Models\PlaneacionModel;
 
 class LaboresController extends BaseController
 {
@@ -149,6 +150,29 @@ class LaboresController extends BaseController
         return $this->listado(fn () => $this->laboresModel->buscarTercero($empresa, $this->campo('termino')), 'terceros');
     }
 
+    public function planeaciones(): ResponseInterface
+    {
+        if ($sinSesion = $this->sesionRequerida(['registrar', 'editar'], 'registrar o editar transacciones de ' . static::NOMBRE)) {
+            return $sinSesion;
+        }
+
+        $empresa = $this->empresaValida();
+
+        if ($empresa === null) {
+            return $this->error('Debe seleccionar una empresa válida.');
+        }
+
+        try {
+            $planeaciones = (new PlaneacionModel())->registrables($empresa, $this->laboresModel::TIPO);
+        } catch (\Throwable $e) {
+            log_message('error', 'Error consultando las planeaciones registrables: ' . $e->getMessage());
+
+            return $this->error('No se pudieron consultar las planeaciones.', 500);
+        }
+
+        return $this->response->setJSON(['success' => true, 'message' => '', 'planeaciones' => $planeaciones]);
+    }
+
     public function liquidar(): ResponseInterface
     {
         if ($sinSesion = $this->sesionRequerida(['registrar', 'editar'], 'registrar o editar transacciones de ' . static::NOMBRE)) {
@@ -200,7 +224,13 @@ class LaboresController extends BaseController
             return $this->error('El periodo ' . $this->etiquetaPeriodo($datos['anio'], $datos['mes']) . ' está cerrado.');
         }
 
-        $datos['planeacionLinea'] = max(0, (int) $this->campo('planeacionLinea'));
+        $planeadas = PlaneacionModel::lineasPedidas($this->campo('planeacionLineas'), $this->campo('planeacionLinea'));
+
+        if (is_string($planeadas)) {
+            return $this->error($planeadas);
+        }
+
+        $datos += $planeadas;
 
         try {
             $resultado = $this->laboresModel->guardar($datos, $this->session->get('usu_id'));
@@ -244,6 +274,14 @@ class LaboresController extends BaseController
         if ($datos['periodoCerrado'] === 1) {
             return $this->error('El periodo ' . $this->etiquetaPeriodo($datos['anio'], $datos['mes']) . ' está cerrado.');
         }
+
+        $planeadas = PlaneacionModel::lineasPedidas($this->campo('planeacionLineas'), $this->campo('planeacionLinea'));
+
+        if (is_string($planeadas)) {
+            return $this->error($planeadas);
+        }
+
+        $datos += $planeadas;
 
         try {
             $resultado = $this->laboresModel->actualizar($datos, $antes, $this->session->get('usu_id'));

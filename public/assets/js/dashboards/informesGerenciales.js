@@ -1315,7 +1315,7 @@ const URL_PL = BASE_URL + 'transacciones/planeacion/';
 const PLAN = INFORMES_GERENCIALES.planeacion || {};
 const TEMAS_PLAN = { 'presupuesto-ejecutado': 'Labores de cosecha', 'ciclos-cosecha': 'Labores de cosecha', 'ciclos-poda': 'Labores de poda', 'ciclos-fertilizacion': 'Fertilización (grupo 02)', 'ciclos-sanidad': 'Sanidad (grupo 03)', 'ciclos-mantenimiento': 'Mantenimiento (grupo 04)' };
 const IDIOMA_PLAN = { noResults: () => 'No se encontraron resultados', searching: () => 'Buscando…', inputTooShort: () => 'Escriba al menos 3 caracteres', errorLoading: () => 'No se pudo consultar' };
-const CANTIDAD = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 2 });
+const CANTIDAD = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 3 });
 const act = { catalogo: {}, trabajadores: [], origen: null, original: '', forzar: false, guardando: false, lote: '', pfa: '', turnos: { lote: 0, pfa: 0 } };
 
 if (PLAN.habilitada) act.catalogo[$id('filtro_empresa').value] = { labores: PLAN.labores || [], unidades: PLAN.unidades || [], fincas: PLAN.fincas || [] };
@@ -1334,10 +1334,11 @@ const diaMes = (valor) => {
 };
 const aNumero = (valor) => {
     const crudo = texto(valor).replace(/\s/g, '');
+    const numero = /^\d+([.,]\d{1,3})?$/.test(crudo) ? Number(crudo.replace(',', '.')) : NaN;
 
     if (crudo === '') return 0;
 
-    return /^\d+([.,]\d{1,2})?$/.test(crudo) ? Number(crudo.replace(',', '.')) : NaN;
+    return texto(valorAct('um')).toUpperCase() === 'RAC' && !Number.isInteger(numero) ? NaN : numero;
 };
 const opcionPlan = (codigo, nombre) => `<option value="${escaparHtml(texto(codigo))}">${escaparHtml(`${texto(codigo)} — ${texto(nombre)}`)}</option>`;
 const valorAct = (campo) => $id(`ig_act_${campo}`).value;
@@ -1503,11 +1504,14 @@ const laborCambiada = () => {
     $id('ig_act_codigo').value = labor ? texto(labor.codigo) : '';
     $id('ig_act_codigo').classList.remove('is-invalid');
     marcarAct('labor', false);
-    if (um) {
-        asegurarAct('um', um);
-        $('#ig_act_um').val(um).trigger('change.select2');
+    const cosecha = Number(labor?.claseLabor) === 2;
+
+    if (um || cosecha) {
+        asegurarAct('um', cosecha ? 'RAC' : um);
+        $('#ig_act_um').val(cosecha ? 'RAC' : um).trigger('change.select2');
         marcarAct('um', false);
     }
+    $id('ig_act_um').disabled = cosecha;
     cargarPfaAct();
     pintarTotalAct();
 };
@@ -1612,6 +1616,9 @@ const validarAct = () => {
     mostrar($id('ig_act_error_horario'), horaMal);
     marcarAct('terceros', !act.trabajadores.length);
     document.querySelectorAll('#ig_act_filas [data-reparto]').forEach((campo) => campo.classList.toggle('is-invalid', Number.isNaN(aNumero(campo.value))));
+    $id('ig_act_error_cantidades').textContent = texto(valorAct('um')).toUpperCase() === 'RAC'
+        ? 'Hay cantidades inválidas. Use números enteros para racimos.'
+        : 'Hay cantidades inválidas. Use números mayores o iguales a cero con máximo 3 decimales.';
     mostrar($id('ig_act_error_cantidades'), malas);
 
     const primero = $id('ig_act_form').querySelector('.is-invalid');

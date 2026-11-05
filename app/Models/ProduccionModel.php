@@ -658,6 +658,21 @@ class ProduccionModel extends Model
         return $this->db->affectedRows() === 1;
     }
 
+    protected function vincularPlaneaciones(int $empresa, array $datos, string $numero): ?string
+    {
+        if (! $this->vincularPlaneacion($empresa, (int) ($datos['planeacionLinea'] ?? 0), $numero)) {
+            return 'La actividad de la planeación ya fue registrada, no está cerrada como completada o parcial, o no corresponde a este tipo de transacción.';
+        }
+
+        foreach ($datos['planeacionLineas'] ?? [] as $linea) {
+            if (! $this->vincularPlaneacion($empresa, (int) $linea, $numero)) {
+                return 'La actividad planeada ' . $linea . ' ya fue registrada o cambió de estado; recargue las planeaciones.';
+            }
+        }
+
+        return null;
+    }
+
     protected function desvincularPlaneacion(int $empresa, string $numero): void
     {
         if ($this->planeacionDisponible()) {
@@ -988,10 +1003,10 @@ class ProduccionModel extends Model
                 return ['success' => false, 'message' => $detalle];
             }
 
-            if (! $this->vincularPlaneacion($empresa, (int) ($datos['planeacionLinea'] ?? 0), $numero)) {
+            if ($error = $this->vincularPlaneaciones($empresa, $datos, $numero)) {
                 $this->db->transRollback();
 
-                return ['success' => false, 'message' => 'La actividad de la planeación ya fue registrada, no está cerrada como completada o parcial, o no corresponde a este tipo de transacción.'];
+                return ['success' => false, 'message' => $error];
             }
 
             $auditoria = $this->insertarAuditoria('INSERT', [
@@ -1073,6 +1088,12 @@ class ProduccionModel extends Model
             }
 
             $this->conservarLiquidacion($liquidacion, $llave);
+
+            if ($error = $this->vincularPlaneaciones($empresa, $datos, $numero)) {
+                $this->db->transRollback();
+
+                return ['success' => false, 'message' => $error];
+            }
 
             if (! $this->usarHabilitacion((int) ($antes['habilitacion'] ?? 0), $usu_id)) {
                 $this->db->transRollback();

@@ -196,8 +196,11 @@ $etiqueta    = static fn ($valor) => ucfirst(mb_strtolower(trim(preg_replace('/\
             </div>
 
             <div class="card mb-3" id="card_detalle">
-                <div class="card-header bg-white py-3">
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center gap-2">
                     <h6 class="gp-seccion mb-0"><i class="bi bi-tools" aria-hidden="true"></i>Detalle de la transacción</h6>
+                    <?php if ($conRegistro): ?>
+                    <button type="button" class="btn btn-outline-primary btn-sm d-inline-flex align-items-center gap-1" id="btn_planeaciones" title="Planeaciones completadas"><i class="bi bi-calendar-check" aria-hidden="true"></i><span class="d-none d-sm-inline">Planeaciones completadas</span> <span class="tx-chip-cont" id="cont_planeaciones">0</span></button>
+                    <?php endif; ?>
                 </div>
                 <div class="card-body">
 
@@ -510,6 +513,8 @@ $etiqueta    = static fn ($valor) => ucfirst(mb_strtolower(trim(preg_replace('/\
         </div>
     </div>
     <?php endif; ?>
+
+    <?php if ($conRegistro) echo $this->include('transacciones/modal_planeaciones'); ?>
 
 </main>
 <?php echo $this->endSection(); ?>

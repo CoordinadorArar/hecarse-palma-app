@@ -8,9 +8,193 @@ class PlaneacionModel extends LaboresTransaccionModel
 
     protected const RUTA = 'transacciones/planeacion';
 
+    private const MAX_PLANEADAS = 50;
+
     private ?bool $horas = null;
 
+    private ?bool $ajustes = null;
+
     protected int $ultimaLinea = 0;
+
+    public static function racimos(string $uMedida): bool
+    {
+        return strtoupper(trim($uMedida)) === 'RAC';
+    }
+
+    public static function lineasPedidas(string $json, string $legado): array|string
+    {
+        $ids = trim($json) === '' ? [] : json_decode($json, true);
+
+        if (! is_array($ids) || count($ids) > self::MAX_PLANEADAS) {
+            return 'No se pudieron leer las actividades planeadas (máximo ' . self::MAX_PLANEADAS . ').';
+        }
+
+        $legado = max(0, (int) $legado);
+        $lineas = [];
+
+        foreach ($ids as $id) {
+            $id = is_int($id) || (is_string($id) && ctype_digit($id)) ? (int) $id : 0;
+
+            if ($id <= 0) {
+                return 'Las actividades planeadas deben ser identificadores enteros.';
+            }
+
+            if ($id !== $legado) {
+                $lineas[$id] = $id;
+            }
+        }
+
+        return ['planeacionLinea' => $legado, 'planeacionLineas' => array_values($lineas)];
+    }
+
+    public function ajustesDisponibles(): bool
+    {
+        if ($this->ajustes === null) {
+            $this->ajustes = (int) $this->db->query(
+                "SELECT CASE WHEN OBJECT_ID('dbo.pMotivoAusencia', 'U') IS NOT NULL AND COL_LENGTH('pPlaneacionAusencia', 'codigoMotivo') IS NOT NULL
+                              AND COLUMNPROPERTY(OBJECT_ID('dbo.pPlaneacionLinea'), 'cantidad', 'Scale') = 3
+                              AND COLUMNPROPERTY(OBJECT_ID('dbo.pPlaneacionLinea'), 'cantidadEjecutada', 'Scale') = 3
+                              AND COLUMNPROPERTY(OBJECT_ID('dbo.pPlaneacionTrabajador'), 'cantidad', 'Scale') = 3 THEN 1 ELSE 0 END AS existe"
+            )->getRow()->existe === 1;
+        }
+
+        return $this->ajustes;
+    }
+
+    public function motivosAusencia(int $empresa): array
+    {
+        return $this->ajustesDisponibles() ? $this->db->query(
+            'SELECT LTRIM(RTRIM(codigo)) AS codigo, descripcion FROM pMotivoAusencia WHERE empresa = ? AND activo = 1 ORDER BY descripcion',
+            [$empresa]
+        )->getResultArray() : [];
+    }
+
+    public function motivoAusencia(int $empresa, string $codigo): ?array
+    {
+        return $this->ajustesDisponibles() ? $this->db->query(
+            'SELECT TOP 1 LTRIM(RTRIM(codigo)) AS codigo, descripcion FROM pMotivoAusencia WHERE empresa = ? AND activo = 1 AND LTRIM(RTRIM(codigo)) = ?',
+            [$empresa, trim($codigo)]
+        )->getRowArray() : null;
+    }
+
+    public function lotes(int $empresa, string $finca, string $seccion = ''): array
+    {
+        $sql = "SELECT LTRIM(RTRIM(codigo)) AS codigo, descripcion, LTRIM(RTRIM(ISNULL(seccion, ''))) AS seccion, activo,
+                       ISNULL(palmasProduccion, 0) AS palmas
+                  FROM aLotes WHERE empresa = ? AND LTRIM(RTRIM(finca)) = ?";
+
+        $binds = [$empresa, trim($finca)];
+
+        if (trim($seccion) !== '') {
+            $sql    .= ' AND LTRIM(RTRIM(seccion)) = ?';
+            $binds[] = trim($seccion);
+        }
+
+        return array_map(static fn ($l) => array_merge($l, ['palmas' => (int) $l['palmas']]), $this->db->query($sql . ' ORDER BY codigo ASC', $binds)->getResultArray());
+    }
+
+    public function palmasLote(int $empresa, string $finca, string $lote): int
+    {
+        $fila = $this->db->query(
+            'SELECT TOP 1 ISNULL(palmasProduccion, 0) AS palmas FROM aLotes WHERE empresa = ? AND LTRIM(RTRIM(finca)) = ? AND LTRIM(RTRIM(codigo)) = ?',
+            [$empresa, trim($finca), trim($lote)]
+        )->getRowArray();
+
+        return (int) ($fila['palmas'] ?? 0);
+    }
+
+    public function pesoRacimo(int $empresa, string $fecha, string $finca, string $lote): array
+    {
+        $fila = $this->db->query(
+            'SELECT TOP 1 pesoRacimo, [año] AS anio, mes FROM aLotePesosPeriodo
+              WHERE empresa = ? AND LTRIM(RTRIM(finca)) = ? AND LTRIM(RTRIM(lote)) = ? AND pesoRacimo > 0 AND [año] * 100 + mes <= ?
+              ORDER BY [año] DESC, mes DESC',
+            [$empresa, trim($finca), trim($lote), (int) substr($fecha, 0, 4) * 100 + (int) substr($fecha, 5, 2)]
+        )->getRowArray();
+
+        return $fila === null ? ['pesoRacimo' => 0.0, 'periodo' => '']
+            : ['pesoRacimo' => (float) $fila['pesoRacimo'], 'periodo' => $fila['anio'] . '-' . str_pad((string) $fila['mes'], 2, '0', STR_PAD_LEFT)];
+    }
+
+    public function repartir(float $total, array $pesos, int $decimales = 2): array
+    {
+        $pesos = array_map(static fn ($p) => max(0.0, (float) $p), array_values($pesos));
+
+        if (array_sum($pesos) <= 0) {
+            $pesos = array_fill(0, count($pesos), 1.0);
+        }
+
+        $factor   = 10 ** $decimales;
+        $suma     = array_sum($pesos);
+        $unidades = (int) round($total * $factor);
+        $base     = [];
+        $restos   = [];
+
+        foreach ($pesos as $i => $peso) {
+            $exacto     = $unidades * $peso / $suma;
+            $base[$i]   = (int) floor($exacto);
+            $restos[$i] = $exacto - $base[$i];
+        }
+
+        arsort($restos);
+
+        foreach (array_slice(array_keys($restos), 0, max(0, $unidades - array_sum($base))) as $i) {
+            $base[$i]++;
+        }
+
+        return array_map(static fn ($c) => $c / $factor, $base);
+    }
+
+    public function registro(array $linea): array
+    {
+        $decimales = self::racimos($linea['uMedida']) ? 0 : 2;
+        $cantidad  = round((float) $linea['cantidadEjecutada'], $decimales);
+
+        $trabajadores = array_map(static fn ($t, $c) => [
+            'tercero'  => $t['tercero'],
+            'codigo'   => $t['codigo'],
+            'nombre'   => $t['nombre'],
+            'cantidad' => $c,
+        ], $linea['trabajadores'], $this->repartir($cantidad, array_column($linea['trabajadores'], 'cantidad'), $decimales));
+
+        return [
+            'cantidad'     => $cantidad,
+            'trabajadores' => $cantidad > 0 ? array_values(array_filter($trabajadores, static fn ($t) => $t['cantidad'] > 0)) : $trabajadores,
+        ];
+    }
+
+    public function registrables(int $empresa, string $tipo): array
+    {
+        if (! $this->planeacionDisponible()) {
+            return [];
+        }
+
+        $lineas = array_values(array_filter($this->lineas(
+            "p.empresa = ? AND l.estado IN ('COMPLETADA', 'PARCIAL') AND l.numeroTransaccion IS NULL
+             AND (ISNULL(l.cantidadEjecutada, 0) > 0 OR l.cantidad = 0)",
+            [$empresa]
+        ), static fn ($l) => $l['tipoDestino'] === $tipo));
+
+        usort($lineas, static fn ($a, $b) => [$b['fecha'], $a['orden'], $a['id']] <=> [$a['fecha'], $b['orden'], $b['id']]);
+
+        return array_map(fn ($l) => [
+            'linea'             => $l['id'],
+            'planeacion'        => $l['planeacion'],
+            'fecha'             => $l['fecha'],
+            'estado'            => $l['estado'],
+            'finca'             => $l['finca'],
+            'fincaNombre'       => $l['fincaNombre'],
+            'seccion'           => $l['seccion'],
+            'lote'              => $l['lote'],
+            'loteNombre'        => $l['loteNombre'],
+            'novedad'           => $l['novedad'],
+            'novedadNombre'     => $l['novedadNombre'],
+            'uMedida'           => $l['uMedida'],
+            'referencia'        => $l['referencia'],
+            'observacionCierre' => $l['observacionCierre'],
+            'cantidadPlaneada'  => $l['cantidad'],
+        ] + $this->registro($l), $lineas);
+    }
 
     public function idLoseta(int $modulo): int
     {
@@ -128,7 +312,7 @@ class PlaneacionModel extends LaboresTransaccionModel
 
         $plan['ausencias'] = $this->db->query(
             "SELECT a.tercero, ISNULL(c.codigo, '') AS codigo, ISNULL(c.nombre, '') AS nombre, ISNULL(a.motivo, '') AS motivo,
-                    a.usuario, CONVERT(varchar(16), a.fecha, 120) AS fecha
+                    " . ($this->ajustesDisponibles() ? "ISNULL(a.codigoMotivo, '')" : "''") . " AS codigoMotivo, a.usuario, CONVERT(varchar(16), a.fecha, 120) AS fecha
                FROM pPlaneacionAusencia a
                OUTER APPLY (SELECT TOP 1 ISNULL(LTRIM(RTRIM(codigoEquivalencia)), '') AS codigo,
                                    ISNULL(NULLIF(LTRIM(RTRIM(razonSocial)), ''), descripcion) AS nombre
@@ -176,7 +360,8 @@ class PlaneacionModel extends LaboresTransaccionModel
                     ISNULL(l.usuarioCierre, '') AS usuarioCierre, ISNULL(CONVERT(varchar(16), l.fechaCierre, 120), '') AS fechaCierre,
                     l.origen, CONVERT(varchar(10), po.fecha, 23) AS origenFecha,
                     ISNULL(l.tipoTransaccion, '') AS tipoTransaccion, ISNULL(l.numeroTransaccion, '') AS numeroTransaccion,
-                    CASE WHEN EXISTS (SELECT 1 FROM pPlaneacionLinea x WHERE x.origen = l.id) THEN 1 ELSE 0 END AS trasladada
+                    CASE WHEN EXISTS (SELECT 1 FROM pPlaneacionLinea x WHERE x.origen = l.id) THEN 1 ELSE 0 END AS trasladada,
+                    ISNULL(pr.pesoRacimo, 0) AS pesoRacimo
                FROM pPlaneacionLinea l
                JOIN pPlaneacion p ON p.id = l.planeacion
                LEFT JOIN pPlaneacionLinea lx ON lx.id = l.origen
@@ -186,6 +371,10 @@ class PlaneacionModel extends LaboresTransaccionModel
                              WHERE empresa = p.empresa AND LTRIM(RTRIM(finca)) = l.finca AND LTRIM(RTRIM(codigo)) = l.lote) lo
                OUTER APPLY (SELECT MIN(descripcion) AS descripcion, MIN(LTRIM(RTRIM(grupo))) AS grupo, MIN(claseLabor) AS claseLabor
                               FROM aNovedad WHERE empresa = p.empresa AND RTRIM(codigo) = l.novedad) n
+               OUTER APPLY (SELECT TOP 1 pesoRacimo FROM aLotePesosPeriodo
+                             WHERE empresa = p.empresa AND LTRIM(RTRIM(finca)) = l.finca AND LTRIM(RTRIM(lote)) = l.lote AND pesoRacimo > 0
+                               AND [año] * 100 + mes <= YEAR(p.fecha) * 100 + MONTH(p.fecha)
+                             ORDER BY [año] DESC, mes DESC) pr
               WHERE " . $filtro . '
               ORDER BY p.fecha, l.orden, l.id',
             $binds
@@ -230,7 +419,9 @@ class PlaneacionModel extends LaboresTransaccionModel
             $linea['cantidad']          = (float) $linea['cantidad'];
             $linea['cantidadEjecutada'] = $linea['cantidadEjecutada'] === null ? null : (float) $linea['cantidadEjecutada'];
             $linea['saldo']             = in_array($linea['estado'], ['PARCIAL', 'NO_EJECUTADA'], true)
-                ? max(0.0, round($linea['cantidad'] - (float) $linea['cantidadEjecutada'], 2)) : 0.0;
+                ? max(0.0, round($linea['cantidad'] - (float) $linea['cantidadEjecutada'], 3)) : 0.0;
+            $linea['pesoRacimo']        = (float) $linea['pesoRacimo'];
+            $linea['kgEstimado']        = self::racimos($linea['uMedida']) ? round($linea['cantidad'] * $linea['pesoRacimo'], 2) : null;
             $linea['esCosecha']         = $linea['claseLabor'] === 2 ? 1 : 0;
             $linea['tipoDestino']       = $linea['esCosecha'] === 1 ? 'TLC' : ($linea['grupo'] === FertilizacionTransaccionModel::GRUPO ? 'RLF' : 'TLA');
             $linea['destino']           = ['TLC' => 'produccion', 'RLF' => 'fertilizacion', 'TLA' => 'labores'][$linea['tipoDestino']];
@@ -344,12 +535,12 @@ class PlaneacionModel extends LaboresTransaccionModel
         }, 'UPDATE', ['accion' => 'trasladar', 'datos' => $datos], $usu_id, $datos['usuario'], 'Pendientes trasladados al plan del ' . $datos['fecha'] . '.');
     }
 
-    public function marcarAusencia(int $plan, string $tercero, string $motivo, string $usuario, array $afectadas, array $reparto, ?int $usu_id): array
+    public function marcarAusencia(int $plan, string $tercero, string $codigoMotivo, string $motivo, string $usuario, array $afectadas, array $reparto, ?int $usu_id): array
     {
-        return $this->transaccion(function () use ($plan, $tercero, $motivo, $usuario, $afectadas, $reparto) {
+        return $this->transaccion(function () use ($plan, $tercero, $codigoMotivo, $motivo, $usuario, $afectadas, $reparto) {
             $this->db->query(
-                'INSERT INTO pPlaneacionAusencia (planeacion, tercero, motivo, usuario, fecha) VALUES (?, ?, ?, ?, ?)',
-                [$plan, $tercero, $motivo === '' ? null : $motivo, $usuario, date('Y-m-d\TH:i:s')]
+                'INSERT INTO pPlaneacionAusencia (planeacion, tercero, codigoMotivo, motivo, usuario, fecha) VALUES (?, ?, ?, ?, ?, ?)',
+                [$plan, $tercero, $codigoMotivo, $motivo === '' ? null : $motivo, $usuario, date('Y-m-d\TH:i:s')]
             );
 
             foreach ($afectadas as $linea) {
@@ -382,7 +573,7 @@ class PlaneacionModel extends LaboresTransaccionModel
             }
 
             return $plan;
-        }, 'UPDATE', ['accion' => 'ausencia', 'planeacion' => $plan, 'tercero' => $tercero, 'motivo' => $motivo, 'reparto' => $reparto], $usu_id, $usuario,
+        }, 'UPDATE', ['accion' => 'ausencia', 'planeacion' => $plan, 'tercero' => $tercero, 'codigoMotivo' => $codigoMotivo, 'motivo' => $motivo, 'reparto' => $reparto], $usu_id, $usuario,
             'Ausencia registrada correctamente.');
     }
 

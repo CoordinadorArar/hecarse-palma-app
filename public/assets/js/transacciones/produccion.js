@@ -360,7 +360,7 @@ const tarjeta = (linea, indice) => {
     }).join('');
 
     return `
-    <div class="tx-tarjeta${linea.pesoRacimo > 0 || !hayPesos() ? '' : ' tx-tarjeta--sinpeso'}" data-linea="${linea.id}">
+    <div class="tx-tarjeta${linea.planeacion ? ' tx-tarjeta--planeada' : ''}${linea.pesoRacimo > 0 || !hayPesos() ? '' : ' tx-tarjeta--sinpeso'}" data-linea="${linea.id}">
         <div class="tx-tarjeta-cab tx-tarjeta-cab--fija border-bottom">
             <span class="gp-chip-fila tx-chip-neutro font-monospace">Registro ${posicion}</span>
             <span class="fw-semibold">${escaparHtml(linea.fincaNombre)}</span>
@@ -368,6 +368,7 @@ const tarjeta = (linea, indice) => {
             <span class="font-monospace fw-semibold">${escaparHtml(linea.lote)}</span>
             ${chipFecha(linea.fecha, fechaFuera(linea.fecha))}
             ${chipCuadrilla(linea)}
+            ${linea.planeacion ? chipPlaneacion(linea.planeacion) : ''}
             ${linea.pesoRacimo > 0 || !hayPesos() ? '' : '<span class="gp-chip-fila ambar">Sin peso</span>'}
             <button type="button" class="btn btn-sm btn-outline-danger ms-auto" data-accion="eliminar-linea" data-linea="${linea.id}" title="Quitar el registro ${posicion}" aria-label="Quitar el registro ${posicion}">
                 <i class="bi bi-trash" aria-hidden="true"></i>
@@ -481,8 +482,9 @@ const ajustar = (linea, actual, valor) => {
 
 const reescalar = (linea) => new Set(linea.trabajadores.map((trabajador) => trabajador.novedad)).forEach((novedad) => {
     const grupo = grupoDe(linea, novedad);
+    const porRacimos = grupo.every((trabajador) => !trabajador.cantidad);
 
-    repartir(linea.kg, grupo.map((trabajador) => trabajador.cantidad)).forEach((cantidad, k) => { grupo[k].cantidad = cantidad; });
+    repartir(linea.kg, grupo.map((trabajador) => (porRacimos ? trabajador.racimos || 0 : trabajador.cantidad))).forEach((cantidad, k) => { grupo[k].cantidad = cantidad; });
 });
 
 const fotoCantidades = () => Object.fromEntries(estado.lineas.flatMap((linea) => linea.trabajadores.map((trabajador) => [trabajador.id, trabajador.cantidad])));
@@ -531,6 +533,7 @@ const renderizar = () => {
     $id('texto_sin_lineas').textContent = `Agregue líneas para repartir los ${fmt(racimosTiquete())} racimos del tiquete.`;
     pintarMedidor();
     pintarTotales();
+    pintarPlaneadas();
 };
 
 const refrescarDerivados = () => {
@@ -608,7 +611,7 @@ const cuerpoBase = () => ({
             cantidad: trabajador.cantidad,
             jornales: trabajador.jornales,
             precioLabor: trabajador.precio,
-            racimos: linea.racimos,
+            racimos: trabajador.racimos ?? linea.racimos,
             contratista: trabajador.contratista || 0,
             fechaNovedad: trabajador.fecha
         }))
@@ -1076,10 +1079,10 @@ const eliminarLinea = async (id) => {
 
     const respuesta = await Swal.fire({
         icon: 'warning',
-        title: `¿Eliminar la línea ${escaparHtml(String(posicion))}?`,
-        html: `Se eliminarán también los ${escaparHtml(String(linea.trabajadores.length))} trabajadores registrados en ella.`,
+        title: linea.planeacion ? '¿Quitar la actividad planeada?' : `¿Eliminar la línea ${escaparHtml(String(posicion))}?`,
+        html: linea.planeacion ? 'Volverá a estar disponible en Planeaciones completadas.' : `Se eliminarán también los ${escaparHtml(String(linea.trabajadores.length))} trabajadores registrados en ella.`,
         showCancelButton: true,
-        confirmButtonText: 'Sí, eliminar',
+        confirmButtonText: linea.planeacion ? 'Sí, quitar' : 'Sí, eliminar',
         confirmButtonColor: '#d6293e',
         cancelButtonText: 'Cancelar',
         focusCancel: true
@@ -1555,19 +1558,8 @@ const limpiarTodo = () => {
     $id('tiquete').focus();
 };
 
-const notaPlaneacion = () => {
-    if (!$id('nota_planeacion')) {
-        $id('card_tiquete').insertAdjacentHTML('beforebegin', '<div class="gp-nota d-flex align-items-center gap-2 mb-3 d-none" role="status" id="nota_planeacion"><i class="bi bi-calendar-check text-success" aria-hidden="true"></i><span id="nota_planeacion_texto"></span></div>');
-    }
-
-    return $id('nota_planeacion');
-};
-
 const quitarPlaneacion = () => {
     const url = new URL(window.location.href);
-
-    estado.planeacionLinea = null;
-    $id('nota_planeacion')?.classList.add('d-none');
 
     if (!url.searchParams.has('planeacion')) return;
 
@@ -1619,11 +1611,6 @@ const precargarPlaneacion = async () => {
     const fecha = texto(datos.fecha).substring(0, 10);
     const anio = fecha.substring(0, 4);
     const anios = Array.from($id('anio').options);
-    const finca = texto(datos.finca);
-    const lote = texto(datos.lote);
-    const novedad = texto(datos.novedad);
-    const novedadNombre = texto(datos.novedadNombre);
-    const porRacimos = /RAC/i.test(texto(datos.uMedida));
 
     if (!anios.some((opcion) => opcion.value === anio)) {
         $id('anio').add(new Option(anio, anio), anios.find((opcion) => Number(opcion.value) < Number(anio)) || null);
@@ -1643,40 +1630,266 @@ const precargarPlaneacion = async () => {
     if (periodo) $id('periodo').value = String(Number(periodo.mes));
 
     revisarPeriodo();
+    await agregarPlaneaciones([{ ...datos, linea: Number(linea) }]);
+};
 
-    const peso = await consultarPeso(finca, lote);
+const ESTADOS_PLA = { COMPLETADA: 'Completada', PARCIAL: 'Parcial' };
+const pla = { filas: [], cargando: false, error: '', seleccion: new Set(), turno: 0, agregando: false };
 
-    $id('ayuda_peso').className = 'gp-subtexto';
-    $id('ayuda_peso').textContent = '';
+const planeadas = () => estado.lineas.filter((linea) => linea.planeacion);
+const plaAgregada = (id) => estado.lineas.some((linea) => linea.planeacion?.id === id);
+const cantPla = (valor, um) => Number(valor || 0).toLocaleString('es-CO', { maximumFractionDigits: /RAC/i.test(um) ? 0 : 3 });
+const sinTildes = (valor) => texto(valor).normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
+const pluralPla = (cantidad, uno, varios) => `${fmt(cantidad)} ${cantidad === 1 ? uno : varios}`;
 
-    const trabajadores = await Promise.all((datos.trabajadores || []).map((trabajador) => pedir('precioLabor', {
+const chipPlaneacion = (planeacion) => `<span class="gp-chip-ambito seccion text-nowrap" title="Planeación del ${fechaCorta(planeacion.fecha)}${ESTADOS_PLA[planeacion.estado] ? ` · ${ESTADOS_PLA[planeacion.estado]}` : ''}"><i class="bi bi-calendar-check me-1" aria-hidden="true"></i>Planeación</span>`;
+
+const lineaPlaneada = async (dato) => {
+    const fecha = texto(dato.fecha).substring(0, 10);
+    const finca = texto(dato.finca);
+    const lote = texto(dato.lote);
+    const novedad = texto(dato.novedad);
+    const novedadNombre = texto(dato.novedadNombre);
+    const porRacimos = /RAC/i.test(texto(dato.uMedida));
+    const [peso, trabajadores] = await Promise.all([consultarPeso(finca, lote), Promise.all((dato.trabajadores || []).map((trabajador) => pedir('precioLabor', {
         empresa: empresaId(), novedad, fecha, finca, lote, tercero: texto(trabajador.tercero)
     }).then((resultado) => (Number(resultado.existe) === 1 ? Number(resultado.precio || 0) : 0)).catch(() => 0).then((precio) => ({
         id: estado.secuenciaTrabajador++,
         tercero: texto(trabajador.tercero), terceroNombre: texto(trabajador.nombre), terceroCodigo: texto(trabajador.codigo),
-        novedad, novedadNombre, cantidad: porRacimos ? 0 : Number(trabajador.cantidad || 0), precio, jornales: 0, fecha, contratista: 0, bloque: 'cosecha'
-    }))));
-    const opcion = Array.from($id('cap_finca').options).find((item) => item.value === finca);
-    const nueva = {
+        novedad, novedadNombre, cantidad: porRacimos ? 0 : Number(trabajador.cantidad || 0), precio, jornales: 0, fecha, contratista: 0, bloque: 'cosecha',
+        ...(porRacimos ? { racimos: Math.round(Number(trabajador.cantidad || 0)) } : {})
+    }))))]);
+    const opcion = Array.from($id('cap_finca').options).find((item) => texto(item.value) === finca);
+
+    return {
         id: estado.secuencia++,
         finca,
-        fincaNombre: texto(opcion?.text).split('—').slice(1).join('—').trim() || finca,
+        fincaNombre: texto(dato.fincaNombre) || texto(opcion?.text).split('—').slice(1).join('—').trim() || finca,
         lote,
         fecha,
-        racimos: porRacimos ? Math.round(Number(datos.cantidad || 0)) : 0,
+        racimos: porRacimos ? Math.round(Number(dato.cantidad || 0)) : 0,
         sacos: 0,
         pesoRacimo: peso || 0,
         kg: 0,
+        planeacion: { id: Number(dato.linea), fecha, estado: texto(dato.estado).toUpperCase() },
         trabajadores
     };
+};
 
-    estado.lineas.push(nueva);
-    estado.planeacionLinea = Number(linea);
-    notaPlaneacion();
-    $id('nota_planeacion_texto').textContent = `Precargado desde la planeación del ${fechaCorta(fecha)} · ${novedad} — ${novedadNombre} · Lote ${lote}. Cargue el tiquete, revise y guarde.`;
-    mostrar($id('nota_planeacion'), true);
+const agregarPlaneaciones = async (lista) => {
+    const nuevas = await Promise.all(lista.map(lineaPlaneada));
+
+    $id('ayuda_peso').className = 'gp-subtexto';
+    $id('ayuda_peso').textContent = '';
+    estado.lineas.push(...nuevas);
     renderizar();
+    nuevas.forEach((linea) => document.querySelector(`.tx-tarjeta[data-linea="${linea.id}"]`)?.classList.add('tx-flash'));
     previsualizar();
+
+    return nuevas;
+};
+
+const pintarPlaneadas = () => {
+    const total = planeadas().length;
+    const boton = $id('btn_planeaciones');
+
+    $id('nota_planeacion_texto').textContent = `${pluralPla(total, 'actividad', 'actividades')} de la planeación en el detalle. Revise los valores y guarde.`;
+    mostrar($id('nota_planeacion'), total > 0);
+
+    if (!boton) return;
+
+    const disponibles = pla.filas.filter((fila) => !plaAgregada(Number(fila.linea))).length;
+
+    $id('cont_planeaciones').textContent = fmt(disponibles);
+    $id('cont_planeaciones').classList.toggle('verde', disponibles > 0);
+    boton.disabled = !estado.tiqueteCargado || pla.agregando;
+    boton.title = estado.tiqueteCargado ? 'Planeaciones completadas' : 'Cargue el tiquete primero';
+};
+
+const motivoPla = (fila) => (fechaFuera(texto(fila.fecha).substring(0, 10)) ? 'Fuera del periodo' : '');
+
+const defectoPla = () => ({ pla_desde: $id('fecha').value, pla_hasta: $id('fecha').value, pla_finca: '', pla_buscar: '' });
+
+const filtrosAplicados = () => Object.entries(defectoPla()).some(([id, valor]) => texto($id(id).value) !== valor);
+
+const limpiarFiltrosPla = () => {
+    Object.entries(defectoPla()).forEach(([id, valor]) => { $id(id).value = valor; });
+    pintarPla();
+};
+
+const seleccionablePla = (fila) => !plaAgregada(Number(fila.linea)) && motivoPla(fila) === '';
+
+const visiblesPla = () => {
+    const desde = $id('pla_desde').value;
+    const hasta = $id('pla_hasta').value;
+    const finca = $id('pla_finca').value;
+    const termino = sinTildes($id('pla_buscar').value);
+
+    return pla.filas.filter((fila) => {
+        const fecha = texto(fila.fecha).substring(0, 10);
+        const busqueda = sinTildes([fila.lote, fila.loteNombre, fila.novedad, fila.novedadNombre, ...(fila.trabajadores || []).flatMap((trabajador) => [trabajador.codigo, trabajador.nombre])].join(' '));
+
+        return (!desde || fecha >= desde) && (!hasta || fecha <= hasta) && (!finca || texto(fila.finca) === finca) && (!termino || busqueda.includes(termino));
+    }).sort((a, b) => texto(b.fecha).localeCompare(texto(a.fecha)) || texto(a.finca).localeCompare(texto(b.finca)) || texto(a.lote).localeCompare(texto(b.lote)));
+};
+
+const filaPla = (fila) => {
+    const id = Number(fila.linea);
+    const agregada = plaAgregada(id);
+    const motivo = agregada ? '' : motivoPla(fila);
+    const libre = !agregada && motivo === '';
+    const marcada = agregada || pla.seleccion.has(id);
+    const trabajadores = fila.trabajadores || [];
+    const codigos = escaparHtml(trabajadores.map((trabajador) => texto(trabajador.codigo) || texto(trabajador.tercero)).join(', '));
+    const um = texto(fila.uMedida);
+    const nombre = escaparHtml(texto(fila.novedadNombre));
+    const completada = texto(fila.estado).toUpperCase() === 'COMPLETADA';
+
+    return `<tr data-pla="${id}" class="${marcada ? 'table-active' : ''}${libre ? '' : ' text-muted'}"${libre ? ' style="cursor:pointer"' : ''}>
+        <td class="text-center"><input class="form-check-input" type="checkbox" data-pla-check="${id}" aria-label="Seleccionar ${escaparHtml(texto(fila.novedad))} del lote ${escaparHtml(texto(fila.lote))} del ${fechaCorta(fila.fecha)}"${marcada ? ' checked' : ''}${libre ? '' : ' disabled'}></td>
+        <td class="text-nowrap">${fechaCorta(fila.fecha)}</td>
+        <td class="font-monospace text-nowrap">${escaparHtml(texto(fila.finca))} / ${escaparHtml(texto(fila.lote))}</td>
+        <td><span class="font-monospace fw-semibold">${escaparHtml(texto(fila.novedad))}</span> <span class="gp-truncar d-inline-block align-bottom" title="${nombre}">${nombre}</span></td>
+        <td class="text-end tx-num text-nowrap">${cantPla(fila.cantidad, um)} ${escaparHtml(um)}</td>
+        <td><div class="d-flex flex-wrap gap-1"><span class="gp-chip-fila ${completada ? 'verde' : 'ambar'}">${completada ? 'Completada' : 'Parcial'}</span>${agregada ? '<span class="gp-chip-fila tx-chip-neutro">Agregada</span>' : ''}</div>${motivo ? `<span class="gp-subtexto mt-1">${escaparHtml(motivo)}</span>` : ''}</td>
+        <td><span class="tx-chip-cont${trabajadores.length ? ' verde' : ''}" title="${codigos}">${fmt(trabajadores.length)}</span><span class="gp-subtexto gp-truncar font-monospace mt-1" title="${codigos}">${codigos}</span></td>
+    </tr>`;
+};
+
+const estadoPla = (icono, titulo, detalle, boton = '', chico = false) => `<div class="gp-estado-vacio text-center py-5">
+    <div class="gp-medallon${chico ? ' chico' : ''} d-inline-flex align-items-center justify-content-center rounded-circle mb-3"><i class="bi ${icono}" aria-hidden="true"></i></div>
+    <h6 class="mb-1">${titulo}</h6>${detalle ? `<p class="text-muted mb-0">${detalle}</p>` : ''}${boton ? `<div class="mt-3">${boton}</div>` : ''}
+</div>`;
+
+const seleccionPla = () => {
+    const total = pla.seleccion.size;
+    const todas = $id('pla_todas');
+    const libres = Array.from(document.querySelectorAll('#pla_cuerpo [data-pla-check]:not(:disabled)'));
+
+    $id('pla_seleccion').innerHTML = `<strong>${fmt(total)}</strong> ${total === 1 ? 'seleccionada' : 'seleccionadas'}`;
+    $id('pla_agregar').disabled = total === 0 || pla.agregando;
+    libres.forEach((check) => {
+        check.checked = pla.seleccion.has(Number(check.dataset.plaCheck));
+        check.closest('tr').classList.toggle('table-active', check.checked);
+    });
+
+    if (!todas) return;
+
+    const marcadas = libres.filter((check) => check.checked).length;
+
+    todas.disabled = libres.length === 0;
+    todas.checked = libres.length > 0 && marcadas === libres.length;
+    todas.indeterminate = marcadas > 0 && marcadas < libres.length;
+};
+
+const pintarPla = () => {
+    const cuerpo = $id('pla_cuerpo');
+    const visibles = visiblesPla();
+    const desde = $id('pla_desde').value;
+    const hasta = $id('pla_hasta').value;
+    const limpiar = '<button type="button" class="btn btn-outline-secondary btn-sm" data-pla-limpiar><i class="bi bi-eraser me-1" aria-hidden="true"></i>Limpiar filtros</button>';
+
+    $id('pla_rango').textContent = desde && hasta && desde !== hasta ? `${fechaCorta(desde)} – ${fechaCorta(hasta)}` : (desde || hasta ? fechaCorta(desde || hasta) : 'Todas las fechas');
+    mostrar($id('pla_limpiar_col'), !pla.cargando && filtrosAplicados());
+    ['pla_desde', 'pla_hasta', 'pla_finca', 'pla_buscar'].forEach((id) => { $id(id).disabled = pla.cargando; });
+    pla.seleccion = new Set([...pla.seleccion].filter((id) => visibles.some((fila) => Number(fila.linea) === id && seleccionablePla(fila))));
+    cuerpo.setAttribute('aria-busy', String(pla.cargando));
+
+    if (pla.cargando) {
+        cuerpo.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-success" role="status"><span class="visually-hidden">Consultando planeaciones…</span></div></div>';
+    } else if (pla.error) {
+        cuerpo.innerHTML = estadoPla('bi-wifi-off', 'No se pudieron consultar las planeaciones', escaparHtml(pla.error), '<button type="button" class="btn btn-outline-secondary btn-sm" data-pla-reintentar><i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i>Reintentar</button>', true);
+    } else if (pla.filas.length === 0) {
+        cuerpo.innerHTML = estadoPla('bi-calendar-x', 'No hay planeaciones completadas por registrar', 'Las actividades cerradas como Completada o Parcial en la planeación aparecen aquí hasta que se registren.');
+    } else if (visibles.length === 0) {
+        cuerpo.innerHTML = estadoPla('bi-funnel', 'Ninguna planeación coincide con el filtro', '', limpiar);
+    } else {
+        cuerpo.innerHTML = `<div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0 gp-tabla">
+                <thead class="gp-thead">
+                    <tr>
+                        <th class="text-center" style="width:44px"><input class="form-check-input" type="checkbox" id="pla_todas" aria-label="Seleccionar todas"></th>
+                        <th style="width:100px">Fecha</th>
+                        <th style="width:130px">Finca / Lote</th>
+                        <th style="min-width:220px">Labor</th>
+                        <th class="text-end" style="width:120px">Ejecutado</th>
+                        <th style="width:190px">Estado</th>
+                        <th style="width:170px">Trabajadores</th>
+                    </tr>
+                </thead>
+                <tbody>${visibles.map(filaPla).join('')}</tbody>
+            </table>
+        </div>`;
+    }
+
+    seleccionPla();
+};
+
+const cargarPla = async () => {
+    if (!$id('btn_planeaciones')) return;
+
+    const turno = ++pla.turno;
+
+    pla.cargando = true;
+    pla.error = '';
+    pintarPla();
+
+    try {
+        const resultado = await pedir('planeaciones', { empresa: empresaId() });
+
+        if (turno !== pla.turno) return;
+
+        pla.filas = resultado.planeaciones || [];
+    } catch (error) {
+        if (turno !== pla.turno) return;
+
+        pla.error = error.message;
+    }
+
+    pla.cargando = false;
+    pintarPla();
+    pintarPlaneadas();
+};
+
+const abrirPla = () => {
+    if ($id('btn_planeaciones').disabled) return;
+
+    pla.seleccion = new Set();
+    Object.entries(defectoPla()).forEach(([id, valor]) => { $id(id).value = valor; });
+    bootstrap.Modal.getOrCreateInstance($id('modalPlaneaciones')).show();
+    cargarPla();
+};
+
+const agregarPla = async () => {
+    const lista = pla.filas.filter((fila) => pla.seleccion.has(Number(fila.linea)) && seleccionablePla(fila));
+    const boton = $id('pla_agregar');
+    const original = boton.innerHTML;
+
+    if (lista.length === 0 || pla.agregando) return;
+
+    if (planeadas().length + lista.length > 50) {
+        Toast.fire({ icon: 'warning', title: 'Máximo 50 actividades planeadas por transacción' });
+
+        return;
+    }
+
+    pla.agregando = true;
+    boton.disabled = true;
+    boton.innerHTML = '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>Agregando…';
+
+    try {
+        await agregarPlaneaciones(lista);
+        pla.seleccion = new Set();
+        bootstrap.Modal.getOrCreateInstance($id('modalPlaneaciones')).hide();
+        Toast.fire({ icon: 'success', title: `${pluralPla(lista.length, 'actividad agregada', 'actividades agregadas')} al detalle` });
+    } catch (error) {
+        avisar(error);
+    }
+
+    pla.agregando = false;
+    boton.innerHTML = original;
+    seleccionPla();
+    pintarPlaneadas();
 };
 
 const modoEdicion = (numero) => {
@@ -1915,15 +2128,20 @@ const enviarGuardar = async (confirmaciones) => {
     let resultado;
 
     try {
+        const vinculos = planeadas().length ? { planeacionLineas: JSON.stringify(planeadas().map((linea) => linea.planeacion.id)) } : {};
+
         resultado = estado.edicion
-            ? await pedir('actualizar', { ...cuerpoBase(), ...confirmaciones, numero: estado.edicion })
-            : await pedir('guardar', { ...cuerpoBase(), ...confirmaciones, ...(estado.planeacionLinea ? { planeacionLinea: estado.planeacionLinea } : {}) });
+            ? await pedir('actualizar', { ...cuerpoBase(), ...confirmaciones, ...vinculos, numero: estado.edicion })
+            : await pedir('guardar', { ...cuerpoBase(), ...confirmaciones, ...vinculos });
     } catch (error) {
         estado.guardando = false;
         ocupar(boton, false);
         $id('btn_cancelar').disabled = false;
         $id('velo_guardando')?.remove();
         congelar(false);
+
+        if (/actividad planeada/i.test(error.message)) cargarPla();
+
         await manejarErrorGuardar(error, confirmaciones);
 
         return;
@@ -1934,6 +2152,7 @@ const enviarGuardar = async (confirmaciones) => {
     $id('btn_cancelar').disabled = false;
     $id('velo_guardando')?.remove();
     congelar(false);
+    cargarPla();
 
     if (estado.edicion) {
         const numero = estado.edicion;
@@ -2228,6 +2447,43 @@ document.addEventListener('DOMContentLoaded', () => {
             e.returnValue = '';
         }
     });
+
+    if ($id('btn_planeaciones')) {
+        $id('btn_planeaciones').addEventListener('click', abrirPla);
+        ['pla_desde', 'pla_hasta', 'pla_finca', 'pla_buscar'].forEach((id) => $id(id).addEventListener('input', pintarPla));
+        $id('pla_agregar').addEventListener('click', agregarPla);
+        $id('modalPlaneaciones').addEventListener('click', (evento) => {
+            if (evento.target.closest('[data-pla-limpiar]')) limpiarFiltrosPla();
+
+            if (evento.target.closest('[data-pla-reintentar]')) cargarPla();
+
+            const fila = evento.target.closest('tr[data-pla]');
+            const check = fila?.querySelector('[data-pla-check]');
+
+            if (!check || check.disabled || evento.target === check) return;
+
+            check.checked = !check.checked;
+            check.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+        $id('modalPlaneaciones').addEventListener('change', (evento) => {
+            const check = evento.target.closest('[data-pla-check]');
+
+            if (evento.target.id === 'pla_todas') {
+                document.querySelectorAll('#pla_cuerpo [data-pla-check]:not(:disabled)').forEach((item) => {
+                    if (evento.target.checked) pla.seleccion.add(Number(item.dataset.plaCheck));
+                    else pla.seleccion.delete(Number(item.dataset.plaCheck));
+                });
+            }
+
+            if (check) {
+                if (check.checked) pla.seleccion.add(Number(check.dataset.plaCheck));
+                else pla.seleccion.delete(Number(check.dataset.plaCheck));
+            }
+
+            if (check || evento.target.id === 'pla_todas') seleccionPla();
+        });
+        cargarPla();
+    }
 
     $id('tiquete').focus();
 

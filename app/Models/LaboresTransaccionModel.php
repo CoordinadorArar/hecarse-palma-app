@@ -329,10 +329,10 @@ class LaboresTransaccionModel extends ProduccionModel
                 return ['success' => false, 'message' => $detalle];
             }
 
-            if (! $this->vincularPlaneacion($empresa, (int) ($datos['planeacionLinea'] ?? 0), $numero)) {
+            if ($error = $this->vincularPlaneaciones($empresa, $datos, $numero)) {
                 $this->db->transRollback();
 
-                return ['success' => false, 'message' => 'La actividad de la planeación ya fue registrada, no está cerrada como completada o parcial, o no corresponde a este tipo de transacción.'];
+                return ['success' => false, 'message' => $error];
             }
 
             $auditoria = $this->insertarAuditoria('INSERT', [
@@ -402,6 +402,12 @@ class LaboresTransaccionModel extends ProduccionModel
             }
 
             $this->conservarLiquidacion($liquidacion, $llave);
+
+            if ($error = $this->vincularPlaneaciones($empresa, $datos, $numero)) {
+                $this->db->transRollback();
+
+                return ['success' => false, 'message' => $error];
+            }
 
             if (! $this->usarHabilitacion((int) ($antes['habilitacion'] ?? 0), $usu_id)) {
                 $this->db->transRollback();

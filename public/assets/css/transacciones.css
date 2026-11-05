@@ -593,8 +593,16 @@
   border-right: 0;
 }
 
+.tx-tarjeta--planeada {
+  box-shadow: inset 3px 0 0 #2f6fb0;
+}
+
 .tx-tarjeta--sintarifa {
   box-shadow: inset 3px 0 0 #f0a500;
+}
+
+.tx-tarjeta--planeada.tx-tarjeta--sintarifa {
+  box-shadow: inset 3px 0 0 #2f6fb0, inset 6px 0 0 #f0a500;
 }
 
 .tx-tabla-trab {
@@ -809,6 +817,10 @@
 
 .tx-lineas > .tx-tarjeta:only-child {
   grid-column: 1 / -1;
+}
+
+.tx-lineas > .tx-tarjeta--planeada {
+  box-shadow: inset 3px 0 0 #2f6fb0, 1px 1px 5px 1px #cbe7d6;
 }
 
 .tx-lineas .tx-pie-tarjeta {

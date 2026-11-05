@@ -101,6 +101,10 @@ $anchoAcciones = max([1 => 64, 2 => 98, 3 => 132][1 + (int) $pEditar + (int) $pE
 
         </div>
 
+        <div class="gp-nota d-flex align-items-center gap-2 mb-3 d-none" role="status" id="nota_planeacion">
+            <i class="bi bi-calendar-check text-success" aria-hidden="true"></i><span id="nota_planeacion_texto"></span>
+        </div>
+
         <div class="card mb-3" id="card_tiquete">
             <div class="card-header bg-white py-3">
                 <h6 class="gp-seccion mb-0"><i class="bi bi-receipt" aria-hidden="true"></i>Tiquete</h6>
@@ -285,8 +289,11 @@ $anchoAcciones = max([1 => 64, 2 => 98, 3 => 132][1 + (int) $pEditar + (int) $pE
         </div>
 
         <div class="card mb-3" id="card_detalle">
-            <div class="card-header bg-white py-3">
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center gap-2">
                 <h6 class="gp-seccion mb-0"><i class="bi bi-diagram-3" aria-hidden="true"></i>Detalle</h6>
+                <?php if ($conRegistro): ?>
+                <button type="button" class="btn btn-outline-primary btn-sm d-inline-flex align-items-center gap-1" id="btn_planeaciones" title="Cargue el tiquete primero" disabled><i class="bi bi-calendar-check" aria-hidden="true"></i><span class="d-none d-sm-inline">Planeaciones completadas</span> <span class="tx-chip-cont" id="cont_planeaciones">0</span></button>
+                <?php endif; ?>
             </div>
 
             <div class="card-body">
@@ -654,6 +661,8 @@ $anchoAcciones = max([1 => 64, 2 => 98, 3 => 132][1 + (int) $pEditar + (int) $pE
         </div>
     </div>
     <?php endif; ?>
+
+    <?php if ($conRegistro) echo $this->include('transacciones/modal_planeaciones'); ?>
 
 </main>
 <?php echo $this->endSection(); ?>
