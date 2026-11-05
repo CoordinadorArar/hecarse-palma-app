@@ -1008,6 +1008,37 @@ class TablerosController extends BaseController
             $hoja->getStyle('A' . $total . ':Q' . $total)->getFont()->setBold(true);
             $hoja->setAutoFilter('A' . $encabezado . ':Q' . ($total - 1));
 
+            $fac      = $d['facturacion'];
+            $facturas = $fac['facturas'];
+            $conTabla = $fac['disponible'] && $facturas !== [];
+            $infoFac  = array_merge($info, $fac['disponible'] ? array_filter([
+                'Comparativo de kg facturados en Siesa contra kg TLC y kg báscula en el periodo de cada factura.',
+                $f[3] !== [] ? 'La facturación de Siesa no se discrimina por finca: este comparativo muestra el total de la empresa.' : '',
+                'TLC sin facturar: ' . number_format((float) $fac['totales']['kgSinFacturar'], 2, ',', '.') . ' kg en ' . array_sum(array_column($fac['sinFacturar'], 'tlcs')) . ' TLC',
+                $facturas === [] ? $fac['mensaje'] : '',
+            ]) : [$fac['mensaje']]);
+            usort($facturas, static fn ($a, $b) => strcmp((string) $a['inicio'], (string) $b['inicio']) ?: strcmp((string) $a['extractora'], (string) $b['extractora']) ?: strcmp((string) $a['documento'], (string) $b['documento']));
+            $cuadra  = static fn ($v) => $si(abs((float) $v) < 1);
+            $filas   = array_map(static fn ($v) => [
+                $v['documento'], $v['fecha'], $v['nit'], $v['extractora'], $v['inicio'], $v['fin'], $si($v['parcial']), $si($v['periodoPorFecha']), $v['kgFacturado'], $v['kgTlc'], $v['tlcs'], $v['difTlc'], $cuadra($v['difTlc']),
+                $v['kgBascula'], $v['difBascula'], $v['tlcsSinPesaje'], $v['valorFacturado'], $v['ajusteValor'], implode(', ', $v['notasCredito']), $v['notas'],
+            ], $facturas);
+            $t       = $fac['totales'] ?? [];
+            $filas[] = array_replace(array_fill(0, 20, null), [0 => 'Total · ' . count($facturas) . ' facturas', 8 => $t['kgFacturado'] ?? null, 9 => $t['kgTlc'] ?? null, 10 => array_sum(array_column($facturas, 'tlcs')), 11 => $t['difTlc'] ?? null, 12 => $cuadra($t['difTlc'] ?? 0), 13 => $t['kgBascula'] ?? null, 14 => $t['difBascula'] ?? null, 15 => array_sum(array_column($facturas, 'tlcsSinPesaje')), 16 => $t['valorFacturado'] ?? null, 17 => $t['ajusteValor'] ?? null]);
+
+            $hoja = $this->hojaBascula($libro, 'Báscula vs facturado', $infoFac, $conTabla ? [
+                'Factura' => null, 'Fecha factura' => null, 'NIT' => null, 'Extractora' => null, 'Inicio periodo' => null, 'Fin periodo' => null, 'Parcial' => null, 'Periodo estimado' => null,
+                'Kg facturado' => '#,##0.00', 'Kg TLC' => '#,##0.00', 'Nº TLC' => '#,##0', 'Dif. vs TLC' => '#,##0.00', 'Cuadra con TLC' => null, 'Kg báscula (ref.)' => '#,##0.00', 'Dif. vs báscula' => '#,##0.00',
+                'TLC sin pesaje' => '#,##0', 'Valor facturado' => '#,##0', 'Ajuste valor' => '#,##0', 'Notas crédito' => null, 'Notas' => null,
+            ] : [], $filas);
+
+            if ($conTabla) {
+                $encabezado = 3 + count($infoFac);
+                $total      = $encabezado + count($filas);
+                $hoja->getStyle('A' . $total . ':T' . $total)->getFont()->setBold(true);
+                $hoja->setAutoFilter('A' . $encabezado . ':T' . ($total - 1));
+            }
+
             $libro->setActiveSheetIndex(0);
 
             ob_start();
