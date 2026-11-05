@@ -23,7 +23,7 @@ class BasculaInformeModel extends Model
         return $this->db->query(
             'SELECT numero, ' . sprintf(self::PLACA, 'placa') . " AS placa, LTRIM(RTRIM(ISNULL(conductor, ''))) AS conductor, LTRIM(RTRIM(ISNULL(cedula, ''))) AS cedula,
                     LTRIM(RTRIM(ISNULL(origen, ''))) AS origen, LTRIM(RTRIM(ISNULL(destino, ''))) AS destino, CONVERT(char(19), f_entrada, 120) AS entrada,
-                    CONVERT(char(19), f_salida, 120) AS salida, ISNULL(pesada2, 0) AS pesada2, ISNULL(peso_neto, 0) AS neto
+                    CONVERT(char(19), f_salida, 120) AS salida, ISNULL(pesada1, 0) AS pesada1, ISNULL(pesada2, 0) AS pesada2, ISNULL(peso_neto, 0) AS neto
                FROM dbo.bBasculaRegistro WHERE CONVERT(date, f_entrada) BETWEEN ? AND ? ORDER BY f_entrada, numero",
             [$desde, $hasta]
         )->getResultArray();

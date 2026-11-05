@@ -19,7 +19,7 @@ class TablerosController extends BaseController
 
     private const MAX_PERDIDA_PCT = 0.02;
 
-    private const BASCULA_CERO = ['viajes' => 0, 'kgBascula' => 0.0, 'kgCruzado' => 0.0, 'kgExtractora' => 0.0, 'cruzados' => 0, 'sin_tlc' => 0, 'fuera_regla' => 0, 'cumple' => 0, 'incompleto' => 0, 'kgSinTlc' => 0.0];
+    private const BASCULA_CERO = ['viajes' => 0, 'kgBascula' => 0.0, 'kgCruzado' => 0.0, 'kgExtractora' => 0.0, 'cruzados' => 0, 'sin_tlc' => 0, 'fuera_regla' => 0, 'cumple' => 0, 'incompleto' => 0, 'kgSinTlc' => 0.0, 'kgFaltante' => 0.0, 'kgSobrante' => 0.0, 'faltante' => 0, 'sobrante' => 0];
 
     private const EXTRACTORAS = [
         '/MONTER|MOTERR/' => ['800116749', 'MONTERREY'],
@@ -1132,6 +1132,8 @@ class TablerosController extends BaseController
                 'cedula'       => $p['cedula'],
                 'origen'       => $p['origen'],
                 'extractora'   => $extractora,
+                'pesada1'      => round((float) $p['pesada1'], 2),
+                'pesada2'      => round((float) $p['pesada2'], 2),
                 'kgBascula'    => $kg,
                 'tlc'          => $tlcsV[0] ?? null,
                 'tlcs'         => $tlcsV,
@@ -1161,7 +1163,7 @@ class TablerosController extends BaseController
             }
         }
 
-        $kpis = $this->resumenBascula($total);
+        $kpis = $this->resumenBascula($total) + $this->noLlegadosBascula($total);
         ksort($dias);
         ksort($placas);
         ksort($exts);
@@ -1169,7 +1171,7 @@ class TablerosController extends BaseController
         $conductores = array_map(function (array $c) {
             arsort($c['nombres']);
 
-            return ['cedula' => $c['cedula'], 'conductor' => (string) array_key_first($c['nombres']), 'viajes' => $c['viajes']] + $this->resumenBascula($c) + ['fueraRegla' => $c['fuera_regla'], 'kgNoLlegados' => round($c['kgBascula'] - $c['kgExtractora'], 2), 'kgSinTlc' => round($c['kgSinTlc'], 2)];
+            return ['cedula' => $c['cedula'], 'conductor' => (string) array_key_first($c['nombres']), 'viajes' => $c['viajes']] + $this->resumenBascula($c) + ['fueraRegla' => $c['fuera_regla'], 'kgSinTlc' => round($c['kgSinTlc'], 2), 'kgSobrante' => round($c['kgSobrante'], 2)] + $this->noLlegadosBascula($c);
         }, array_values($cond));
 
         usort($conductores, static fn ($a, $b) => $b['kgBascula'] <=> $a['kgBascula']);
@@ -1191,13 +1193,17 @@ class TablerosController extends BaseController
                 'fueraRegla'     => $total['fuera_regla'],
                 'cumplen'        => $total['cumple'],
                 'incompletos'    => $total['incompleto'],
-                'kgNoLlegados'   => round($total['kgBascula'] - $total['kgExtractora'], 2),
+                'kgNoLlegados'   => $kpis['kgNoLlegados'],
+                'pctNoLlegados'  => $kpis['pctNoLlegados'],
                 'kgSinTlc'       => round($total['kgSinTlc'], 2),
+                'kgSobrante'     => round($total['kgSobrante'], 2),
+                'viajesSobrante' => $total['sobrante'],
+                'viajesFaltante' => $total['faltante'],
                 'tlcSinPesaje'   => count($sinPesaje),
                 'kgTlcSinPesaje' => round(array_sum(array_column($sinPesaje, 'kgExtractora')), 2),
-                'cumpleMes'      => $kpis['perdidaPct'] === null ? null : $kpis['perdidaPct'] <= self::MAX_PERDIDA_PCT,
+                'cumpleMes'      => $kpis['pctNoLlegados'] === null ? null : $kpis['pctNoLlegados'] <= self::MAX_PERDIDA_PCT,
             ],
-            'dias' => array_map(fn (string $fecha, array $d) => ['fecha' => $fecha, 'viajes' => $d['viajes'], 'kgBasculaTotal' => round($d['kgBascula'], 2)] + $this->resumenBascula($d, true), array_keys($dias), $dias),
+            'dias' => array_map(fn (string $fecha, array $d) => ['fecha' => $fecha, 'viajes' => $d['viajes'], 'kgBasculaTotal' => round($d['kgBascula'], 2)] + $this->resumenBascula($d, true) + $this->noLlegadosBascula($d), array_keys($dias), $dias),
             'viajes'       => $viajes,
             'tlcSinPesaje' => $sinPesaje,
             'placas'       => [
@@ -1228,11 +1234,22 @@ class TablerosController extends BaseController
             $a['cruzados']++;
             $a['kgCruzado']    += $kg;
             $a['kgExtractora'] += $kgExt;
+            $a['kgFaltante']   += max(0, $kg - $kgExt);
+            $a['kgSobrante']   += max(0, $kgExt - $kg);
+            $a['faltante']     += $kg > $kgExt ? 1 : 0;
+            $a['sobrante']     += $kgExt > $kg ? 1 : 0;
         }
 
         $a['kgSinTlc'] += $estado === 'sin_tlc' ? $kg : 0;
 
         return $a;
+    }
+
+    private function noLlegadosBascula(array $a): array
+    {
+        $kg = $a['kgFaltante'] + $a['kgSinTlc'];
+
+        return ['kgNoLlegados' => round($kg, 2), 'pctNoLlegados' => $a['kgBascula'] > 0 ? round($kg / $a['kgBascula'] * 100, 4) : null];
     }
 
     private function resumenBascula(array $a, bool $soloCruzados = false): array
