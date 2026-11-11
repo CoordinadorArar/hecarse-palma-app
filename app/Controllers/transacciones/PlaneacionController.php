@@ -7,6 +7,13 @@ use CodeIgniter\HTTP\ResponseInterface;
 use App\Models\FertilizacionTransaccionModel;
 use App\Models\PlaneacionModel;
 use App\Models\PlaneacionSugerenciaModel;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Worksheet\PageSetup;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class PlaneacionController extends LaboresController
 {
@@ -62,6 +69,178 @@ class PlaneacionController extends LaboresController
         }
 
         return $this->response->setJSON(['success' => true, 'message' => '', 'plan' => $plan]);
+    }
+
+    public function excel(): ResponseInterface
+    {
+        $datos = $this->empresaFecha(['consultar', 'registrar', 'editar'], 'consultar');
+
+        if ($datos instanceof ResponseInterface) {
+            return $datos;
+        }
+
+        if (! class_exists(Spreadsheet::class)) {
+            return $this->error('La exportación a Excel no está disponible en el servidor.', 500);
+        }
+
+        ['empresa' => $empresa, 'fecha' => $fecha] = $datos;
+
+        try {
+            $plan        = $this->laboresModel->plan($empresa, $fecha);
+            $presentes   = static fn ($a) => array_values(array_filter($a['trabajadores'], static fn ($t) => (int) $t['ausente'] !== 1));
+            $actividades = array_values(array_filter($plan['actividades'] ?? [], static fn ($a) => $presentes($a) !== []));
+
+            if ($actividades === []) {
+                return $this->error('No hay actividades para exportar.');
+            }
+
+            usort($actividades, static fn ($x, $y) => strnatcasecmp($x['finca'], $y['finca']) ?: strnatcasecmp($x['lote'], $y['lote']) ?: $x['orden'] <=> $y['orden']);
+
+            $marca   = strtotime($fecha);
+            $larga   = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'][(int) date('w', $marca)] . ', ' . date('j', $marca) . ' de '
+                . ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'][(int) date('n', $marca) - 1] . ' de ' . date('Y', $marca);
+            $colores = ['FFF4D6', 'DCEBF7', 'E3F2E1', 'F6E1E8', 'E8E4F3', 'E0F2F1'];
+            $borde   = static fn (string $estilo, string $color) => ['borderStyle' => $estilo, 'color' => ['rgb' => $color]];
+            $libro   = new Spreadsheet();
+            $hoja    = $libro->getActiveSheet();
+            $texto   = static fn (string $celda, $valor) => $hoja->setCellValueExplicit($celda, (string) $valor, DataType::TYPE_STRING);
+
+            $libro->getDefaultStyle()->getFont()->setName('Calibri')->setSize(10);
+            $libro->getDefaultStyle()->getAlignment()->setVertical(Alignment::VERTICAL_CENTER);
+            $hoja->setTitle('Planeación');
+            $hoja->setShowGridlines(false);
+
+            foreach (['A' => 5, 'B' => 11, 'C' => 32, 'D' => 8, 'E' => 36, 'F' => 7, 'G' => 10, 'H' => 15, 'I' => 32, 'J' => 18] as $col => $ancho) {
+                $hoja->getColumnDimension($col)->setWidth($ancho);
+            }
+
+            foreach (['N°', 'Código', 'Trabajador', 'Lote', 'Labor', 'UM', 'Cantidad', 'Horario', 'Observación', 'Firma'] as $i => $titulo) {
+                $texto(chr(65 + $i) . '1', $titulo);
+            }
+
+            $hoja->getStyle('A1:J1')->applyFromArray([
+                'font'      => ['bold' => true, 'size' => 10, 'color' => ['rgb' => 'FFFFFF']],
+                'fill'      => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '2F5D3A']],
+                'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
+                'borders'   => ['allBorders' => $borde(Border::BORDER_THIN, '000000')],
+            ]);
+            $hoja->getRowDimension(1)->setRowHeight(20);
+
+            $fila     = 1;
+            $numero   = 0;
+            $personas = [];
+            $grupos   = [];
+            $primeras = [];
+            $finca    = null;
+            $lote     = null;
+            $color    = -1;
+
+            foreach ($actividades as $a) {
+                if ($a['finca'] !== $finca) {
+                    $finca    = $a['finca'];
+                    $lote     = null;
+                    $color    = -1;
+                    $grupos[] = ++$fila;
+                    $texto('A' . $fila, $a['finca'] . ' — ' . $a['fincaNombre']);
+                }
+
+                $labor   = $a['novedad'] . ' ' . $a['novedadNombre'];
+                $horario = $a['horaInicio'] !== '' && $a['horaFin'] !== '' ? $a['horaInicio'] . ' – ' . $a['horaFin'] : '—';
+
+                foreach ($presentes($a) as $t) {
+                    $fila++;
+                    $personas[$t['tercero']] = true;
+
+                    if ($a['lote'] !== $lote) {
+                        $lote       = $a['lote'];
+                        $primeras[] = $fila;
+                        $color++;
+                    } else {
+                        $hoja->getStyle('D' . $fila)->getFont()->getColor()->setRGB('7F7F7F');
+                    }
+
+                    $hoja->setCellValue('A' . $fila, ++$numero);
+
+                    foreach (['B' => $t['codigo'], 'C' => $t['nombre'], 'D' => $a['lote'], 'E' => $labor, 'F' => $a['uMedida'], 'H' => $horario, 'I' => $a['observacion']] as $col => $valor) {
+                        $texto($col . $fila, $valor);
+                    }
+
+                    if ((float) $t['cantidad'] > 0) {
+                        $hoja->setCellValue('G' . $fila, (float) $t['cantidad']);
+                        $hoja->getStyle('G' . $fila)->getNumberFormat()->setFormatCode(floor((float) $t['cantidad']) == (float) $t['cantidad'] ? '#,##0' : '#,##0.00');
+                    }
+
+                    $hoja->getStyle('A' . $fila . ':I' . $fila)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB($colores[$color % count($colores)]);
+                    $hoja->getRowDimension($fila)->setRowHeight(mb_strlen($labor) > 30 || mb_strlen($a['observacion']) > 26 ? -1 : 18);
+                }
+            }
+
+            $fin = $fila;
+
+            $hoja->getStyle('A2:J' . $fin)->applyFromArray(['borders' => ['allBorders' => $borde(Border::BORDER_THIN, 'BFC5CC')]]);
+
+            foreach (['A', 'B', 'D', 'F', 'H'] as $col) {
+                $hoja->getStyle($col . '2:' . $col . $fin)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            }
+
+            $hoja->getStyle('G2:G' . $fin)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+            $hoja->getStyle('E2:E' . $fin)->getAlignment()->setWrapText(true);
+            $hoja->getStyle('I2:I' . $fin)->getAlignment()->setWrapText(true);
+
+            foreach ($primeras as $p) {
+                $hoja->getStyle('D' . $p)->getFont()->setBold(true);
+                $hoja->getStyle('A' . $p . ':J' . $p)->applyFromArray(['borders' => ['top' => $borde(Border::BORDER_MEDIUM, '7F8C8D')]]);
+            }
+
+            foreach ($grupos as $g) {
+                $hoja->mergeCells('A' . $g . ':J' . $g);
+                $hoja->getStyle('A' . $g . ':J' . $g)->applyFromArray([
+                    'font'      => ['bold' => true, 'size' => 10],
+                    'fill'      => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'D5DED6']],
+                    'alignment' => ['horizontal' => Alignment::HORIZONTAL_LEFT, 'indent' => 1],
+                    'borders'   => ['top' => $borde(Border::BORDER_MEDIUM, '2F5D3A')],
+                ]);
+                $hoja->getRowDimension($g)->setRowHeight(20);
+            }
+
+            $hoja->getStyle('A1:J' . $fin)->applyFromArray(['borders' => ['outline' => $borde(Border::BORDER_MEDIUM, '2F5D3A')]]);
+
+            $total  = $fin + 2;
+            $firmas = $total + 4;
+
+            $hoja->mergeCells('A' . $total . ':E' . $total);
+            $texto('A' . $total, 'Total: ' . number_format(count($personas), 0, ',', '.') . ' trabajadores · ' . number_format(count($actividades), 0, ',', '.') . ' actividades');
+            $hoja->getStyle('A' . $total)->getFont()->setBold(true)->setSize(10);
+
+            foreach (['B' . $firmas . ':D' . $firmas => 'Elaboró (Agrónomo)', 'H' . $firmas . ':J' . $firmas => 'Vo. Bo.'] as $rango => $valor) {
+                $hoja->mergeCells($rango);
+                $texto(explode(':', $rango)[0], $valor);
+                $hoja->getStyle($rango)->applyFromArray([
+                    'font'      => ['size' => 9],
+                    'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
+                    'borders'   => ['top' => $borde(Border::BORDER_THIN, '000000')],
+                ]);
+            }
+
+            $hoja->getPageSetup()->setOrientation(PageSetup::ORIENTATION_LANDSCAPE)->setPaperSize(PageSetup::PAPERSIZE_LETTER)
+                ->setFitToWidth(1)->setFitToHeight(0)->setHorizontalCentered(true)->setRowsToRepeatAtTopByStartAndEnd(1, 1)->setPrintArea('A1:J' . $firmas);
+            $hoja->getPageMargins()->setLeft(1 / 2.54)->setRight(1 / 2.54)->setTop(1.3 / 2.54)->setBottom(1.3 / 2.54)->setHeader(0.6 / 2.54)->setFooter(0.6 / 2.54);
+            $hoja->getHeaderFooter()->setOddFooter('&L&8Programación diaria · ' . $larga . '&R&8Página &P de &N');
+            $hoja->freezePane('A2');
+
+            ob_start();
+            (new Xlsx($libro))->save('php://output');
+            $contenido = ob_get_clean();
+        } catch (\Throwable $e) {
+            log_message('error', 'Error exportando la planeación de labores: ' . $e->getMessage());
+
+            return $this->error('No se pudo generar el archivo de Excel.', 500);
+        }
+
+        return $this->response
+            ->setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            ->setHeader('Content-Disposition', 'attachment; filename="planeacion_labores_' . $fecha . '.xlsx"')
+            ->setBody($contenido);
     }
 
     public function pendientes(): ResponseInterface

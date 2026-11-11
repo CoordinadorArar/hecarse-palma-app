@@ -157,9 +157,9 @@ $meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agost
                                 </div>
                             </div>
                             <div class="col-12 col-md-3">
-                                <label class="form-label mb-1 small fw-semibold text-muted" for="meta_emp_kilos">Kilos anuales totales</label>
+                                <div class="gp-gramos-cab"><label class="form-label mb-1 small fw-semibold text-muted" for="meta_emp_kilos">Kilos anuales totales</label><span class="gp-gramos ms-auto d-none" id="meta_emp_kilos_g"></span></div>
                                 <div class="input-group has-validation">
-                                    <input type="text" class="form-control text-end font-monospace" id="meta_emp_kilos" inputmode="decimal" autocomplete="off" placeholder="0">
+                                    <input type="text" class="form-control text-end font-monospace" id="meta_emp_kilos" inputmode="decimal" autocomplete="off" placeholder="0" data-gramos aria-describedby="meta_emp_kilos_g">
                                     <span class="input-group-text bg-light">kg</span>
                                     <div class="invalid-feedback" id="meta_emp_kilos_error"></div>
                                 </div>
@@ -186,9 +186,9 @@ $meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agost
                     <fieldset id="metas_finca_campos" disabled>
                         <div class="row g-2 align-items-end">
                             <div class="col-12 col-md-3">
-                                <label class="form-label mb-1 small fw-semibold text-muted" for="meta_finca_kilos">Meta anual</label>
+                                <div class="gp-gramos-cab"><label class="form-label mb-1 small fw-semibold text-muted" for="meta_finca_kilos">Meta anual</label><span class="gp-gramos ms-auto d-none" id="meta_finca_kilos_g"></span></div>
                                 <div class="input-group has-validation">
-                                    <input type="text" class="form-control text-end font-monospace" id="meta_finca_kilos" inputmode="decimal" autocomplete="off" placeholder="0">
+                                    <input type="text" class="form-control text-end font-monospace" id="meta_finca_kilos" inputmode="decimal" autocomplete="off" placeholder="0" data-gramos aria-describedby="meta_finca_kilos_g">
                                     <span class="input-group-text bg-light">kg</span>
                                     <div class="invalid-feedback" id="meta_finca_kilos_error"></div>
                                 </div>
@@ -273,9 +273,9 @@ $meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agost
                         <div class="invalid-feedback" id="form_lote_error"></div>
                     </div>
                     <div class="col-12 col-md-2">
-                        <label class="form-label mb-1 small fw-semibold text-muted" for="form_kilos">Kilos</label>
+                        <div class="gp-gramos-cab"><label class="form-label mb-1 small fw-semibold text-muted" for="form_kilos">Kilos</label><span class="gp-gramos ms-auto d-none" id="form_kilos_g"></span></div>
                         <div class="input-group has-validation">
-                            <input type="text" class="form-control text-end font-monospace" id="form_kilos" inputmode="decimal" autocomplete="off" placeholder="0" disabled>
+                            <input type="text" class="form-control text-end font-monospace" id="form_kilos" inputmode="decimal" autocomplete="off" placeholder="0" disabled data-gramos aria-describedby="form_kilos_g">
                             <span class="input-group-text bg-light">kg</span>
                             <div class="invalid-feedback" id="form_kilos_error"></div>
                         </div>

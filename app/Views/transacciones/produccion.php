@@ -225,14 +225,16 @@ $anchoAcciones = max([1 => 64, 2 => 98, 3 => 132][1 + (int) $pEditar + (int) $pE
 
                                 <div class="col-md-2">
                                     <label class="form-label mb-1 small fw-semibold text-muted text-end d-block" for="pesoBruto">Peso bruto (kg)</label>
-                                    <input type="text" class="form-control font-monospace text-end" id="pesoBruto" inputmode="numeric" maxlength="14" autocomplete="off" disabled onkeypress="soloNumeros(event)">
+                                    <input type="text" class="form-control font-monospace text-end" id="pesoBruto" inputmode="numeric" maxlength="14" autocomplete="off" disabled onkeypress="soloNumeros(event)" data-gramos aria-describedby="pesoBruto_g">
                                     <div class="invalid-feedback d-block d-none" id="error_bruto">Indique el peso bruto (mayor que cero).</div>
+                                    <span class="gp-gramos d-block text-end mt-1 d-none" id="pesoBruto_g"></span>
                                 </div>
 
                                 <div class="col-md-2" id="col_tara">
                                     <label class="form-label mb-1 small fw-semibold text-muted text-end d-block" for="pesoTara">Peso tara (kg)</label>
-                                    <input type="text" class="form-control font-monospace text-end" id="pesoTara" inputmode="numeric" maxlength="14" autocomplete="off" disabled onkeypress="soloNumeros(event)">
+                                    <input type="text" class="form-control font-monospace text-end" id="pesoTara" inputmode="numeric" maxlength="14" autocomplete="off" disabled onkeypress="soloNumeros(event)" data-gramos aria-describedby="pesoTara_g">
                                     <div class="invalid-feedback d-block d-none" id="error_tara">La tara no puede superar el peso bruto.</div>
+                                    <span class="gp-gramos d-block text-end mt-1 d-none" id="pesoTara_g"></span>
                                 </div>
 
                                 <div class="col-md-2">
@@ -612,8 +614,9 @@ $anchoAcciones = max([1 => 64, 2 => 98, 3 => 132][1 + (int) $pEditar + (int) $pE
 
                             <div class="col-md-3">
                                 <label class="form-label mb-1 small fw-semibold text-muted" for="trab_cantidad">Cantidad c/u (kg)</label>
-                                <input type="text" class="form-control font-monospace text-end tx-neto" id="trab_cantidad" inputmode="decimal" maxlength="14" autocomplete="off" placeholder="Automática" readonly aria-describedby="ayuda_cantidad">
+                                <input type="text" class="form-control font-monospace text-end tx-neto" id="trab_cantidad" inputmode="decimal" maxlength="14" autocomplete="off" placeholder="Automática" readonly data-gramos aria-describedby="ayuda_cantidad trab_cantidad_g">
                                 <div class="invalid-feedback d-block d-none" id="error_trab_cantidad"></div>
+                                <span class="gp-gramos d-block text-end mt-1 d-none" id="trab_cantidad_g"></span>
                                 <div class="form-text" id="ayuda_cantidad"></div>
                             </div>
 

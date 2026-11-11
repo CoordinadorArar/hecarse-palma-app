@@ -221,9 +221,10 @@ foreach ($lotes as $l) {
                                 <label class="form-label mb-1 small fw-semibold text-muted" for="peso_racimo">Peso (Kg) <span class="text-danger">*</span></label>
                                 <div class="input-group">
                                     <span class="input-group-text bg-light"><i class="bi bi-speedometer2"></i></span>
-                                    <input type="number" class="form-control text-end" id="peso_racimo" step="0.001" min="0" required>
+                                    <input type="number" class="form-control text-end" id="peso_racimo" step="0.001" min="0" required data-gramos aria-describedby="peso_racimo_g">
                                     <span class="input-group-text bg-light">Kg</span>
                                 </div>
+                                <span class="gp-gramos d-block text-end mt-1 d-none" id="peso_racimo_g"></span>
                             </div>
 
                             <div class="col-md-6">

@@ -100,8 +100,8 @@ $verSugerencias = ! empty($permisos['consultar']) || ! empty($permisos['registra
                 <button type="button" class="btn btn-outline-secondary d-none d-md-inline-flex align-items-center gap-1" id="btn_ausentes" data-accion="ausentes">
                     <i class="bi bi-person-x" aria-hidden="true"></i>Ausentes <span class="tx-chip-cont" data-cont="ausentes">0</span>
                 </button>
-                <button type="button" class="btn btn-outline-secondary d-none d-md-inline-flex align-items-center gap-1" id="btn_imprimir" data-accion="imprimir">
-                    <i class="bi bi-printer" aria-hidden="true"></i>Imprimir
+                <button type="button" class="btn btn-outline-secondary d-none d-md-inline-flex align-items-center gap-1" id="btn_excel" data-accion="excel">
+                    <i class="bi bi-file-earmark-excel" aria-hidden="true"></i>Exportar a Excel
                 </button>
                 <div class="dropdown d-md-none">
                     <button type="button" class="btn btn-outline-secondary" id="btn_mas_opciones" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Más opciones"><i class="bi bi-three-dots" aria-hidden="true"></i></button>
@@ -111,7 +111,7 @@ $verSugerencias = ! empty($permisos['consultar']) || ! empty($permisos['registra
                         <?php endif; ?>
                         <li><button type="button" class="dropdown-item" data-accion="pendientes"><i class="bi bi-clock-history me-2" aria-hidden="true"></i>Pendientes <span class="tx-chip-cont" data-cont="pendientes">0</span></button></li>
                         <li><button type="button" class="dropdown-item" data-accion="ausentes"><i class="bi bi-person-x me-2" aria-hidden="true"></i>Ausentes <span class="tx-chip-cont" data-cont="ausentes">0</span></button></li>
-                        <li><button type="button" class="dropdown-item" data-accion="imprimir"><i class="bi bi-printer me-2" aria-hidden="true"></i>Imprimir</button></li>
+                        <li><button type="button" class="dropdown-item" data-accion="excel"><i class="bi bi-file-earmark-excel me-2" aria-hidden="true"></i>Exportar a Excel</button></li>
                     </ul>
                 </div>
                 <button type="button" class="btn btn-outline-success d-none" id="btn_planilla" data-accion="planilla" aria-label="Planear finca">
@@ -156,8 +156,6 @@ $verSugerencias = ! empty($permisos['consultar']) || ! empty($permisos['registra
         <div class="tx-acciones flex-wrap d-none" id="barra_inferior"></div>
 
     </div>
-
-    <div class="pl-impresion d-none" id="impresion"></div>
 
     <div class="modal fade" id="modalActividad" tabindex="-1" aria-labelledby="titulo_actividad" aria-hidden="true" data-bs-backdrop="static">
         <div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-sm-down">
@@ -277,11 +275,12 @@ $verSugerencias = ! empty($permisos['consultar']) || ! empty($permisos['registra
                             <div class="flex-grow-1 min-w-0">
                                 <div class="input-group input-group-sm pl-total-grupo">
                                     <span class="input-group-text">Total</span>
-                                    <input type="text" id="act_total" class="form-control font-monospace text-end tx-num" inputmode="decimal" placeholder="0" maxlength="14" autocomplete="off" aria-label="Total del grupo">
+                                    <input type="text" id="act_total" class="form-control font-monospace text-end tx-num" inputmode="decimal" placeholder="0" maxlength="14" autocomplete="off" aria-label="Total del grupo" data-gramos-um="#act_um" aria-describedby="act_total_g">
                                     <span class="input-group-text" id="act_total_um">—</span>
                                     <button type="button" class="btn btn-outline-success" id="act_repartir" disabled><i class="bi bi-distribute-horizontal me-1" aria-hidden="true"></i>Repartir</button>
                                 </div>
                                 <div class="invalid-feedback d-block d-none" id="error_act_total"></div>
+                                <span class="gp-gramos d-block text-end mt-1 d-none" id="act_total_g"></span>
                                 <div class="form-text mt-1">Reparte el total en partes iguales; luego puede ajustar cada trabajador.</div>
                             </div>
                             <div class="tx-reparto tx-reparto--inactivo pl-indicador" id="act_indicador"></div>
@@ -402,8 +401,9 @@ $verSugerencias = ! empty($permisos['consultar']) || ! empty($permisos['registra
                             </div>
                             <div class="col-12 col-sm-6">
                                 <label class="form-label mb-1 small fw-semibold text-muted" for="edit_cantidad">Cantidad <span class="text-muted fw-normal" id="edit_um"></span></label>
-                                <input type="text" class="form-control font-monospace text-end tx-num" id="edit_cantidad" placeholder="Opcional" inputmode="decimal" maxlength="14" autocomplete="off">
+                                <input type="text" class="form-control font-monospace text-end tx-num" id="edit_cantidad" placeholder="Opcional" inputmode="decimal" maxlength="14" autocomplete="off" data-gramos="" aria-describedby="edit_cantidad_g">
                                 <div class="invalid-feedback d-block d-none" id="error_edit_cantidad">Use números mayores o iguales a cero con máximo 3 decimales.</div>
+                                <span class="gp-gramos d-block text-end mt-1 d-none" id="edit_cantidad_g"></span>
                                 <span class="gp-subtexto tx-num mt-1" id="edit_resumen" aria-live="polite"></span>
                             </div>
                         </div>
@@ -468,10 +468,11 @@ $verSugerencias = ! empty($permisos['consultar']) || ! empty($permisos['registra
                         <div class="mb-3" id="cierre_col_cantidad">
                             <label class="form-label mb-1 small fw-semibold text-muted" for="cierre_cantidad">Cantidad ejecutada <span class="text-danger" id="cierre_marca">*</span></label>
                             <div class="input-group">
-                                <input type="text" class="form-control font-monospace text-end tx-num" id="cierre_cantidad" inputmode="decimal" maxlength="14" autocomplete="off">
+                                <input type="text" class="form-control font-monospace text-end tx-num" id="cierre_cantidad" inputmode="decimal" maxlength="14" autocomplete="off" data-gramos="" aria-describedby="cierre_cantidad_g">
                                 <span class="input-group-text" id="cierre_um"></span>
                             </div>
                             <div class="invalid-feedback d-block d-none" id="error_cierre_cantidad"></div>
+                            <span class="gp-gramos d-block text-end mt-1 d-none" id="cierre_cantidad_g"></span>
                             <span class="gp-subtexto tx-num mt-1" id="cierre_saldo" aria-live="polite"></span>
                         </div>
                         <div>

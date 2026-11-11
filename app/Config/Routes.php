@@ -356,6 +356,7 @@ $routes->post('transacciones/fertilizacion/habilitar', 'transacciones\Fertilizac
 $routes->post('transacciones/fertilizacion/planeaciones', 'transacciones\FertilizacionController::planeaciones');
 $routes->get('transacciones/planeacion/(:num)', 'transacciones\PlaneacionController::index/$1');
 $routes->post('transacciones/planeacion/plan', 'transacciones\PlaneacionController::plan');
+$routes->post('transacciones/planeacion/excel', 'transacciones\PlaneacionController::excel');
 $routes->post('transacciones/planeacion/pendientes', 'transacciones\PlaneacionController::pendientes');
 $routes->post('transacciones/planeacion/terceros', 'transacciones\PlaneacionController::terceros');
 $routes->post('transacciones/planeacion/lotes', 'transacciones\PlaneacionController::lotes');

@@ -36,6 +36,8 @@ const aNumero = (valor) => {
     return /^\d+([.,]\d{1,3})?$/.test(crudo) ? Number(crudo.replace(',', '.')) : NaN;
 };
 
+kgGramos.parsear = aNumero;
+
 const valorInput = (numero) => (Number.isFinite(numero) ? String(numero).replace('.', ',') : '');
 const milesimas = (valor) => Math.round(Number(valor || 0) * 1000);
 const valorCant = (numero) => (numero > 0 ? valorInput(numero) : '');
@@ -130,12 +132,6 @@ const fechaCorta = (iso) => {
     return `${DIAS[fecha.getDay()].slice(0, 3)} ${fecha.getDate()} ${MESES[fecha.getMonth()].slice(0, 3)}`;
 };
 
-const fechaLarga = (iso) => {
-    const fecha = aFecha(iso);
-
-    return `${DIAS[fecha.getDay()]} ${fecha.getDate()} de ${MESES[fecha.getMonth()]} de ${fecha.getFullYear()}`;
-};
-
 const fechaHora = (valor) => (texto(valor) ? `${fechaLegible(valor)} ${texto(valor).slice(11, 16)}` : '');
 
 const relativo = (iso) => {
@@ -169,7 +165,8 @@ const estado = {
     filtro: null,
     pendientes: [],
     destacar: null,
-    guardando: false
+    guardando: false,
+    exportando: false
 };
 
 let turnoPlan = 0;
@@ -228,6 +225,7 @@ const actividades = () => estado.plan?.actividades || [];
 const actividad = (id) => actividades().find((a) => a.id === Number(id)) || null;
 const pendientesPlan = () => actividades().filter((a) => a.estado === 'PENDIENTE');
 const ausente = (t) => Number(t.ausente) === 1;
+const exportable = () => actividades().some((a) => a.trabajadores.some((t) => !ausente(t)));
 const editable = () => (estado.plan ? estado.plan.estado === 'ABIERTA' && PERMISOS.editar : PERMISOS.registrar);
 const nitsAusentes = () => new Set((estado.plan?.ausencias || []).map((a) => a.tercero));
 const nombreCorto = (nombre) => texto(nombre).split(/\s+/).slice(0, 2).join(' ');
@@ -361,7 +359,7 @@ const pintarBarra = () => {
         chip.classList.toggle('pl-ambar', ausentes > 0);
     });
     document.querySelectorAll('#barra_plan [data-accion="ausentes"]').forEach((boton) => { boton.disabled = !plan; });
-    document.querySelectorAll('#barra_plan [data-accion="imprimir"]').forEach((boton) => { boton.disabled = !actividades().length; });
+    document.querySelectorAll('#barra_plan [data-accion="excel"]').forEach((boton) => { boton.disabled = estado.exportando || !exportable(); });
     mostrar(document.querySelector('#barra_plan [data-accion="agregar"]'), editable());
     mostrar(document.querySelector('#barra_plan [data-accion="planilla"]'), editable());
 };
@@ -1016,7 +1014,7 @@ const pintarReparto = () => {
 
         return `<tr class="${error ? 'pl-fila-dup' : ''}">
             <td><span class="font-monospace fw-semibold me-1">${escaparHtml(t.codigo)}</span><span class="gp-truncar d-inline-block align-bottom" title="${nombre}">${nombre}</span>${t.reasignadoDe ? `<span class="gp-chip-fila ambar ms-1">recibe de ${escaparHtml(codigoDe(t.reasignadoDe))}</span>` : ''}${error ? `<div class="invalid-feedback d-block">${escaparHtml(error)}</div>` : ''}</td>
-            <td class="text-end"><input type="text" class="form-control form-control-sm tx-input-num font-monospace ms-auto${malaCant(t.cantidad, um) ? ' is-invalid' : ''}" data-reparto="${i}" value="${valorCant(t.cantidad)}" placeholder="Opcional" inputmode="${modoNum(um)}" maxlength="14" autocomplete="off" aria-label="Cantidad de ${nombre}"></td>
+            <td class="text-end"><div class="d-flex align-items-center justify-content-end gap-2"><span class="gp-gramos d-none" id="g_rep_${i}"></span><input type="text" class="form-control form-control-sm tx-input-num font-monospace ms-auto${malaCant(t.cantidad, um) ? ' is-invalid' : ''}" data-reparto="${i}" value="${valorCant(t.cantidad)}" placeholder="Opcional" inputmode="${modoNum(um)}" maxlength="14" autocomplete="off" aria-label="Cantidad de ${nombre}" data-gramos-um="#act_um" aria-describedby="g_rep_${i}"></div></td>
             ${cosecha ? `<td class="text-end tx-num text-muted text-nowrap" data-kg="${i}">${celdaKg(t, kg)}</td>` : ''}
             <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger" data-quitar-reparto="${escaparHtml(t.tercero)}" title="Quitar a ${nombre}" aria-label="Quitar a ${nombre}"><i class="bi bi-x-lg" aria-hidden="true"></i></button></td>
         </tr>`;
@@ -1330,6 +1328,7 @@ const abrirEdicionTrabajador = (id, tercero) => {
     $id('edit_um').textContent = `(${a.uMedida})`;
     $id('edit_cantidad').value = valorCant(Number(t.cantidad));
     $id('edit_cantidad').setAttribute('inputmode', modoNum(a.uMedida));
+    $id('edit_cantidad').dataset.gramos = a.uMedida || '-';
     errorCampo('error_edit_tercero', false);
     errorCampo('error_edit_cantidad', false);
     $id('edit_tercero').closest('.tx-select-ancho').classList.remove('is-invalid');
@@ -1405,6 +1404,7 @@ const abrirCierre = (id, clave) => {
     $id('cierre_marca').textContent = Number(a.cantidad) > 0 ? '*' : '(opcional)';
     $id('cierre_um').textContent = a.uMedida;
     $id('cierre_cantidad').setAttribute('inputmode', modoNum(a.uMedida));
+    $id('cierre_cantidad').dataset.gramos = a.uMedida || '-';
     $id('cierre_cantidad').value = '';
     $id('cierre_observacion').value = '';
     $id('contador_cierre').textContent = '0 / 250';
@@ -1490,7 +1490,7 @@ const actualizarPaso = () => {
 const candidatoHtml = (c, k) => `<div class="pl-candidato${c.marcado ? ' activo' : ''}">
     <input class="form-check-input" type="checkbox" id="aus_c_${k}" data-cand="${k}"${c.marcado ? ' checked' : ''}>
     <label class="form-check-label min-w-0" for="aus_c_${k}"><span class="font-monospace fw-semibold me-1">${escaparHtml(c.codigo || c.tercero)}</span><span class="gp-truncar d-inline-block align-bottom">${escaparHtml(c.nombre)}</span></label>
-    <input type="text" class="form-control form-control-sm tx-input-num font-monospace" data-cand-cant="${k}" value="${c.marcado ? valorInput(c.cantidad) : ''}" inputmode="${modoNum(aus.pasos[aus.i]?.a.uMedida)}" maxlength="14" autocomplete="off" aria-label="Cantidad para ${escaparHtml(c.nombre)}"${c.marcado ? '' : ' disabled'}>
+    <div class="d-flex align-items-center justify-content-end gap-2"><span class="gp-gramos d-none" id="g_cand_${k}"></span><input type="text" class="form-control form-control-sm tx-input-num font-monospace" data-cand-cant="${k}" value="${c.marcado ? valorInput(c.cantidad) : ''}" inputmode="${modoNum(aus.pasos[aus.i]?.a.uMedida)}" maxlength="14" autocomplete="off" aria-label="Cantidad para ${escaparHtml(c.nombre)}" data-gramos="${escaparHtml(aus.pasos[aus.i]?.a.uMedida || '-')}" aria-describedby="g_cand_${k}"${c.marcado ? '' : ' disabled'}></div>
 </div>`;
 
 const pintarAusencia = () => {
@@ -1721,50 +1721,52 @@ const trasladar = async (id) => {
     }
 };
 
-const imprimir = () => {
-    const plan = estado.plan;
+const exportar = async () => {
+    if (estado.exportando) return;
 
-    if (!plan || !actividades().length) {
-        Toast.fire({ icon: 'info', title: 'No hay actividades para imprimir.' });
+    if (!estado.plan || !exportable()) {
+        Toast.fire({ icon: 'info', title: 'No hay actividades para exportar.' });
 
         return;
     }
 
-    const ordenadas = [...actividades()].sort((x, y) => x.finca.localeCompare(y.finca, 'es', { numeric: true }) || x.lote.localeCompare(y.lote, 'es', { numeric: true }) || x.orden - y.orden);
-    const personas = new Set();
-    let numero = 0;
+    const boton = $id('btn_excel');
+    const botones = document.querySelectorAll('#barra_plan [data-accion="excel"]');
+    const html = boton.innerHTML;
+    const fecha = fechaPlan();
+    const cuerpo = new FormData();
 
-    const cuerpo = agrupar(ordenadas, (a) => a.finca).map(([finca, lista]) => `<tr class="pl-imp-grupo"><td colspan="10">${escaparHtml(finca)} — ${escaparHtml(lista[0].fincaNombre)}</td></tr>${lista.map((a) => a.trabajadores.filter((t) => !ausente(t)).map((t) => {
-        numero++;
-        personas.add(t.tercero);
+    cuerpo.append('empresa', empresaId());
+    cuerpo.append('fecha', fecha);
+    estado.exportando = true;
+    botones.forEach((b) => { b.disabled = true; });
+    boton.innerHTML = '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>Exportando…';
 
-        return `<tr>
-            <td class="text-center">${numero}</td>
-            <td class="font-monospace">${escaparHtml(t.codigo)}</td>
-            <td>${escaparHtml(t.nombre)}</td>
-            <td>${escaparHtml(a.lote)}</td>
-            <td>${escaparHtml(a.novedad)} ${escaparHtml(a.novedadNombre)}</td>
-            <td>${escaparHtml(a.uMedida)}</td>
-            <td class="text-end">${Number(t.cantidad) > 0 ? cant(t.cantidad) : ''}</td>
-            <td class="pl-imp-horario">${texto(a.horaInicio) && texto(a.horaFin) ? `<span class="text-nowrap">${escaparHtml(formatoHora(a.horaInicio))} –</span><br><span class="text-nowrap">${escaparHtml(formatoHora(a.horaFin))}</span>` : '—'}</td>
-            <td>${escaparHtml(a.observacion)}</td>
-            <td></td>
-        </tr>`;
-    }).join('')).join('')}`).join('');
+    try {
+        const respuesta = await fetch(URL_PL + 'excel', { method: 'POST', body: cuerpo }).catch(() => {
+            throw new Error('Error de conexión.');
+        });
 
-    $id('impresion').innerHTML = `<div class="pl-imp-cab">
-            <div><div class="pl-imp-empresa">${escaparHtml($id('filtro_empresa').selectedOptions[0]?.textContent.trim())}</div><div class="pl-imp-titulo">PROGRAMACIÓN DIARIA DE LABORES</div></div>
-            <div class="text-end"><div class="pl-imp-fecha">${escaparHtml(fechaLarga(plan.fecha))}</div><div>Plan ${plan.estado === 'CERRADA' ? 'cerrado' : 'abierto'}</div><div>Impreso: ${escaparHtml(new Date().toLocaleString('es-CO'))}</div></div>
-        </div>
-        <table class="pl-imp-tabla">
-            <thead><tr><th>N°</th><th>Código</th><th>Trabajador</th><th>Lote</th><th>Labor</th><th>UM</th><th>Cantidad</th><th>Horario</th><th>Observación</th><th class="pl-imp-firma">Firma</th></tr></thead>
-            <tbody>${cuerpo}</tbody>
-        </table>
-        <div class="pl-imp-pie">
-            <div>Total: ${fmt(personas.size)} trabajadores · ${fmt(ordenadas.filter((a) => a.trabajadores.some((t) => !ausente(t))).length)} actividades</div>
-            <div class="pl-imp-firmas"><div>Elaboró (Agrónomo)</div><div>Vo. Bo.</div></div>
-        </div>`;
-    window.print();
+        if (!respuesta.ok || (respuesta.headers.get('Content-Type') || '').includes('json')) {
+            const resultado = await respuesta.json().catch(() => null);
+
+            throw Object.assign(new Error(texto(resultado?.message) || (respuesta.status === 403 ? 'No tiene permiso para realizar esta acción. Solicítelo al administrador.' : 'No se pudo generar el archivo.')), { status: respuesta.status });
+        }
+
+        const nombre = (respuesta.headers.get('Content-Disposition') || '').match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i)?.[1];
+        const enlace = document.createElement('a');
+
+        enlace.href = URL.createObjectURL(await respuesta.blob());
+        enlace.download = nombre ? decodeURIComponent(nombre) : `planeacion_labores_${fecha}.xlsx`;
+        enlace.click();
+        setTimeout(() => URL.revokeObjectURL(enlace.href), 1000);
+    } catch (error) {
+        Swal.fire({ icon: error.status === 403 ? 'warning' : 'error', title: error.status === 403 ? 'Acción no permitida' : 'No se pudo exportar', html: escaparHtml(error.message), confirmButtonText: 'Entendido' });
+    }
+
+    estado.exportando = false;
+    boton.innerHTML = html;
+    botones.forEach((b) => { b.disabled = !exportable(); });
 };
 
 const plantillaLote = (opcion) => (opcion.element?.dataset.nombre !== undefined
@@ -1988,11 +1990,12 @@ const pintarDetallePla = (f) => {
             <div class="min-w-0">
                 <div class="input-group input-group-sm pl-total-grupo">
                     <span class="input-group-text">Total</span>
-                    <input type="text" class="form-control font-monospace text-end tx-num" data-total value="${escaparHtml(f.total)}" inputmode="${modoNum(um)}" placeholder="0" maxlength="14" autocomplete="off" aria-label="Total del grupo">
+                    <input type="text" class="form-control font-monospace text-end tx-num" data-total value="${escaparHtml(f.total)}" inputmode="${modoNum(um)}" placeholder="0" maxlength="14" autocomplete="off" aria-label="Total del grupo" data-gramos="${escaparHtml(um || '-')}" aria-describedby="g_total_${f.uid}">
                     <span class="input-group-text" data-total-um>${escaparHtml(um || '—')}</span>
                     <button type="button" class="btn btn-outline-success" data-pla="repartir"><i class="bi bi-distribute-horizontal me-1" aria-hidden="true"></i>Repartir</button>
                 </div>
                 <div class="invalid-feedback d-block d-none" data-total-error></div>
+                <span class="gp-gramos d-block text-end mt-1 d-none" id="g_total_${f.uid}"></span>
                 <div class="form-text mt-1">Reparte el total en partes iguales; luego puede ajustar cada trabajador.</div>
             </div>
             <div class="tx-reparto tx-reparto--inactivo pl-indicador ms-auto" data-indicador></div>
@@ -2004,7 +2007,7 @@ const pintarDetallePla = (f) => {
                 <span class="font-monospace fw-semibold">${escaparHtml(t.codigo || t.tercero)}</span>
                 <span class="gp-truncar flex-grow-1" title="${nombre}">${nombre}</span>
                 ${t.reasignadoDe ? `<span class="gp-chip-fila ambar">recibe de ${escaparHtml(codigoDe(t.reasignadoDe))}</span>` : ''}
-                <input type="text" class="form-control form-control-sm tx-input-num font-monospace${malaCant(t.cantidad, um) ? ' is-invalid' : ''}" data-cant="${i}" value="${valorCant(t.cantidad)}" placeholder="Opcional" inputmode="${modoNum(um)}" maxlength="14" autocomplete="off" aria-label="Cantidad de ${nombre}">
+                <div class="d-flex align-items-center justify-content-end gap-2"><span class="gp-gramos d-none" id="g_cant_${f.uid}_${i}"></span><input type="text" class="form-control form-control-sm tx-input-num font-monospace${malaCant(t.cantidad, um) ? ' is-invalid' : ''}" data-cant="${i}" value="${valorCant(t.cantidad)}" placeholder="Opcional" inputmode="${modoNum(um)}" maxlength="14" autocomplete="off" aria-label="Cantidad de ${nombre}" data-gramos="${escaparHtml(um || '-')}" aria-describedby="g_cant_${f.uid}_${i}"></div>
                 <div class="invalid-feedback d-block d-none w-100 mt-0" data-dup></div>
             </div>`;
     }).join('')}</div>` : '<span class="small text-muted">Seleccione los trabajadores de la fila.</span>'}`;
@@ -2068,6 +2071,8 @@ const pintarFilaPla = (f, numero) => {
     mostrar(f.det, pla.abierta === f.uid);
 
     if (pla.abierta !== f.uid) return;
+
+    f.det.querySelectorAll('[data-gramos]').forEach((campo) => { campo.dataset.gramos = d.uMedida || '-'; });
 
     const indicador = f.det.querySelector('[data-indicador]');
     const total = aNumero(f.total);
@@ -3221,7 +3226,7 @@ const ACCIONES = {
     planilla: (d) => abrirPlanilla(d.finca || ''),
     pendientes: () => bootstrap.Offcanvas.getOrCreateInstance($id('panelPendientes')).show(),
     ausentes: elegirAusente,
-    imprimir,
+    excel: exportar,
     'ver-todas': () => filtrar(null),
     reintentar: () => cargar(),
     editar: (d) => abrirActividad(actividad(d.act)),

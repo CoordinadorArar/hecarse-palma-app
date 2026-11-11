@@ -60,6 +60,8 @@ const aNumero = (valor) => {
     return isNaN(numero) ? 0 : numero;
 };
 
+kgGramos.parsear = aNumero;
+
 const estado = {
     tiqueteCargado: false,
     encontrado: false,
