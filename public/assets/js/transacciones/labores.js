@@ -55,6 +55,8 @@ const aNumero = (valor) => {
     return /^\d+([.,]\d{1,2})?$/.test(crudo) ? Number(crudo.replace(',', '.')) : NaN;
 };
 
+kgGramos.parsear = aNumero;
+
 const estado = {
     tipo: false,
     lineas: [],
@@ -391,8 +393,9 @@ const bloqueInsumos = (linea) => {
                 </div>
                 <div class="col-5 col-md-2">
                     <label class="visually-hidden" for="ins_dosis_${id}">Dosis</label>
-                    <input type="text" class="form-control form-control-sm tx-input-num" id="ins_dosis_${id}" data-dosis="${id}" inputmode="decimal" placeholder="0,00" autocomplete="off" maxlength="10"${bloqueo}>
+                    <input type="text" class="form-control form-control-sm tx-input-num" id="ins_dosis_${id}" data-dosis="${id}" inputmode="decimal" placeholder="0,00" autocomplete="off" maxlength="10" data-gramos-um="#ins_um_${id}" data-gramos-sufijo="/palma" aria-describedby="ins_dosis_${id}_g"${bloqueo}>
                     <div class="invalid-feedback">Dosis mayor a 0, máx. 2 decimales.</div>
+                    <span class="gp-gramos d-block text-end mt-1 d-none" id="ins_dosis_${id}_g"></span>
                 </div>
                 <div class="col-2 col-md-auto">
                     <button type="button" class="btn btn-success btn-sm w-100" data-agregar-insumo="${id}" title="Agregar insumo" aria-label="Agregar insumo"${bloqueo}><i class="bi bi-plus-lg" aria-hidden="true"></i></button>
@@ -1824,6 +1827,7 @@ const abrirEdicionTrabajador = (idLinea, tercero) => {
     poner('chip_editar_trabajador', `#${estado.lineas.indexOf(linea) + 1} · ${linea.lote} · ${fechaCorta(linea.fecha).substring(0, 5)}`);
     $('#edit_tercero').empty().append(opcion).trigger('change');
     if ($id('edit_um')) $id('edit_um').textContent = `(${Array.from($id('cap_um').options).find((item) => item.value === linea.uMedida)?.textContent.trim() || linea.uMedida})`;
+    $id('edit_cantidad').dataset.gramos = linea.uMedida || '-';
     $id('edit_cantidad').value = String(trabajador.cantidad).replace('.', ',');
     ['error_edit_tercero', 'error_edit_cantidad'].forEach((id) => mostrar($id(id), false));
     $id('edit_tercero').closest('.tx-select-ancho').classList.remove('is-invalid');

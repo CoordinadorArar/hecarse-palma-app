@@ -413,10 +413,6 @@ a.pl-chip:hover {
   font-size: .85rem;
 }
 
-.pl-impresion {
-  display: none;
-}
-
 @media (pointer: coarse) {
   .pl-root .btn,
   .pl-root .btn-sm {
@@ -524,157 +520,6 @@ a.pl-chip:hover {
 
   .tx-lineas > .tx-tarjeta.pl-actividad.tx-tarjeta--destacada {
     animation: none;
-  }
-}
-
-@media print {
-  @page {
-    size: letter landscape;
-    margin: 10mm;
-  }
-
-  body {
-    background: #fff !important;
-    color: #000;
-    font-size: 9pt;
-  }
-
-  #header,
-  #sidebar,
-  .pagetitle,
-  .offcanvas,
-  .offcanvas-backdrop,
-  .modal,
-  .modal-backdrop,
-  .swal2-container,
-  .pl-root > *:not(.pl-impresion) {
-    display: none !important;
-  }
-
-  .main.pl-root {
-    margin: 0 !important;
-    padding: 0 !important;
-  }
-
-  .pl-root > .pl-impresion {
-    display: block !important;
-  }
-
-  .pl-imp-cab {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-end;
-    padding-bottom: 2mm;
-    margin-bottom: 3mm;
-    border-bottom: 1px solid #000;
-  }
-
-  .pl-imp-empresa {
-    font-weight: 700;
-    font-size: 11pt;
-  }
-
-  .pl-imp-titulo {
-    font-weight: 700;
-    letter-spacing: .05em;
-  }
-
-  .pl-imp-fecha {
-    font-weight: 700;
-  }
-
-  .pl-imp-tabla {
-    width: 100%;
-    border-collapse: collapse;
-  }
-
-  .pl-imp-tabla thead {
-    display: table-header-group;
-  }
-
-  .pl-imp-tabla tr {
-    break-inside: avoid;
-  }
-
-  .pl-imp-tabla th,
-  .pl-imp-tabla td {
-    height: 9mm;
-    padding: 1mm 1.5mm;
-    border: .5pt solid #000;
-    color: #000;
-    vertical-align: middle;
-  }
-
-  .pl-imp-tabla th {
-    font-weight: 700;
-    text-align: left;
-  }
-
-  .pl-imp-tabla {
-    table-layout: fixed;
-  }
-
-  .pl-imp-tabla td {
-    word-wrap: break-word;
-  }
-
-  .pl-imp-tabla th:nth-child(1) {
-    width: 8mm;
-    text-align: center;
-  }
-
-  .pl-imp-tabla th:nth-child(2) {
-    width: 16mm;
-  }
-
-  .pl-imp-tabla th:nth-child(4),
-  .pl-imp-tabla th:nth-child(6) {
-    width: 14mm;
-  }
-
-  .pl-imp-tabla th:nth-child(7) {
-    width: 18mm;
-    text-align: right;
-  }
-
-  .pl-imp-tabla th:nth-child(8) {
-    width: 24mm;
-  }
-
-  .pl-imp-tabla .pl-imp-horario {
-    line-height: 1.15;
-    white-space: normal;
-  }
-
-  .pl-imp-tabla .pl-imp-firma {
-    width: 45mm;
-  }
-
-  .pl-imp-grupo td {
-    height: auto;
-    background-color: #eee !important;
-    font-weight: 700;
-    text-transform: uppercase;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-
-  .pl-imp-pie {
-    margin-top: 4mm;
-    break-inside: avoid;
-  }
-
-  .pl-imp-firmas {
-    display: flex;
-    gap: 30mm;
-    margin-top: 16mm;
-  }
-
-  .pl-imp-firmas > div {
-    width: 70mm;
-    padding-top: 1.5mm;
-    border-top: .5pt solid #000;
-    text-align: center;
   }
 }
 
@@ -963,6 +808,10 @@ a.pl-chip:hover {
 
   .pl-planilla-tabla .tx-input-num {
     max-width: none;
+    width: 100%;
+  }
+
+  .pl-planilla-item > .d-flex {
     width: 100%;
   }
 

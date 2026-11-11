@@ -121,6 +121,7 @@
 
     <!-- Template Main JS File -->
     <script src="<?= asset_url('public/assets/js/main.js') ?>"></script>
+    <script src="<?= asset_url('public/assets/js/kg-gramos.js') ?>"></script>
 
     <!-- RENDERIZAR CUSTOM SCRIPTS, SI EXISTEN -->
     <?php echo $this->renderSection("scripts"); ?>

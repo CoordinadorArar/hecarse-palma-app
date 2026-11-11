@@ -1844,3 +1844,20 @@ body.gp-pantalla-bloqueo {
     max-width: calc(100% - 24px);
   }
 }
+
+.gp-gramos {
+  font-family: var(--bs-font-monospace);
+  font-variant-numeric: tabular-nums;
+  font-size: .72rem;
+  line-height: 1.3;
+  color: #6c757d;
+  white-space: nowrap;
+}
+
+.gp-gramos-cab {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  column-gap: .5rem;
+}

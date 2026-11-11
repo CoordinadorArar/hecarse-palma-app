@@ -46,6 +46,8 @@ const parsear = (texto, dec = 2) => {
     return limpio === null ? null : Number(limpio);
 };
 
+kgGramos.parsear = parsear;
+
 const estado = {
     anio: Number($id('filtro_anio').value),
     tablaExiste: TABLA_EXISTE,

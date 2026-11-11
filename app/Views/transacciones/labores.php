@@ -291,8 +291,8 @@ $etiqueta    = static fn ($valor) => ucfirst(mb_strtolower(trim(preg_replace('/\
                             </div>
 
                             <div class="col-6 col-md-3 col-lg-2">
-                                <label class="form-label mb-1 small fw-semibold text-muted" for="cap_cantidad">Cantidad <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control font-monospace text-end" id="cap_cantidad" inputmode="decimal" maxlength="14" autocomplete="off">
+                                <div class="gp-gramos-cab"><label class="form-label mb-1 small fw-semibold text-muted" for="cap_cantidad">Cantidad <span class="text-danger">*</span></label><span class="gp-gramos ms-auto d-none" id="cap_cantidad_g"></span></div>
+                                <input type="text" class="form-control font-monospace text-end" id="cap_cantidad" inputmode="decimal" maxlength="14" autocomplete="off" data-gramos-um="#cap_um" aria-describedby="cap_cantidad_g">
                                 <div class="invalid-feedback d-block d-none" id="error_cantidad">Indique una cantidad mayor que cero.</div>
                             </div>
 
@@ -491,8 +491,9 @@ $etiqueta    = static fn ($valor) => ucfirst(mb_strtolower(trim(preg_replace('/\
                             </div>
                             <div class="col-12 col-sm-6">
                                 <label class="form-label mb-1 small fw-semibold text-muted" for="edit_cantidad">Cantidad <span class="text-muted fw-normal" id="edit_um"></span> <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control font-monospace text-end" id="edit_cantidad" inputmode="decimal" maxlength="14" autocomplete="off">
+                                <input type="text" class="form-control font-monospace text-end" id="edit_cantidad" inputmode="decimal" maxlength="14" autocomplete="off" data-gramos="" aria-describedby="edit_cantidad_g">
                                 <div class="invalid-feedback d-block d-none" id="error_edit_cantidad">Indique una cantidad mayor que cero (máx. 2 decimales).</div>
+                                <span class="gp-gramos d-block text-end mt-1 d-none" id="edit_cantidad_g"></span>
                                 <span class="gp-subtexto tx-num mt-1" id="edit_resumen" aria-live="polite"></span>
                             </div>
                         </div>

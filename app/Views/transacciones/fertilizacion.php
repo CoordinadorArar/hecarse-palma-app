@@ -259,17 +259,17 @@ $etiqueta    = static fn ($valor) => ucfirst(mb_strtolower(trim(preg_replace('/\
                                     <div class="invalid-feedback">Seleccione la unidad.</div>
                                 </div>
                                 <div class="col-6 col-md-3 col-lg-2">
-                                    <label class="form-label mb-1 small fw-semibold text-muted" for="pfa_dosis">Dosis <span class="text-danger">*</span></label>
+                                    <div class="gp-gramos-cab"><label class="form-label mb-1 small fw-semibold text-muted" for="pfa_dosis">Dosis <span class="text-danger">*</span></label><span class="gp-gramos ms-auto d-none" id="pfa_dosis_g"></span></div>
                                     <div class="input-group has-validation">
-                                        <input type="text" class="form-control font-monospace text-end" id="pfa_dosis" inputmode="decimal" maxlength="10" autocomplete="off">
+                                        <input type="text" class="form-control font-monospace text-end" id="pfa_dosis" inputmode="decimal" maxlength="10" autocomplete="off" data-gramos-um="#pfa_um" data-gramos-sufijo="/palma" aria-describedby="pfa_dosis_g">
                                         <span class="input-group-text">kg/palma</span>
                                         <div class="invalid-feedback">Mayor a 0, máx. 2 decimales.</div>
                                     </div>
                                 </div>
                                 <div class="col-6 col-md-3 col-lg-2">
-                                    <label class="form-label mb-1 small fw-semibold text-muted" for="pfa_pbulto">Peso bulto <span class="text-danger">*</span></label>
+                                    <div class="gp-gramos-cab"><label class="form-label mb-1 small fw-semibold text-muted" for="pfa_pbulto">Peso bulto <span class="text-danger">*</span></label><span class="gp-gramos ms-auto d-none" id="pfa_pbulto_g"></span></div>
                                     <div class="input-group has-validation">
-                                        <input type="text" class="form-control font-monospace text-end" id="pfa_pbulto" inputmode="decimal" maxlength="10" autocomplete="off" value="50">
+                                        <input type="text" class="form-control font-monospace text-end" id="pfa_pbulto" inputmode="decimal" maxlength="10" autocomplete="off" value="50" data-gramos aria-describedby="pfa_pbulto_g">
                                         <span class="input-group-text">kg</span>
                                         <div class="invalid-feedback">Mayor a 0, máx. 2 decimales.</div>
                                     </div>
@@ -384,8 +384,8 @@ $etiqueta    = static fn ($valor) => ucfirst(mb_strtolower(trim(preg_replace('/\
                             </div>
 
                             <div class="col-6 col-md-3 col-lg-2">
-                                <label class="form-label mb-1 small fw-semibold text-muted" for="cap_cantidad">Cantidad <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control font-monospace text-end" id="cap_cantidad" inputmode="decimal" maxlength="14" autocomplete="off">
+                                <div class="gp-gramos-cab"><label class="form-label mb-1 small fw-semibold text-muted" for="cap_cantidad">Cantidad <span class="text-danger">*</span></label><span class="gp-gramos ms-auto d-none" id="cap_cantidad_g"></span></div>
+                                <input type="text" class="form-control font-monospace text-end" id="cap_cantidad" inputmode="decimal" maxlength="14" autocomplete="off" data-gramos-um="#cap_um" aria-describedby="cap_cantidad_g">
                                 <div class="invalid-feedback d-block d-none" id="error_cantidad">Indique una cantidad mayor que cero.</div>
                                 <div class="form-text d-none" id="ayuda_cantidad"></div>
                             </div>
@@ -610,8 +610,9 @@ $etiqueta    = static fn ($valor) => ucfirst(mb_strtolower(trim(preg_replace('/\
                             </div>
                             <div class="col-12 col-sm-6">
                                 <label class="form-label mb-1 small fw-semibold text-muted" for="edit_cantidad">Cantidad <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control font-monospace text-end" id="edit_cantidad" inputmode="decimal" maxlength="14" autocomplete="off">
+                                <input type="text" class="form-control font-monospace text-end" id="edit_cantidad" inputmode="decimal" maxlength="14" autocomplete="off" data-gramos="" aria-describedby="edit_cantidad_g">
                                 <div class="invalid-feedback d-block d-none" id="error_edit_cantidad">Indique una cantidad mayor que cero (máx. 2 decimales).</div>
+                                <span class="gp-gramos d-block text-end mt-1 d-none" id="edit_cantidad_g"></span>
                                 <span class="gp-subtexto tx-num mt-1" id="edit_resumen" aria-live="polite"></span>
                             </div>
                         </div>
@@ -647,4 +648,5 @@ $etiqueta    = static fn ($valor) => ucfirst(mb_strtolower(trim(preg_replace('/\
 <script src="<?= asset_url('public/assets/js/transacciones/labores.js') ?>"></script>
 <script src="<?= asset_url('public/assets/js/transacciones/labores_consulta.js') ?>"></script>
 <script src="<?= asset_url('public/assets/js/transacciones/fertilizacion_pfa.js') ?>"></script>
+<script src="<?= asset_url('public/assets/js/tutoriales/modulos/fertilizacion.js') ?>"></script>
 <?php echo $this->endSection(); ?>
