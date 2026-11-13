@@ -3,6 +3,7 @@
 $permisos   = $permisos ?? ['registrar' => false, 'consultar' => false, 'editar' => false, 'eliminar' => false];
 $disponible = ! empty($tablas_disponibles);
 $verSugerencias = ! empty($permisos['consultar']) || ! empty($permisos['registrar']);
+$verDuplicar = ! empty($permisos['registrar']) || ! empty($permisos['editar']);
 ?>
 
 <?php echo $this->section('css'); ?>
@@ -100,6 +101,11 @@ $verSugerencias = ! empty($permisos['consultar']) || ! empty($permisos['registra
                 <button type="button" class="btn btn-outline-secondary d-none d-md-inline-flex align-items-center gap-1" id="btn_ausentes" data-accion="ausentes">
                     <i class="bi bi-person-x" aria-hidden="true"></i>Ausentes <span class="tx-chip-cont" data-cont="ausentes">0</span>
                 </button>
+                <?php if ($verDuplicar): ?>
+                <button type="button" class="btn btn-outline-secondary d-none d-md-inline-flex align-items-center gap-1" id="btn_duplicar_plan" data-accion="duplicar_plan">
+                    <i class="bi bi-files" aria-hidden="true"></i>Duplicar plan
+                </button>
+                <?php endif; ?>
                 <button type="button" class="btn btn-outline-secondary d-none d-md-inline-flex align-items-center gap-1" id="btn_excel" data-accion="excel">
                     <i class="bi bi-file-earmark-excel" aria-hidden="true"></i>Exportar a Excel
                 </button>
@@ -111,6 +117,9 @@ $verSugerencias = ! empty($permisos['consultar']) || ! empty($permisos['registra
                         <?php endif; ?>
                         <li><button type="button" class="dropdown-item" data-accion="pendientes"><i class="bi bi-clock-history me-2" aria-hidden="true"></i>Pendientes <span class="tx-chip-cont" data-cont="pendientes">0</span></button></li>
                         <li><button type="button" class="dropdown-item" data-accion="ausentes"><i class="bi bi-person-x me-2" aria-hidden="true"></i>Ausentes <span class="tx-chip-cont" data-cont="ausentes">0</span></button></li>
+                        <?php if ($verDuplicar): ?>
+                        <li><button type="button" class="dropdown-item" data-accion="duplicar_plan"><i class="bi bi-files me-2" aria-hidden="true"></i>Duplicar plan</button></li>
+                        <?php endif; ?>
                         <li><button type="button" class="dropdown-item" data-accion="excel"><i class="bi bi-file-earmark-excel me-2" aria-hidden="true"></i>Exportar a Excel</button></li>
                     </ul>
                 </div>

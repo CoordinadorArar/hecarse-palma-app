@@ -505,7 +505,12 @@ class PlaneacionModel extends LaboresTransaccionModel
             'Plan del ' . $datos['fecha'] . ' guardado correctamente.');
     }
 
-    public function trasladar(array $datos, ?array $antes, ?int $usu_id): array
+    public function duplicarPlan(array $datos, ?array $antes, ?int $usu_id): array
+    {
+        return $this->trasladar($datos, $antes, $usu_id, 'duplicar', 'Plan del ' . $datos['origen'] . ' duplicado al ' . $datos['fecha'] . '.');
+    }
+
+    public function trasladar(array $datos, ?array $antes, ?int $usu_id, string $accion = 'trasladar', ?string $mensaje = null): array
     {
         return $this->transaccion(function () use ($datos, $antes) {
             $plan = $antes['id'] ?? 0;
@@ -526,13 +531,13 @@ class PlaneacionModel extends LaboresTransaccionModel
             }
 
             foreach ($datos['lineas'] as $linea) {
-                if ($error = $this->insertarLinea($plan, $linea, $linea['origen'])) {
+                if ($error = $this->insertarLinea($plan, $linea, $linea['origen'] ?? null)) {
                     return $error;
                 }
             }
 
             return $plan;
-        }, 'UPDATE', ['accion' => 'trasladar', 'datos' => $datos], $usu_id, $datos['usuario'], 'Pendientes trasladados al plan del ' . $datos['fecha'] . '.');
+        }, 'UPDATE', ['accion' => $accion, 'datos' => $datos], $usu_id, $datos['usuario'], $mensaje ?? 'Pendientes trasladados al plan del ' . $datos['fecha'] . '.');
     }
 
     public function marcarAusencia(int $plan, string $tercero, string $codigoMotivo, string $motivo, string $usuario, array $afectadas, array $reparto, ?int $usu_id): array

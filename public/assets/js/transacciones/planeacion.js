@@ -324,16 +324,19 @@ const aplicarPlan = (plan, destacar = null) => {
     pintar();
     estado.destacar = null;
 
-    const tarjeta = destacar ? $id(`act_${destacar}`) : null;
+    const tarjeta = destacar ? $id(`act_${[].concat(destacar)[0]}`) : null;
 
     tarjeta?.scrollIntoView({ behavior: reducido() ? 'auto' : 'smooth', block: 'center' });
 };
 
-const pintarFecha = () => {
-    const fecha = fechaPlan();
+const fechaRel = (fecha) => {
     const rel = relativo(fecha);
 
-    $id('fecha_legible').innerHTML = fecha ? `${escaparHtml(fechaLegible(fecha))}${rel ? ` <span class="gp-chip-fila verde ms-1">${rel}</span>` : ''}` : '';
+    return fecha ? `${escaparHtml(fechaLegible(fecha))}${rel ? ` <span class="gp-chip-fila verde ms-1">${rel}</span>` : ''}` : '';
+};
+
+const pintarFecha = () => {
+    $id('fecha_legible').innerHTML = fechaRel(fechaPlan());
 };
 
 const pintarBarra = () => {
@@ -360,6 +363,10 @@ const pintarBarra = () => {
     });
     document.querySelectorAll('#barra_plan [data-accion="ausentes"]').forEach((boton) => { boton.disabled = !plan; });
     document.querySelectorAll('#barra_plan [data-accion="excel"]').forEach((boton) => { boton.disabled = estado.exportando || !exportable(); });
+    document.querySelectorAll('#barra_plan [data-accion="duplicar_plan"]').forEach((boton) => {
+        boton.disabled = estado.guardando || !actividades().length;
+        boton.title = actividades().length ? '' : 'El plan no tiene actividades para duplicar';
+    });
     mostrar(document.querySelector('#barra_plan [data-accion="agregar"]'), editable());
     mostrar(document.querySelector('#barra_plan [data-accion="planilla"]'), editable());
 };
@@ -519,7 +526,7 @@ const tarjetaActividad = (a) => {
     const labor = escaparHtml(a.novedadNombre);
     const um = escaparHtml(a.uMedida);
 
-    return `<article class="tx-tarjeta pl-actividad ${ESTADOS[a.estado]?.clase || 'pl-e-pendiente'}${estado.destacar === a.id ? ' tx-tarjeta--destacada' : ''}" id="act_${a.id}">
+    return `<article class="tx-tarjeta pl-actividad ${ESTADOS[a.estado]?.clase || 'pl-e-pendiente'}${[].concat(estado.destacar).includes(a.id) ? ' tx-tarjeta--destacada' : ''}" id="act_${a.id}">
         <div class="tx-tarjeta-cab tx-tarjeta-cab--fija pl-cab">
             <span class="pl-cab-labor min-w-0"><span class="font-monospace fw-semibold">${escaparHtml(a.novedad)}</span> — <span class="gp-truncar d-inline-block align-bottom" title="${labor}">${labor}</span></span>
             <span class="pl-cab-chips d-flex flex-wrap align-items-center gap-1">
@@ -1719,6 +1726,91 @@ const trasladar = async (id) => {
     } finally {
         estado.guardando = false;
     }
+};
+
+const duplicarPlan = async () => {
+    const total = actividades().length;
+    const personas = personasPlan().length;
+    const origen = fechaPlan();
+    let previos = new Set();
+
+    if (estado.guardando || !total) return;
+
+    const { value: r } = await Swal.fire({
+        title: 'Duplicar plan',
+        html: `Se copiarán <strong>${fmt(total)} ${total === 1 ? 'actividad' : 'actividades'}</strong> con <strong>${fmt(personas)} ${personas === 1 ? 'trabajador' : 'trabajadores'}</strong> del <strong>${escaparHtml(fechaLegible(origen))}</strong>, con sus cantidades, horario y observación.`,
+        input: 'date',
+        inputLabel: 'Fecha destino',
+        inputValue: sumarDias(origen, 1),
+        inputAttributes: { 'aria-label': 'Fecha destino' },
+        showCancelButton: true,
+        confirmButtonText: 'Duplicar plan',
+        cancelButtonText: 'Cancelar',
+        showLoaderOnConfirm: true,
+        allowOutsideClick: () => !Swal.isLoading(),
+        didOpen: () => {
+            const input = Swal.getInput();
+
+            input.insertAdjacentHTML('afterend', `<div class="pl-dup-ayuda">
+                <span class="small text-muted d-block" id="dup_legible" aria-live="polite"></span>
+                <small class="text-muted d-block mt-2">Se agregan como pendientes. Si el plan destino ya existe, se suman a sus actividades; se omiten los trabajadores ausentes en el destino y las actividades repetidas.</small>
+            </div>`);
+
+            const legible = () => { $id('dup_legible').innerHTML = fechaRel(input.value); };
+
+            input.addEventListener('input', legible);
+            legible();
+        },
+        inputValidator: (valor) => {
+            if (!valor) return 'Seleccione la fecha destino.';
+
+            return valor === origen ? 'Elija una fecha distinta a la del plan actual.' : undefined;
+        },
+        preConfirm: async (destino) => {
+            const botones = [...document.querySelectorAll('#barra_plan button:not(:disabled)')];
+
+            estado.guardando = true;
+            botones.forEach((b) => { b.disabled = true; });
+
+            try {
+                previos = new Set(((await pedir('plan', { empresa: empresaId(), fecha: destino }).catch(() => null))?.plan?.actividades || []).map((a) => a.id));
+
+                return { ...await pedir('duplicar', { empresa: empresaId(), fecha: destino, origen }), destino };
+            } catch (error) {
+                Swal.showValidationMessage(escaparHtml(error.message));
+
+                return false;
+            } finally {
+                estado.guardando = false;
+                botones.forEach((b) => { b.disabled = false; });
+            }
+        }
+    });
+
+    if (!r) return;
+
+    const n = Number(r.duplicadas) || 0;
+    const omitidas = r.omitidas || [];
+
+    invalidarSug();
+    $id('fecha').value = r.destino;
+    await cargar();
+
+    if (!estado.error && estado.plan) aplicarPlan(estado.plan, actividades().filter((a) => !previos.has(a.id)).map((a) => a.id));
+
+    if (!omitidas.length) {
+        Toast.fire({ icon: 'success', title: `${fmt(n)} ${n === 1 ? 'actividad duplicada' : 'actividades duplicadas'} al ${escaparHtml(fechaCorta(r.destino))}`, timer: 5000 });
+
+        return;
+    }
+
+    Swal.fire({
+        icon: 'warning',
+        title: 'Plan duplicado con omisiones',
+        html: `Se duplicaron <strong>${fmt(n)} de ${fmt(n + omitidas.length)}</strong> actividades. Se omitieron:
+            <ul class="list-group list-group-flush text-start pl-omitidas mt-2">${omitidas.map((o) => `<li class="list-group-item px-0 py-2 small"><span class="font-monospace fw-semibold">${escaparHtml(o.actividad)}</span> — <span class="text-muted">${escaparHtml(o.motivo)}</span></li>`).join('')}</ul>`,
+        confirmButtonText: 'Entendido'
+    });
 };
 
 const exportar = async () => {
@@ -3227,6 +3319,7 @@ const ACCIONES = {
     pendientes: () => bootstrap.Offcanvas.getOrCreateInstance($id('panelPendientes')).show(),
     ausentes: elegirAusente,
     excel: exportar,
+    duplicar_plan: duplicarPlan,
     'ver-todas': () => filtrar(null),
     reintentar: () => cargar(),
     editar: (d) => abrirActividad(actividad(d.act)),

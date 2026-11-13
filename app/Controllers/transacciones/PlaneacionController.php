@@ -511,6 +511,116 @@ class PlaneacionController extends LaboresController
         ], $destino, $this->session->get('usu_id')));
     }
 
+    public function duplicar(): ResponseInterface
+    {
+        $datos = $this->empresaFecha(['registrar', 'editar'], 'registrar o editar');
+
+        if ($datos instanceof ResponseInterface) {
+            return $datos;
+        }
+
+        if ($sinAjustes = $this->sinAjustes()) {
+            return $sinAjustes;
+        }
+
+        ['empresa' => $empresa, 'fecha' => $fecha] = $datos;
+
+        $origen = $this->fechaValida($this->campo('origen'));
+
+        if ($origen === null) {
+            return $this->error('El campo "Fecha origen" es obligatorio y debe tener el formato AAAA-MM-DD.');
+        }
+
+        if ($origen === $fecha) {
+            return $this->error('La fecha origen debe ser distinta de la fecha destino.');
+        }
+
+        try {
+            $fuente = $this->laboresModel->plan($empresa, $origen);
+        } catch (\Throwable $e) {
+            log_message('error', 'Error consultando la planeación de labores: ' . $e->getMessage());
+
+            return $this->error('No se pudo consultar el plan.', 500);
+        }
+
+        if (($fuente['actividades'] ?? []) === []) {
+            return $this->error('El plan del ' . $origen . ' no tiene actividades para duplicar.');
+        }
+
+        $destino = $this->planDestino($empresa, $fecha);
+
+        if ($destino instanceof ResponseInterface) {
+            return $destino;
+        }
+
+        $ausentes = array_column($destino['ausencias'] ?? [], 'tercero');
+        $usados   = [];
+
+        foreach ($destino['actividades'] ?? [] as $existente) {
+            $this->marcarUsados($usados, $existente);
+        }
+
+        $fertilizacion = new FertilizacionTransaccionModel();
+        $existentes    = count($destino['actividades'] ?? []);
+        $lineas        = [];
+        $omitidas      = [];
+
+        foreach ($fuente['actividades'] as $linea) {
+            $nombre = $linea['finca'] . '/' . $linea['lote'] . ' · ' . trim($linea['novedad'] . ' ' . $linea['novedadNombre']);
+
+            if ($existentes + count($lineas) >= self::MAX_ACTIVIDADES) {
+                $omitidas[] = ['actividad' => $nombre, 'motivo' => 'El plan admite máximo ' . self::MAX_ACTIVIDADES . ' actividades.'];
+                continue;
+            }
+
+            $trabajadores = array_values(array_filter($linea['trabajadores'], static fn ($t) => $t['ausente'] !== 1 && ! in_array($t['tercero'], $ausentes, true)));
+
+            if ($trabajadores === []) {
+                $omitidas[] = ['actividad' => $nombre, 'motivo' => 'No tiene trabajadores disponibles (todos ausentes en el origen o en el ' . $fecha . ').'];
+                continue;
+            }
+
+            $fila = [
+                'finca'        => $linea['finca'],
+                'lote'         => $linea['lote'],
+                'novedad'      => $linea['novedad'],
+                'uMedida'      => $linea['uMedida'],
+                'horaInicio'   => $linea['horaInicio'],
+                'horaFin'      => $linea['horaFin'],
+                'observacion'  => $linea['observacion'],
+                'referencia'   => $linea['referencia'] !== '' && $fertilizacion->planValido($empresa, $linea['referencia'], $linea['finca'], $fecha) ? $linea['referencia'] : '',
+                'trabajadores' => array_map(static fn ($t) => ['tercero' => $t['tercero'], 'cantidad' => $t['cantidad'], 'reasignadoDe' => ''], $trabajadores),
+            ];
+
+            $copia     = $usados;
+            $actividad = $this->actividadValida($empresa, $fecha, $existentes + count($lineas) + 1, $fila, $ausentes, $usados);
+
+            if (is_string($actividad)) {
+                $usados     = $copia;
+                $omitidas[] = ['actividad' => $nombre, 'motivo' => $actividad];
+                continue;
+            }
+
+            $lineas[] = $actividad;
+        }
+
+        if ($lineas === []) {
+            return $this->response->setJSON([
+                'success'  => false,
+                'message'  => 'No se pudo duplicar ninguna actividad. ' . implode(' ', array_slice(array_column($omitidas, 'motivo'), 0, 3)),
+                'omitidas' => $omitidas,
+            ])->setStatusCode(422);
+        }
+
+        return $this->resultado(fn () => $this->laboresModel->duplicarPlan([
+            'empresa' => $empresa,
+            'fecha'   => $fecha,
+            'origen'  => $origen,
+            'usuario' => $this->usuarioRegistro(),
+            'lineas'  => $lineas,
+        ], $destino, $this->session->get('usu_id')) + ['duplicadas' => count($lineas), 'omitidas' => $omitidas]);
+    }
+
     public function ausencia(): ResponseInterface
     {
         $plan = $this->planPedido();

@@ -868,3 +868,13 @@ a.pl-chip:hover {
     width: auto;
     min-width: 0;
 }
+
+.pl-dup-ayuda {
+    margin: .5rem 2em 0;
+    text-align: left;
+}
+
+.pl-omitidas {
+    max-height: 240px;
+    overflow-y: auto;
+}
