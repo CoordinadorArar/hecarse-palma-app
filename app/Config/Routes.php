@@ -365,6 +365,7 @@ $routes->post('transacciones/planeacion/planesFertilizacion', 'transacciones\Pla
 $routes->post('transacciones/planeacion/guardar', 'transacciones\PlaneacionController::guardar');
 $routes->post('transacciones/planeacion/agregar', 'transacciones\PlaneacionController::agregar');
 $routes->post('transacciones/planeacion/trasladar', 'transacciones\PlaneacionController::trasladar');
+$routes->post('transacciones/planeacion/duplicar', 'transacciones\PlaneacionController::duplicar');
 $routes->post('transacciones/planeacion/ausencia', 'transacciones\PlaneacionController::ausencia');
 $routes->post('transacciones/planeacion/quitarAusencia', 'transacciones\PlaneacionController::quitarAusencia');
 $routes->post('transacciones/planeacion/cerrarActividad', 'transacciones\PlaneacionController::cerrarActividad');
