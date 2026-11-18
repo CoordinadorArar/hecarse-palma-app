@@ -101,4 +101,5 @@
     const BASE_URL = "<?= base_url() ?>";
 </script>
 <script src="<?= asset_url('public/assets/js/dashboards/informeBascula.js') ?>"></script>
+<script src="<?= asset_url('public/assets/js/tutoriales/modulos/informeBascula.js') ?>"></script>
 <?php echo $this->endSection(); ?>

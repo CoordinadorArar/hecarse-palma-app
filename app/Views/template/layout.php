@@ -106,6 +106,13 @@
     <script src="<?= asset_url('public/assets/js/datatables-defaults.js') ?>"></script>
 
     <script src="https://cdn.datatables.net/rowgroup/1.4.1/js/dataTables.rowGroup.min.js"></script>
+    <?php if ($uri->getSegment(1) === 'gestion-palma'): ?>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+    <script src="<?= asset_url('public/assets/js/gestionpalma/exportar_excel.js') ?>"></script>
+    <?php endif; ?>
 
     <!-- // todo: sirven -->
     <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>

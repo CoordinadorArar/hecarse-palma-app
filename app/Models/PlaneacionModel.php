@@ -14,6 +14,8 @@ class PlaneacionModel extends LaboresTransaccionModel
 
     private ?bool $ajustes = null;
 
+    private ?bool $variosLotes = null;
+
     protected int $ultimaLinea = 0;
 
     public static function racimos(string $uMedida): bool
@@ -61,6 +63,18 @@ class PlaneacionModel extends LaboresTransaccionModel
         return $this->ajustes;
     }
 
+    public function variosLotesDisponible(): bool
+    {
+        if ($this->variosLotes === null) {
+            $this->variosLotes = (int) $this->db->query(
+                "SELECT CASE WHEN COL_LENGTH('pPlaneacionLinea', 'division') IS NOT NULL
+                              AND COL_LENGTH('pPlaneacionTrabajador', 'cantidadEjecutada') IS NOT NULL THEN 1 ELSE 0 END AS existe"
+            )->getRow()->existe === 1;
+        }
+
+        return $this->variosLotes;
+    }
+
     public function motivosAusencia(int $empresa): array
     {
         return $this->ajustesDisponibles() ? $this->db->query(
@@ -77,8 +91,9 @@ class PlaneacionModel extends LaboresTransaccionModel
         )->getRowArray() : null;
     }
 
-    public function lotes(int $empresa, string $finca, string $seccion = ''): array
+    public function lotes(int $empresa, string $finca, string $seccion = '', string $referencia = ''): array
     {
+        $pfa = trim($referencia) === '' ? [] : (new FertilizacionTransaccionModel())->lotesDePlan($empresa, $referencia);
         $sql = "SELECT LTRIM(RTRIM(codigo)) AS codigo, descripcion, LTRIM(RTRIM(ISNULL(seccion, ''))) AS seccion, activo,
                        ISNULL(palmasProduccion, 0) AS palmas
                   FROM aLotes WHERE empresa = ? AND LTRIM(RTRIM(finca)) = ?";
@@ -90,7 +105,8 @@ class PlaneacionModel extends LaboresTransaccionModel
             $binds[] = trim($seccion);
         }
 
-        return array_map(static fn ($l) => array_merge($l, ['palmas' => (int) $l['palmas']]), $this->db->query($sql . ' ORDER BY codigo ASC', $binds)->getResultArray());
+        return array_map(static fn ($l) => array_merge($l, ['palmas' => (int) $l['palmas'], 'enPfa' => in_array($l['codigo'], $pfa, true) ? 1 : 0]),
+            $this->db->query($sql . ' ORDER BY codigo ASC', $binds)->getResultArray());
     }
 
     public function palmasLote(int $empresa, string $finca, string $lote): int
@@ -147,15 +163,20 @@ class PlaneacionModel extends LaboresTransaccionModel
 
     public function registro(array $linea): array
     {
-        $decimales = self::racimos($linea['uMedida']) ? 0 : 2;
-        $cantidad  = round((float) $linea['cantidadEjecutada'], $decimales);
+        $decimales  = self::racimos($linea['uMedida']) ? 0 : 2;
+        $cantidad   = round((float) $linea['cantidadEjecutada'], $decimales);
+        $ejecutadas = array_map(static fn ($t) => $t['cantidadEjecutada'] ?? null, $linea['trabajadores']);
+        $propias    = array_filter($ejecutadas, static fn ($c) => $c !== null) !== [];
+        $cantidades = $propias ? array_map(static fn ($c) => round((float) $c, $decimales), $ejecutadas)
+            : $this->repartir($cantidad, array_column($linea['trabajadores'], 'cantidad'), $decimales);
+        $cantidad   = $propias ? round(array_sum($cantidades), $decimales) : $cantidad;
 
         $trabajadores = array_map(static fn ($t, $c) => [
             'tercero'  => $t['tercero'],
             'codigo'   => $t['codigo'],
             'nombre'   => $t['nombre'],
             'cantidad' => $c,
-        ], $linea['trabajadores'], $this->repartir($cantidad, array_column($linea['trabajadores'], 'cantidad'), $decimales));
+        ], $linea['trabajadores'], $cantidades);
 
         return [
             'cantidad'     => $cantidad,
@@ -275,6 +296,11 @@ class PlaneacionModel extends LaboresTransaccionModel
         return $this->lineas('l.id = ?', [$id])[0] ?? null;
     }
 
+    public function hijas(int $madre): array
+    {
+        return $this->variosLotesDisponible() ? $this->lineas('l.division = ?', [$madre]) : [];
+    }
+
     public function pendientes(int $empresa, string $fecha): array
     {
         return $this->lineas(
@@ -307,8 +333,9 @@ class PlaneacionModel extends LaboresTransaccionModel
             return null;
         }
 
-        $plan['id']      = (int) $plan['id'];
-        $plan['empresa'] = (int) $plan['empresa'];
+        $plan['id']          = (int) $plan['id'];
+        $plan['empresa']     = (int) $plan['empresa'];
+        $plan['variosLotes'] = $this->ajustesDisponibles() && $this->variosLotesDisponible();
 
         $plan['ausencias'] = $this->db->query(
             "SELECT a.tercero, ISNULL(c.codigo, '') AS codigo, ISNULL(c.nombre, '') AS nombre, ISNULL(a.motivo, '') AS motivo,
@@ -358,7 +385,7 @@ class PlaneacionModel extends LaboresTransaccionModel
                         : "'' AS horaInicio, '' AS horaFin") . ", ISNULL(l.observacion, '') AS observacion, ISNULL(l.referencia, '') AS referencia,
                     l.estado, l.cantidadEjecutada, ISNULL(l.observacionCierre, '') AS observacionCierre,
                     ISNULL(l.usuarioCierre, '') AS usuarioCierre, ISNULL(CONVERT(varchar(16), l.fechaCierre, 120), '') AS fechaCierre,
-                    l.origen, CONVERT(varchar(10), po.fecha, 23) AS origenFecha,
+                    l.origen, CONVERT(varchar(10), po.fecha, 23) AS origenFecha, " . ($this->variosLotesDisponible() ? 'l.division' : 'NULL') . " AS division,
                     ISNULL(l.tipoTransaccion, '') AS tipoTransaccion, ISNULL(l.numeroTransaccion, '') AS numeroTransaccion,
                     CASE WHEN EXISTS (SELECT 1 FROM pPlaneacionLinea x WHERE x.origen = l.id) THEN 1 ELSE 0 END AS trasladada,
                     ISNULL(pr.pesoRacimo, 0) AS pesoRacimo
@@ -388,7 +415,7 @@ class PlaneacionModel extends LaboresTransaccionModel
 
         foreach ($this->db->query(
             "SELECT t.id, t.linea, t.tercero, ISNULL(c.codigo, '') AS codigo, ISNULL(c.nombre, '') AS nombre, t.cantidad,
-                    ISNULL(t.reasignadoDe, '') AS reasignadoDe, t.orden
+                    ISNULL(t.reasignadoDe, '') AS reasignadoDe, t.orden, " . ($this->variosLotesDisponible() ? 't.cantidadEjecutada' : 'NULL') . " AS cantidadEjecutada
                FROM pPlaneacionTrabajador t
                JOIN pPlaneacionLinea l ON l.id = t.linea
                JOIN pPlaneacion p ON p.id = l.planeacion
@@ -407,6 +434,8 @@ class PlaneacionModel extends LaboresTransaccionModel
             $trabajador['cantidad'] = (float) $trabajador['cantidad'];
             $trabajador['ausente']  = in_array($trabajador['tercero'], $ausentes, true) ? 1 : 0;
 
+            $trabajador['cantidadEjecutada'] = $trabajador['cantidadEjecutada'] === null ? null : (float) $trabajador['cantidadEjecutada'];
+
             $porLinea[$linea][] = $trabajador;
         }
 
@@ -416,6 +445,7 @@ class PlaneacionModel extends LaboresTransaccionModel
             }
 
             $linea['origen']            = $linea['origen'] === null ? null : (int) $linea['origen'];
+            $linea['division']          = $linea['division'] === null ? null : (int) $linea['division'];
             $linea['cantidad']          = (float) $linea['cantidad'];
             $linea['cantidadEjecutada'] = $linea['cantidadEjecutada'] === null ? null : (float) $linea['cantidadEjecutada'];
             $linea['saldo']             = in_array($linea['estado'], ['PARCIAL', 'NO_EJECUTADA'], true)
@@ -507,7 +537,8 @@ class PlaneacionModel extends LaboresTransaccionModel
 
     public function duplicarPlan(array $datos, ?array $antes, ?int $usu_id): array
     {
-        return $this->trasladar($datos, $antes, $usu_id, 'duplicar', 'Plan del ' . $datos['origen'] . ' duplicado al ' . $datos['fecha'] . '.');
+        return $this->trasladar($datos, $antes, $usu_id, 'duplicar', 'Plan del ' . $datos['origen']
+            . ($datos['finca'] === '' ? '' : ' de la finca ' . $datos['finca']) . ' duplicado al ' . $datos['fecha'] . '.');
     }
 
     public function trasladar(array $datos, ?array $antes, ?int $usu_id, string $accion = 'trasladar', ?string $mensaje = null): array
@@ -606,9 +637,66 @@ class PlaneacionModel extends LaboresTransaccionModel
             $usu_id, $usuario, 'Actividad cerrada como ' . $estado . '.');
     }
 
-    public function reabrirLinea(array $linea, string $usuario, ?int $usu_id): array
+    public function cerrarVarios(array $linea, string $estado, float $ejecutada, string $observacion, array $madre, array $hijas, string $usuario, ?int $usu_id): array
     {
-        return $this->transaccion(function () use ($linea) {
+        $ids = [$linea['id']];
+
+        $resultado = $this->transaccion(function () use ($linea, $estado, $ejecutada, $observacion, $madre, $hijas, $usuario, &$ids) {
+            $ahora = date('Y-m-d\TH:i:s');
+
+            $this->db->query(
+                "UPDATE l SET estado = ?, cantidadEjecutada = ?, observacionCierre = ?, usuarioCierre = ?, fechaCierre = ?
+                   FROM pPlaneacionLinea l JOIN pPlaneacion p ON p.id = l.planeacion
+                  WHERE l.id = ? AND l.estado = 'PENDIENTE' AND p.estado = 'ABIERTA'",
+                [$estado, $ejecutada, $observacion === '' ? null : $observacion, $usuario, $ahora, $linea['id']]
+            );
+
+            if ($this->db->affectedRows() !== 1) {
+                return 'La actividad ya fue cerrada por otro usuario.';
+            }
+
+            $this->db->query('UPDATE pPlaneacionTrabajador SET cantidadEjecutada = 0 WHERE linea = ?', [$linea['id']]);
+
+            foreach ($madre as $trabajador) {
+                $this->db->query('UPDATE pPlaneacionTrabajador SET cantidadEjecutada = ? WHERE linea = ? AND tercero = ?', [$trabajador['cantidad'], $linea['id'], $trabajador['tercero']]);
+
+                if ($this->db->affectedRows() !== 1) {
+                    return 'El trabajador ' . $trabajador['tercero'] . ' ya no está asignado a la actividad; recargue el plan.';
+                }
+            }
+
+            foreach ($hijas as $hija) {
+                if ($error = $this->insertarLinea($linea['planeacion'], $hija, null)) {
+                    return $error;
+                }
+
+                $this->db->query(
+                    "UPDATE pPlaneacionLinea SET estado = 'COMPLETADA', cantidadEjecutada = cantidad, usuarioCierre = ?, fechaCierre = ?, division = ? WHERE id = ?",
+                    [$usuario, $ahora, $linea['id'], $this->ultimaLinea]
+                );
+                $this->db->query('UPDATE pPlaneacionTrabajador SET cantidadEjecutada = cantidad WHERE linea = ?', [$this->ultimaLinea]);
+
+                $ids[] = $this->ultimaLinea;
+            }
+
+            return $linea['planeacion'];
+        }, 'UPDATE', ['accion' => 'cerrarVariosLotes', 'antes' => $linea, 'estado' => $estado, 'cantidadEjecutada' => $ejecutada, 'observacion' => $observacion,
+            'madre' => $madre, 'hijas' => $hijas], $usu_id, $usuario, 'Actividad cerrada en ' . (count($hijas) + 1) . ' lotes.');
+
+        return $resultado['success'] ? $resultado + ['ids' => $ids] : $resultado;
+    }
+
+    public function reabrirLinea(array $linea, string $usuario, ?int $usu_id, array $hijas = []): array
+    {
+        return $this->transaccion(function () use ($linea, $hijas) {
+            if ($hijas !== []) {
+                $this->db->query('DELETE FROM pPlaneacionLinea WHERE division = ? AND numeroTransaccion IS NULL', [$linea['id']]);
+
+                if ($this->db->affectedRows() !== count($hijas)) {
+                    return 'Una de las actividades del bloque ya fue registrada o modificada por otro usuario; recargue el plan.';
+                }
+            }
+
             $this->db->query(
                 "UPDATE l SET estado = 'PENDIENTE', cantidadEjecutada = NULL, observacionCierre = NULL, usuarioCierre = NULL, fechaCierre = NULL
                    FROM pPlaneacionLinea l JOIN pPlaneacion p ON p.id = l.planeacion
@@ -617,8 +705,16 @@ class PlaneacionModel extends LaboresTransaccionModel
                 [$linea['id']]
             );
 
-            return $this->db->affectedRows() === 1 ? $linea['planeacion'] : 'La actividad no se puede reabrir.';
-        }, 'UPDATE', ['accion' => 'reabrirActividad', 'antes' => $linea], $usu_id, $usuario, 'Actividad reabierta.');
+            if ($this->db->affectedRows() !== 1) {
+                return 'La actividad no se puede reabrir.';
+            }
+
+            if ($this->variosLotesDisponible()) {
+                $this->db->query('UPDATE pPlaneacionTrabajador SET cantidadEjecutada = NULL WHERE linea = ?', [$linea['id']]);
+            }
+
+            return $linea['planeacion'];
+        }, 'UPDATE', ['accion' => 'reabrirActividad', 'antes' => $linea, 'hijas' => $hijas], $usu_id, $usuario, 'Actividad reabierta.');
     }
 
     public function estadoPlan(array $plan, string $estado, string $usuario, ?int $usu_id): array

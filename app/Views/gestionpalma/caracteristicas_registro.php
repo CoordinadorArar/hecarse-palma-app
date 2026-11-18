@@ -248,4 +248,5 @@
     const VARIANTES = <?= json_encode($variantes ?? []) ?>;
 </script>
 <script src="<?= asset_url('public/assets/js/gestionpalma/caracteristicas_registro.js') ?>"></script>
+<script src="<?= asset_url('public/assets/js/tutoriales/modulos/gestionpalma/caracteristicas_registro.js') ?>"></script>
 <?php echo $this->endSection(); ?>

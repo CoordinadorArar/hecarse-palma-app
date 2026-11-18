@@ -20,6 +20,8 @@ const filtroEmpresa = () => $id('filtro_empresa').value;
 const filtroFinca = () => $id('filtro_finca').value;
 const filtroEstado = () => $id('filtro_estado').value;
 const filtroDescuadre = () => $id('filtro_descuadre').value;
+const CON_UNIDADES = typeof UNIDADES_POR_FINCA !== 'undefined';
+const filtroUnidad = () => $id('filtro_unidad_negocio')?.value ?? '';
 
 const formatoNumero = (n) => Number(n || 0).toLocaleString('es-CO');
 
@@ -76,7 +78,8 @@ const filtrosActuales = () => ({
     filtro_empresa: filtroEmpresa(),
     filtro_finca: filtroFinca(),
     filtro_estado: filtroEstado(),
-    filtro_descuadre: filtroDescuadre()
+    filtro_descuadre: filtroDescuadre(),
+    ...(CON_UNIDADES ? { filtro_unidad_negocio: filtroUnidad() } : {})
 });
 
 const listar = async () => {
@@ -86,6 +89,7 @@ const listar = async () => {
         body.append('finca', filtroFinca());
         body.append('estado', filtroEstado());
         body.append('descuadre', filtroDescuadre());
+        if (CON_UNIDADES) body.append('unidad_negocio', filtroUnidad());
 
         const response = await fetch(URL_LOTES + 'listar', { method: 'POST', body });
         const result = await response.json();
@@ -133,6 +137,7 @@ $id('filtro_empresa').addEventListener('change', (e) => {
 $id('filtro_finca').addEventListener('change', listar);
 $id('filtro_estado').addEventListener('change', listar);
 $id('filtro_descuadre').addEventListener('change', listar);
+$id('filtro_unidad_negocio')?.addEventListener('change', listar);
 
 // ── Sección (según finca) ────────────────────────────────────────────────────
 
@@ -145,7 +150,23 @@ const repoblarSecciones = (finca, seleccion = '') => {
     $id('lote_seccion_vacio').classList.toggle('d-none', lista.length > 0);
 };
 
-$id('lote_finca').addEventListener('change', () => repoblarSecciones($id('lote_finca').value));
+const repoblarUnidades = (finca, seleccion = '', actual = null) => {
+    if (!CON_UNIDADES) return;
+    const select = $id('lote_unidad_negocio');
+    const clave = String(finca ?? '').trim();
+    const lista = (clave && UNIDADES_POR_FINCA[clave]) || [];
+    select.innerHTML = `<option value="">${clave ? 'Seleccione&hellip;' : 'Elija primero la finca'}</option>`;
+    lista.forEach((u) => select.add(new Option(u.descripcion, u.codigo)));
+    if (actual && !lista.some((u) => u.codigo === actual.codigo)) select.add(new Option(`${actual.descripcion} (inactiva)`, actual.codigo));
+    select.value = actual?.codigo || (lista.some((u) => u.codigo === seleccion) ? seleccion : (lista.length === 1 ? lista[0].codigo : ''));
+    select.disabled = select.options.length === 1;
+    $id('lote_unidad_negocio_vacio').classList.toggle('d-none', !clave || lista.length > 0);
+};
+
+$id('lote_finca').addEventListener('change', () => {
+    repoblarSecciones($id('lote_finca').value);
+    repoblarUnidades($id('lote_finca').value, $id('lote_unidad_negocio')?.value || filtroUnidad());
+});
 
 const aplicarManejaSeccion = () => {
     const activo = $id('lote_maneja_seccion').checked;
@@ -310,6 +331,7 @@ const abrirNuevo = () => {
     $id('lote_empresa').value = filtroEmpresa();
     $id('lote_finca').value = filtroFinca();
     repoblarSecciones($id('lote_finca').value);
+    repoblarUnidades($id('lote_finca').value, filtroUnidad());
     $id('lote_activo').checked = true;
     $id('lote_desarrollo').checked = false;
     bloquearLlave(false);
@@ -358,6 +380,8 @@ window.editarLote = async (empresa, codigo, finca) => {
         }
         $('#lote_ccosto').val(ccosto && opcionCcosto ? opcionCcosto.value : '').trigger('change');
         repoblarSecciones(lote.finca, lote.seccion || '');
+        const unidad = String(lote.unidadNegocio ?? '').trim();
+        repoblarUnidades(lote.finca, '', unidad ? { codigo: unidad, descripcion: String(lote.unidadNegocioDescripcion ?? unidad).trim() } : null);
         $id('lote_maneja_seccion').checked = Number(lote.manejaSeccion) === 1;
         aplicarManejaSeccion();
         $id('lote_anio_siembra').value = lote.anioSiembra || '';
@@ -416,6 +440,7 @@ $id('formulario_lote').addEventListener('submit', async (e) => {
         activo: $id('lote_activo').checked ? 1 : 0,
         desarrollo: $id('lote_desarrollo').checked ? 1 : 0,
         canales: JSON.stringify(recolectarCanales()),
+        ...(CON_UNIDADES ? { unidadNegocio: $id('lote_unidad_negocio').value } : {}),
         ...filtrosActuales()
     });
 

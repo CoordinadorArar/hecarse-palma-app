@@ -197,5 +197,6 @@
 <?php echo $this->section('scripts'); ?>
 <script> const BASE_URL = "<?= base_url() ?>"; </script>
 <script src="<?= asset_url('public/assets/js/gestionpalma/motivos_ausencia.js') ?>"></script>
+<script src="<?= asset_url('public/assets/js/tutoriales/modulos/gestionpalma/motivos_ausencia.js') ?>"></script>
 <?php echo $this->endSection(); ?>
 <?php endif; ?>

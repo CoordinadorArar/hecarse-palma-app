@@ -869,12 +869,45 @@ a.pl-chip:hover {
     min-width: 0;
 }
 
-.pl-dup-ayuda {
-    margin: .5rem 2em 0;
-    text-align: left;
-}
-
 .pl-omitidas {
     max-height: 240px;
     overflow-y: auto;
+}
+
+.pl-vl-tabla {
+  font-size: .8125rem;
+}
+
+.pl-vl-tabla .tx-input-num { width: 88px; }
+.pl-vl-tabla .pl-vl-planeado { background-color: #f4faf6; }
+.pl-vl-tabla .pl-vl-pie > td { background-color: #fbfcfd; border-top: 1px solid #e4e8ee; }
+.pl-cierre-extra { min-height: 36px; align-items: center; }
+
+.pl-vl-tabla .pl-vl-trab {
+  left: 0;
+  right: auto;
+  min-width: 160px;
+  box-shadow: inset -6px 0 6px -6px rgba(58, 75, 92, .18);
+}
+
+.pl-vl-tabla .gp-truncar {
+  max-width: 130px;
+}
+
+.pl-vl-tabla th {
+  white-space: nowrap;
+  vertical-align: top;
+}
+
+@media (min-width: 768px) {
+  .pl-vl-agregar {
+    max-width: 360px;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .pl-vl-tabla .pl-vl-total {
+    position: static;
+    box-shadow: none;
+  }
 }

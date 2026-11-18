@@ -62,8 +62,7 @@ const aplicarRespuesta = (result) => {
 const avisar = (response, mensaje) => {
     const texto = mensaje || 'No se pudo completar la operación.';
     if (response.status === 401 || texto.length > 70) {
-        Alerta.fire({ icon: 'warning', title: response.status === 401 ? 'Sesión expirada' : 'Atención', text: texto });
-        return;
+        return Alerta.fire({ icon: 'warning', title: response.status === 401 ? 'Sesión expirada' : 'Atención', text: texto });
     }
     Toast.fire({ icon: 'warning', title: texto });
 };
@@ -106,7 +105,11 @@ const enviar = async (accion, datos) => {
         const result = await response.json().catch(() => null);
 
         if (!response.ok || !result || result.success === false || typeof result.tabla === 'undefined') {
-            avisar(response, result ? result.message : null);
+            const aviso = avisar(response, result ? result.message : null);
+            if (result?.campo === 'codigo') {
+                $id('labor_codigo').classList.add('is-invalid');
+                Promise.resolve(aviso).then(() => $id('labor_codigo').focus());
+            }
             return false;
         }
 
@@ -183,7 +186,77 @@ const mostrarHeredados = (mostrar) => {
 };
 
 $id('modalLabor').addEventListener('shown.bs.modal', () => {
-    $id($id('labor_modo').value === 'editar' ? 'labor_descripcion' : 'labor_codigo').focus();
+    if ($id('labor_modo').value === 'editar') $id('labor_descripcion').focus();
+    else if (!$id('labor_grupo').value) $id('labor_grupo').focus();
+    else $id($id('labor_codigo').value.trim() ? 'labor_concepto' : 'labor_codigo').focus();
+});
+
+// ── Código sugerido según el grupo ───────────────────────────────────────────
+
+const URL_SIGUIENTE_CODIGO = BASE_URL + 'gestion-palma/labores/siguiente-codigo';
+let turnoSugerencia = 0;
+
+const pintarSugerencia = () => {
+    const input = $id('labor_codigo');
+    const sugerido = input.dataset.sugerido || '';
+    const igual = sugerido !== '' && input.value.trim() === sugerido;
+    const ayuda = $id('labor_codigo_ayuda');
+    $id('labor_codigo_sugerido').classList.toggle('d-none', !igual);
+    if ($id('labor_modo').value === 'editar') ayuda.textContent = '';
+    else if (!$id('labor_grupo').value) ayuda.textContent = 'Elija el grupo para proponer el código.';
+    else if (!sugerido) ayuda.textContent = '';
+    else if (igual) ayuda.textContent = `Sugerido para el grupo ${$id('labor_grupo').value.trim()}. Puede cambiarlo.`;
+    else {
+        ayuda.innerHTML = 'Sugerido: <span class="font-monospace"></span> <button type="button" class="btn btn-link btn-sm p-0 align-baseline" id="btn_usar_codigo_sugerido">Usar</button>';
+        ayuda.querySelector('.font-monospace').textContent = sugerido;
+    }
+};
+
+const sugerirCodigo = async () => {
+    if ($id('labor_modo').value === 'editar') return;
+    const input = $id('labor_codigo');
+    const grupo = $id('labor_grupo').value;
+    const turno = ++turnoSugerencia;
+
+    if (!grupo) {
+        if (input.dataset.sugerido && input.value.trim() === input.dataset.sugerido) input.value = '';
+        delete input.dataset.sugerido;
+        pintarSugerencia();
+        return;
+    }
+
+    try {
+        const body = new FormData();
+        body.append('empresa', $id('labor_empresa').value);
+        body.append('grupo', grupo);
+        const response = await fetch(URL_SIGUIENTE_CODIGO, { method: 'POST', body });
+        const result = await response.json().catch(() => null);
+        if (turno !== turnoSugerencia) return;
+        if (response.ok && result?.success && result.codigo) {
+            const actual = input.value.trim();
+            if (actual === '' || actual === (input.dataset.sugerido || '')) input.value = result.codigo;
+            input.dataset.sugerido = result.codigo;
+        } else {
+            delete input.dataset.sugerido;
+        }
+    } catch (error) {
+        delete input.dataset.sugerido;
+    }
+    pintarSugerencia();
+};
+
+$id('labor_grupo').addEventListener('change', sugerirCodigo);
+$id('labor_empresa').addEventListener('change', () => { if ($id('labor_grupo').value) sugerirCodigo(); });
+$id('labor_codigo').addEventListener('input', () => {
+    $id('labor_codigo').classList.remove('is-invalid');
+    pintarSugerencia();
+});
+$id('labor_codigo_ayuda').addEventListener('click', (e) => {
+    if (!e.target.closest('#btn_usar_codigo_sugerido')) return;
+    $id('labor_codigo').value = $id('labor_codigo').dataset.sugerido;
+    $id('labor_codigo').classList.remove('is-invalid');
+    pintarSugerencia();
+    $id('labor_codigo').focus();
 });
 
 const bloquearLlave = (bloquear) => {
@@ -198,12 +271,14 @@ const prepararFormulario = () => {
     $id('formulario_labor').classList.remove('was-validated');
     mostrarHeredados(false);
     delete $id('labor_des_corta').dataset.tocado;
+    delete $id('labor_codigo').dataset.sugerido;
+    $id('labor_codigo').classList.remove('is-invalid');
     aplicarManejaRango();
     aplicarManejaCanal();
     aplicarImpuesto();
 };
 
-const abrirNuevo = () => {
+const abrirNuevo = async () => {
     prepararFormulario();
     $id('labor_modo').value = 'crear';
     $id('titulo_modal_labor').innerHTML = '<i class="bi bi-clipboard-check me-1"></i>Nueva labor';
@@ -212,6 +287,7 @@ const abrirNuevo = () => {
     $id('labor_activo').checked = true;
     $id('labor_clase').required = true;
     bloquearLlave(false);
+    await sugerirCodigo();
     modalLabor().show();
 };
 
@@ -290,6 +366,7 @@ window.editarLabor = async (empresa, codigo, concepto) => {
         aplicarManejaCanal();
         aplicarImpuesto();
         $id('labor_clase').required = false;
+        pintarSugerencia();
         mostrarHeredados(['labor_maneja_canal', 'labor_impuesto', 'labor_maneja_saldo', 'labor_maneja_bascula'].some((id) => $id(id).checked));
         bloquearLlave(true);
         modalLabor().show();

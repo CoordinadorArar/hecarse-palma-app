@@ -186,6 +186,22 @@ class LotesModel extends Model
 
     // ── Maestro ──────────────────────────────────────────────────────────────
 
+    private function conUnidades(): bool
+    {
+        return model(UnidadesNegocioModel::class)->disponible();
+    }
+
+    private function sqlUnidad(bool $campos): string
+    {
+        if (! $this->conUnidades()) {
+            return '';
+        }
+
+        return $campos
+            ? ', RTRIM(l.unidadNegocio) AS unidadNegocio, un.descripcion AS unidadNegocioDescripcion'
+            : ' LEFT JOIN aUnidadNegocio un ON un.empresa = l.empresa AND un.codigo = l.unidadNegocio';
+    }
+
     /**
      * SELECT base del listado, con los mismos joins agregados de una sola pasada (usos y detalle)
      * más el nombre de la variedad. listar() lo envuelve en una subconsulta para poder filtrar por
@@ -193,7 +209,7 @@ class LotesModel extends Model
      */
     private function sqlBaseListado(): string
     {
-        return 'SELECT ' . self::CAMPOS
+        return 'SELECT ' . self::CAMPOS . $this->sqlUnidad(true)
             . ', f.descripcion AS fincaDescripcion'
             . ', RTRIM(vd.descripcion) AS variedadNombre'
             . ', ISNULL(u.usos, 0) AS usos'
@@ -203,6 +219,7 @@ class LotesModel extends Model
             . ' FROM aLotes l'
             . ' LEFT JOIN aFinca f ON f.empresa = l.empresa AND f.codigo = l.finca'
             . ' LEFT JOIN aVariedad vd ON vd.empresa = l.empresa AND vd.codigo = l.variedad'
+            . $this->sqlUnidad(false)
             . ' LEFT JOIN ' . $this->sqlUsosAgregados() . ' u ON u.empresa = l.empresa AND u.lote = l.codigo'
             . ' LEFT JOIN ' . $this->sqlDetalleAgregado() . ' d ON d.empresa = l.empresa AND d.lote = l.codigo'
             . ' WHERE l.empresa = ?';
@@ -226,9 +243,10 @@ class LotesModel extends Model
      * @param string $estado    '1', '0' o cadena vacía para todas.
      * @param string $descuadre '1' para solo los lotes con descuadre entre el maestro y el detalle, o cadena vacía para todos.
      */
-    public function listar(int $empresa, string $finca = '', string $estado = '', string $descuadre = ''): array
+    public function listar(int $empresa, string $finca = '', string $estado = '', string $descuadre = '', string $unidad = ''): array
     {
-        $finca = trim($finca);
+        $finca  = trim($finca);
+        $unidad = trim($unidad);
 
         $sql   = 'SELECT * FROM (' . $this->sqlBaseListado() . ') x WHERE 1 = 1';
         $binds = $this->bindsBaseListado($empresa);
@@ -236,6 +254,11 @@ class LotesModel extends Model
         if ($finca !== '') {
             $sql .= ' AND x.finca = ?';
             $binds[] = $finca;
+        }
+
+        if ($unidad !== '' && $this->conUnidades()) {
+            $sql .= ' AND x.unidadNegocio = ?';
+            $binds[] = $unidad;
         }
 
         if ($estado === '1' || $estado === '0') {
@@ -257,7 +280,7 @@ class LotesModel extends Model
         $codigo = trim($codigo);
         $finca  = trim($finca);
 
-        $sql = 'SELECT ' . self::CAMPOS
+        $sql = 'SELECT ' . self::CAMPOS . $this->sqlUnidad(true)
             . ', f.descripcion AS fincaDescripcion'
             . ', ISNULL(u.usos, 0) AS usos'
             . ', ISNULL(d.nLineas, 0) AS detalleLineas'
@@ -265,6 +288,7 @@ class LotesModel extends Model
             . ', ISNULL(d.sumProduccion, 0) AS detalleProduccion'
             . ' FROM aLotes l'
             . ' LEFT JOIN aFinca f ON f.empresa = l.empresa AND f.codigo = l.finca'
+            . $this->sqlUnidad(false)
             . ' LEFT JOIN ' . $this->sqlUsosAgregados() . ' u ON u.empresa = l.empresa AND u.lote = l.codigo'
             . ' LEFT JOIN ' . $this->sqlDetalleAgregado() . ' d ON d.empresa = l.empresa AND d.lote = l.codigo'
             . ' WHERE l.empresa = ? AND l.codigo = ? AND l.finca = ?';
@@ -329,6 +353,7 @@ class LotesModel extends Model
         ) !== false;
 
         if ($ok) {
+            $this->guardarUnidad($empresa, $codigo, $finca, $data);
             $this->guardarCanales($empresa, $codigo, $canales);
 
             $this->insertarAuditoria('INSERT', array_merge(
@@ -378,6 +403,7 @@ class LotesModel extends Model
         ) !== false;
 
         if ($ok) {
+            $this->guardarUnidad($empresa, $codigo, $finca, $data);
             $this->guardarCanales($empresa, $codigo, $canales);
 
             $this->insertarAuditoria('UPDATE', array_merge(
@@ -456,6 +482,16 @@ class LotesModel extends Model
         $fila = $this->db->query($sql, $binds)->getRowArray();
 
         return (int) ($fila['total'] ?? 0);
+    }
+
+    private function guardarUnidad(int $empresa, string $codigo, string $finca, array $data): void
+    {
+        if (array_key_exists('unidadNegocio', $data)) {
+            $this->db->query(
+                'UPDATE aLotes SET unidadNegocio = ? WHERE empresa = ? AND codigo = ? AND finca = ?',
+                [$data['unidadNegocio'], $empresa, $codigo, $finca]
+            );
+        }
     }
 
     // ── Subtabla: canales (aLotesCanal) ─────────────────────────────────────

@@ -192,4 +192,5 @@
 <?php echo $this->section('scripts'); ?>
 <script> const BASE_URL = "<?= base_url() ?>"; </script>
 <script src="<?= asset_url('public/assets/js/gestionpalma/unidades_medida.js') ?>"></script>
+<script src="<?= asset_url('public/assets/js/tutoriales/modulos/gestionpalma/unidades_medida.js') ?>"></script>
 <?php echo $this->endSection(); ?>

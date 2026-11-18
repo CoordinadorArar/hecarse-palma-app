@@ -397,4 +397,5 @@
 <?php echo $this->section('scripts'); ?>
 <script> const BASE_URL = "<?= base_url() ?>"; const TERCEROS_DISPONIBLES = <?= json_encode($terceros_disponibles) ?>; const PROVEEDORES = <?= json_encode($proveedores) ?>; </script>
 <script src="<?= asset_url('public/assets/js/gestionpalma/nomina_empleados.js') ?>"></script>
+<script src="<?= asset_url('public/assets/js/tutoriales/modulos/gestionpalma/nomina_empleados.js') ?>"></script>
 <?php echo $this->endSection(); ?>
