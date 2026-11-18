@@ -32,7 +32,7 @@ const renderizarTabla = () => {
     $('#tabla_fincas').DataTable({
         paging: false,
         dom: "<'gp-dt-barra'if><'table-responsive't>",
-        columnDefs: [{ targets: [7, 9], orderable: false }],
+        columnDefs: [{ targets: [-3, -1], orderable: false }],
         order: [[0, 'asc']],
         language: {
             info: '_TOTAL_ registros',

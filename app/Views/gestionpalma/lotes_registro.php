@@ -18,6 +18,7 @@ foreach ($secciones as $s) {
         'descripcion' => $s['descripcion'],
     ];
 }
+$conUnidades = isset($unidades_por_finca);
 ?>
 
 <main id="main" class="main">
@@ -39,7 +40,7 @@ foreach ($secciones as $s) {
             <div class="card-body py-3 px-4">
                 <div class="row g-2 align-items-end">
 
-                    <div class="col-md-3">
+                    <div class="<?= $conUnidades ? 'col-md-4 col-lg-2' : 'col-md-3' ?>">
                         <label class="form-label mb-1 small fw-semibold text-muted" for="filtro_empresa">Empresa</label>
                         <select class="form-select" id="filtro_empresa">
                             <?php foreach ($empresas as $empresa): ?>
@@ -50,7 +51,7 @@ foreach ($secciones as $s) {
                         </select>
                     </div>
 
-                    <div class="col-md-3">
+                    <div class="<?= $conUnidades ? 'col-md-4 col-lg-2' : 'col-md-3' ?>">
                         <label class="form-label mb-1 small fw-semibold text-muted" for="filtro_finca">Finca</label>
                         <select class="form-select" id="filtro_finca">
                             <option value="" selected>Todas</option>
@@ -60,7 +61,19 @@ foreach ($secciones as $s) {
                         </select>
                     </div>
 
-                    <div class="col-md-2">
+                    <?php if ($conUnidades): ?>
+                    <div class="col-md-4 col-lg-2">
+                        <label class="form-label mb-1 small fw-semibold text-muted" for="filtro_unidad_negocio">Unidad de negocio</label>
+                        <select class="form-select" id="filtro_unidad_negocio">
+                            <option value="" selected>Todas</option>
+                            <?php foreach ($unidades ?? [] as $unidad): ?>
+                                <option value="<?= esc(trim((string) $unidad['codigo']), 'attr') ?>"><?= esc($unidad['descripcion']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <?php endif; ?>
+
+                    <div class="<?= $conUnidades ? 'col-md-6 col-lg-2' : 'col-md-2' ?>">
                         <label class="form-label mb-1 small fw-semibold text-muted" for="filtro_estado">Estado</label>
                         <select class="form-select" id="filtro_estado">
                             <option value="" selected>Todos</option>
@@ -69,7 +82,7 @@ foreach ($secciones as $s) {
                         </select>
                     </div>
 
-                    <div class="col-md-2">
+                    <div class="<?= $conUnidades ? 'col-md-6 col-lg-2' : 'col-md-2' ?>">
                         <label class="form-label mb-1 small fw-semibold text-muted" for="filtro_descuadre">Descuadre</label>
                         <select class="form-select" id="filtro_descuadre">
                             <option value="" selected>Todos</option>
@@ -101,7 +114,7 @@ foreach ($secciones as $s) {
                             <tr>
                                 <th style="width:130px">Código</th>
                                 <th>Descripción</th>
-                                <th style="width:190px">Finca / Sección</th>
+                                <th style="width:<?= $conUnidades ? 210 : 190 ?>px"><?= $conUnidades ? 'Finca / Unidad / Sección' : 'Finca / Sección' ?></th>
                                 <th class="text-center" style="width:120px">Variedad</th>
                                 <th class="text-end" style="width:150px">Palmas</th>
                                 <th class="text-end" style="width:90px">Líneas</th>
@@ -122,7 +135,7 @@ foreach ($secciones as $s) {
                         <i class="bi bi-hash"></i>
                     </div>
                     <h6>No se encontraron lotes</h6>
-                    <p class="text-muted">Ajuste los filtros de finca, estado o descuadre, o registre un nuevo lote.</p>
+                    <p class="text-muted">Ajuste los filtros de finca, <?= $conUnidades ? 'unidad de negocio, ' : '' ?>estado o descuadre, o registre un nuevo lote.</p>
                     <button type="button" class="btn btn-success" id="btn_nuevo_vacio">
                         <i class="bi bi-plus-lg me-1"></i>Nuevo lote
                     </button>
@@ -155,7 +168,7 @@ foreach ($secciones as $s) {
                                 <h6 class="gp-seccion"><i class="bi bi-hash"></i>Identificación</h6>
                             </div>
 
-                            <div class="col-md-3">
+                            <div class="<?= $conUnidades ? 'col-md-4' : 'col-md-3' ?>">
                                 <label class="form-label mb-1 small fw-semibold text-muted" for="lote_empresa">Empresa <span class="text-danger">*</span></label>
                                 <div class="input-group">
                                     <span class="input-group-text bg-light"><i class="bi bi-building"></i></span>
@@ -167,7 +180,7 @@ foreach ($secciones as $s) {
                                 </div>
                             </div>
 
-                            <div class="col-md-3">
+                            <div class="<?= $conUnidades ? 'col-md-4' : 'col-md-3' ?>">
                                 <label class="form-label mb-1 small fw-semibold text-muted" for="lote_finca">Finca <span class="text-danger">*</span></label>
                                 <div class="input-group">
                                     <span class="input-group-text bg-light"><i class="bi bi-tree"></i></span>
@@ -180,7 +193,22 @@ foreach ($secciones as $s) {
                                 </div>
                             </div>
 
-                            <div class="col-md-2">
+                            <?php if ($conUnidades): ?>
+                            <div class="col-md-4">
+                                <label class="form-label mb-1 small fw-semibold text-muted" for="lote_unidad_negocio">Unidad de negocio <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light"><i class="bi bi-boxes"></i></span>
+                                    <select class="form-select" id="lote_unidad_negocio" required disabled>
+                                        <option value="">Elija primero la finca</option>
+                                    </select>
+                                </div>
+                                <div class="gp-nota-alerta mt-1 d-none" id="lote_unidad_negocio_vacio">
+                                    <i class="bi bi-exclamation-triangle me-1"></i>Esta finca no tiene unidades de negocio habilitadas. Asígnelas en Gestión Palma &rsaquo; Unidades de negocio.
+                                </div>
+                            </div>
+                            <?php endif; ?>
+
+                            <div class="<?= $conUnidades ? 'col-md-4' : 'col-md-2' ?>">
                                 <label class="form-label mb-1 small fw-semibold text-muted" for="lote_codigo">Código <span class="text-danger">*</span></label>
                                 <div class="input-group">
                                     <span class="input-group-text bg-light"><i class="bi bi-hash"></i></span>
@@ -188,7 +216,7 @@ foreach ($secciones as $s) {
                                 </div>
                             </div>
 
-                            <div class="col-md-2">
+                            <div class="<?= $conUnidades ? 'col-md-4' : 'col-md-2' ?>">
                                 <label class="form-label mb-1 small fw-semibold text-muted" for="lote_numero">Número</label>
                                 <div class="input-group">
                                     <span class="input-group-text bg-light">N.°</span>
@@ -196,7 +224,7 @@ foreach ($secciones as $s) {
                                 </div>
                             </div>
 
-                            <div class="col-md-2">
+                            <div class="<?= $conUnidades ? 'col-md-4' : 'col-md-2' ?>">
                                 <label class="form-label mb-1 small fw-semibold text-muted" for="lote_letra">Letra</label>
                                 <div class="input-group">
                                     <span class="input-group-text bg-light"><i class="bi bi-alphabet"></i></span>
@@ -497,6 +525,10 @@ foreach ($secciones as $s) {
     const BASE_URL = "<?= base_url() ?>";
     const TIPOS_CANAL = <?= json_encode($tipos_canal) ?>;
     const SECCIONES_POR_FINCA = <?= json_encode($seccionesPorFinca) ?>;
+    <?php if ($conUnidades): ?>
+    const UNIDADES_POR_FINCA = <?= json_encode((object) $unidades_por_finca) ?>;
+    <?php endif; ?>
 </script>
 <script src="<?= asset_url('public/assets/js/gestionpalma/lotes_registro.js') ?>"></script>
+<script src="<?= asset_url('public/assets/js/tutoriales/modulos/gestionpalma/lotes_registro.js') ?>"></script>
 <?php echo $this->endSection(); ?>

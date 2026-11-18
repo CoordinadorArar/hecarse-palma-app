@@ -68,11 +68,14 @@
             <div class="card-body p-0">
 
                 <div id="gp_contenedor_tabla">
-                    <table id="tabla_fincas" class="table table-striped table-hover align-middle mb-0 gp-tabla" style="width:100%">
+                    <table id="tabla_fincas" class="table table-striped table-hover align-middle mb-0 gp-tabla<?= ! empty($unidades_disponibles) ? ' gp-tabla-ancha' : '' ?>" style="width:100%">
                         <thead class="gp-thead">
                             <tr>
                                 <th class="text-center" style="width:110px">Código</th>
                                 <th>Finca</th>
+                                <?php if (! empty($unidades_disponibles)): ?>
+                                <th style="width:220px">Unidades de negocio</th>
+                                <?php endif; ?>
                                 <th style="width:220px">Propietario</th>
                                 <th style="width:200px">Ubicación</th>
                                 <th class="text-end" style="width:110px">Hectáreas</th>
@@ -278,4 +281,5 @@
 <?php echo $this->section('scripts'); ?>
 <script> const BASE_URL = "<?= base_url() ?>"; </script>
 <script src="<?= asset_url('public/assets/js/gestionpalma/fincas.js') ?>"></script>
+<script src="<?= asset_url('public/assets/js/tutoriales/modulos/gestionpalma/fincas.js') ?>"></script>
 <?php echo $this->endSection(); ?>

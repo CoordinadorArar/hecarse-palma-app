@@ -152,6 +152,21 @@ body.tut-activo * {
     background-color: #f1f3f5;
 }
 
+body.tut-activo .gp-scroll-grilla {
+    max-height: none;
+}
+
+@media (min-width: 992px) {
+    body.tut-activo .gp-panel-registro {
+        position: static;
+        max-height: none;
+    }
+
+    body.tut-activo .gp-panel-registro > form > .card-body {
+        overflow: visible;
+    }
+}
+
 @media (max-width: 767.98px) {
     .driver-popover.app-tour {
         max-width: calc(100vw - 24px);

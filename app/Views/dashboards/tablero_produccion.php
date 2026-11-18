@@ -123,4 +123,5 @@
     const TABLERO = <?= json_encode(['tablero' => $tablero, 'meses' => array_values($meses)], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>;
 </script>
 <script src="<?= asset_url('public/assets/js/dashboards/analisisProduccion.js') ?>"></script>
+<script src="<?= asset_url('public/assets/js/tutoriales/modulos/tableroProduccion.js') ?>"></script>
 <?php echo $this->endSection(); ?>

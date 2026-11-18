@@ -168,6 +168,13 @@ $routes->post('gestion-palma/secciones/crear', 'gestionpalma\SeccionesController
 $routes->post('gestion-palma/secciones/actualizar', 'gestionpalma\SeccionesController::actualizarSeccion');
 $routes->post('gestion-palma/secciones/eliminar', 'gestionpalma\SeccionesController::eliminarSeccion');
 $routes->post('gestion-palma/secciones/cambiar-estado', 'gestionpalma\SeccionesController::cambiarEstadoSeccion');
+$routes->get('gestion-palma/unidades-negocio/(:num)', 'gestionpalma\UnidadesNegocioController::index/$1');
+$routes->post('gestion-palma/unidades-negocio/listar', 'gestionpalma\UnidadesNegocioController::listar');
+$routes->post('gestion-palma/unidades-negocio/obtener', 'gestionpalma\UnidadesNegocioController::obtener');
+$routes->post('gestion-palma/unidades-negocio/crear', 'gestionpalma\UnidadesNegocioController::crear');
+$routes->post('gestion-palma/unidades-negocio/actualizar', 'gestionpalma\UnidadesNegocioController::actualizar');
+$routes->post('gestion-palma/unidades-negocio/eliminar', 'gestionpalma\UnidadesNegocioController::eliminar');
+$routes->post('gestion-palma/unidades-negocio/cambiar-estado', 'gestionpalma\UnidadesNegocioController::cambiarEstado');
 $routes->get('gestion-palma/contabilidad/periodos/(:num)', 'gestionpalma\ContabilidadController::periodos/$1');
 $routes->post('gestion-palma/contabilidad/periodos/listar', 'gestionpalma\ContabilidadController::listarPeriodos');
 $routes->post('gestion-palma/contabilidad/periodos/obtener', 'gestionpalma\ContabilidadController::obtenerPeriodo');
@@ -276,6 +283,7 @@ $routes->post('gestion-palma/labores/registro/crear', 'gestionpalma\LaboresContr
 $routes->post('gestion-palma/labores/registro/actualizar', 'gestionpalma\LaboresController::actualizarLabor');
 $routes->post('gestion-palma/labores/registro/eliminar', 'gestionpalma\LaboresController::eliminarLabor');
 $routes->post('gestion-palma/labores/registro/cambiar-estado', 'gestionpalma\LaboresController::cambiarEstadoLabor');
+$routes->post('gestion-palma/labores/siguiente-codigo', 'gestionpalma\LaboresController::siguienteCodigoLabor');
 $routes->get('gestion-palma/labores/items/(:num)', 'gestionpalma\LaboresController::items/$1');
 $routes->post('gestion-palma/labores/items/listar', 'gestionpalma\LaboresController::listarItems');
 $routes->post('gestion-palma/labores/items/obtener', 'gestionpalma\LaboresController::obtenerItem');
@@ -369,6 +377,7 @@ $routes->post('transacciones/planeacion/duplicar', 'transacciones\PlaneacionCont
 $routes->post('transacciones/planeacion/ausencia', 'transacciones\PlaneacionController::ausencia');
 $routes->post('transacciones/planeacion/quitarAusencia', 'transacciones\PlaneacionController::quitarAusencia');
 $routes->post('transacciones/planeacion/cerrarActividad', 'transacciones\PlaneacionController::cerrarActividad');
+$routes->post('transacciones/planeacion/cerrarVariosLotes', 'transacciones\PlaneacionController::cerrarVariosLotes');
 $routes->post('transacciones/planeacion/reabrirActividad', 'transacciones\PlaneacionController::reabrirActividad');
 $routes->post('transacciones/planeacion/cerrarPlan', 'transacciones\PlaneacionController::cerrarPlan');
 $routes->post('transacciones/planeacion/reabrirPlan', 'transacciones\PlaneacionController::reabrirPlan');

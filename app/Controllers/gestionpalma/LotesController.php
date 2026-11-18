@@ -7,6 +7,7 @@ use CodeIgniter\HTTP\ResponseInterface;
 
 use App\Models\LotesModel;
 use App\Models\PesosLoteModel;
+use App\Models\UnidadesNegocioModel;
 
 class LotesController extends GestionPalmaController
 {
@@ -18,6 +19,7 @@ class LotesController extends GestionPalmaController
 
     private $lotesModel;
     private $pesosLoteModel;
+    private $unidadesModel;
 
     public function __construct()
     {
@@ -25,6 +27,7 @@ class LotesController extends GestionPalmaController
 
         $this->lotesModel     = new LotesModel();
         $this->pesosLoteModel = new PesosLoteModel();
+        $this->unidadesModel  = new UnidadesNegocioModel();
     }
 
     /**
@@ -45,7 +48,8 @@ class LotesController extends GestionPalmaController
         $empresas   = $this->lotesModel->getEmpresas();
         $empresaSel = $this->empresaSeleccionada($empresas);
 
-        $filas = $empresaSel > 0 ? $this->lotesModel->listar($empresaSel) : [];
+        $filas    = $empresaSel > 0 ? $this->lotesModel->listar($empresaSel) : [];
+        $unidades = $empresaSel > 0 && $this->unidadesModel->disponible();
 
         $data['title']         = 'Gestión Palma · Registro de lotes';
         $data['empresas']      = $empresas;
@@ -57,6 +61,11 @@ class LotesController extends GestionPalmaController
         $data['centros_costo'] = $empresaSel > 0 ? $this->lotesModel->getCentrosCosto($empresaSel) : [];
         $data['tabla_lotes']   = $this->renderizarFilasLotes($filas);
         $data['total_lotes']   = count($filas);
+
+        if ($this->unidadesModel->disponible()) {
+            $data['unidades']           = $unidades ? $this->unidadesModel->activas($empresaSel) : [];
+            $data['unidades_por_finca'] = $unidades ? $this->unidadesModel->porFinca($empresaSel, true) : [];
+        }
 
         return view('gestionpalma/lotes_registro', $data);
     }
@@ -113,7 +122,7 @@ class LotesController extends GestionPalmaController
             return $this->error('Debe seleccionar una empresa válida.');
         }
 
-        $filas = $this->lotesModel->listar($empresa, $this->campo('finca'), $this->campo('estado'), $this->campo('descuadre'));
+        $filas = $this->lotesModel->listar($empresa, $this->campo('finca'), $this->campo('estado'), $this->campo('descuadre'), $this->campo('unidad_negocio'));
 
         return $this->response->setJSON([
             'success' => true,
@@ -154,6 +163,8 @@ class LotesController extends GestionPalmaController
                 'fincaNombre'       => trim((string) ($lote['fincaDescripcion'] ?? '')),
                 'manejaSeccion'     => (int) $lote['manejaSeccion'],
                 'seccion'           => $lote['seccion'] !== null ? trim((string) $lote['seccion']) : null,
+                'unidadNegocio'            => isset($lote['unidadNegocio']) ? trim((string) $lote['unidadNegocio']) : null,
+                'unidadNegocioDescripcion' => isset($lote['unidadNegocioDescripcion']) ? trim((string) $lote['unidadNegocioDescripcion']) : null,
                 'descripcion'       => (string) $lote['descripcion'],
                 'anioSiembra'       => (int) $lote['anioSiembra'],
                 'palmasBrutas'      => (int) $lote['palmasBrutas'],
@@ -210,7 +221,7 @@ class LotesController extends GestionPalmaController
             return $this->error("Ya existe un lote con el código {$codigo} en la finca {$fincaExistente}.");
         }
 
-        $datos = $this->datosLote($empresa, $finca);
+        $datos = $this->datosLote($empresa, $finca, $codigo);
 
         if (is_string($datos)) {
             return $this->error($datos);
@@ -258,7 +269,7 @@ class LotesController extends GestionPalmaController
             return $this->error('El lote no existe.');
         }
 
-        $datos = $this->datosLote($empresa, $finca);
+        $datos = $this->datosLote($empresa, $finca, $codigo);
 
         if (is_string($datos)) {
             return $this->error($datos);
@@ -796,8 +807,26 @@ class LotesController extends GestionPalmaController
      *
      * @return array|string Columnas listas para el INSERT/UPDATE o el mensaje de error.
      */
-    private function datosLote(int $empresa, string $finca): array|string
+    private function datosLote(int $empresa, string $finca, string $codigo): array|string
     {
+        $unidad = [];
+
+        if ($this->unidadesModel->disponible()) {
+            $unidadNegocio = mb_strtoupper($this->campo('unidadNegocio'));
+
+            if ($unidadNegocio === '') {
+                return 'Seleccione la unidad de negocio del lote.';
+            }
+
+            if (! $this->unidadesModel->habilitada($empresa, $finca, $unidadNegocio, $codigo)) {
+                $nombre = array_column($this->lotesModel->getFincas($empresa), 'descripcion', 'codigo')[$finca] ?? $finca;
+
+                return 'La unidad de negocio elegida no está habilitada en la finca «' . trim((string) $nombre) . '».';
+            }
+
+            $unidad = ['unidadNegocio' => $unidadNegocio];
+        }
+
         $descripcion = $this->campo('descripcion');
 
         if ($descripcion === '') {
@@ -936,7 +965,7 @@ class LotesController extends GestionPalmaController
             'numero'           => $numero,
             'letra'            => $letra !== '' ? $letra : null,
             'ccosto'           => $ccosto,
-        ];
+        ] + $unidad;
     }
 
     /**
@@ -1101,7 +1130,8 @@ class LotesController extends GestionPalmaController
             $empresa,
             $this->campo('filtro_finca'),
             $this->campo('filtro_estado'),
-            $this->campo('filtro_descuadre')
+            $this->campo('filtro_descuadre'),
+            $this->campo('filtro_unidad_negocio')
         );
 
         return $this->response->setJSON([
@@ -1222,7 +1252,16 @@ class LotesController extends GestionPalmaController
                     : '<div class="gp-subtexto">Sección: &mdash;</div>';
             }
 
-            $celdaFinca = ($fincaNombre !== '' ? htmlspecialchars($fincaNombre) : htmlspecialchars($finca)) . $subFinca;
+            $chipUnidad = '';
+
+            if (array_key_exists('unidadNegocio', $l)) {
+                $unidad     = trim((string) ($l['unidadNegocioDescripcion'] ?? $l['unidadNegocio'] ?? ''));
+                $chipUnidad = '<div class="mt-1">' . ($unidad !== ''
+                    ? '<span class="gp-chip-fila gris" title="Unidad de negocio">' . htmlspecialchars($unidad) . '</span>'
+                    : '<span class="gp-chip-fila ambar" title="Asigne una unidad de negocio al editar el lote.">Sin unidad</span>') . '</div>';
+            }
+
+            $celdaFinca = ($fincaNombre !== '' ? htmlspecialchars($fincaNombre) : htmlspecialchars($finca)) . $chipUnidad . $subFinca;
 
             // 4) Variedad
             $celdaVariedad = $variedadNombre !== '' ? htmlspecialchars($variedadNombre) : $vacio;

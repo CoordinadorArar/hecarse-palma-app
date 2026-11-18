@@ -136,5 +136,6 @@
 <script src="https://cdn.jsdelivr.net/npm/@geoman-io/leaflet-geoman-free@2.17.0/dist/leaflet-geoman.js" integrity="sha384-7CTDkMmRSjHvjl8ftuwzLq/ogrEnsuNoi3825eH06KuMNWWwcfaNIHol5+I3EAzO" crossorigin="anonymous"></script>
 <script src="<?= asset_url('public/assets/js/comun/palmas_mapa.js') ?>"></script>
 <script src="<?= asset_url('public/assets/js/gestionpalma/lotes_mapa.js') ?>"></script>
+<script src="<?= asset_url('public/assets/js/tutoriales/modulos/gestionpalma/lotes_mapa.js') ?>"></script>
 <?php endif; ?>
 <?php echo $this->endSection(); ?>

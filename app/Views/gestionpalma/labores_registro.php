@@ -155,7 +155,7 @@
                                 <h6 class="gp-seccion"><i class="bi bi-clipboard-check"></i>Identificación</h6>
                             </div>
 
-                            <div class="col-md-4">
+                            <div class="col-md-6 col-xl-3">
                                 <label class="form-label mb-1 small fw-semibold text-muted" for="labor_empresa">Empresa <span class="text-danger">*</span></label>
                                 <div class="input-group">
                                     <span class="input-group-text bg-light"><i class="bi bi-building"></i></span>
@@ -167,15 +167,30 @@
                                 </div>
                             </div>
 
-                            <div class="col-md-3">
+                            <div class="col-md-6 col-xl-3">
+                                <label class="form-label mb-1 small fw-semibold text-muted" for="labor_grupo">Grupo <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light"><i class="bi bi-collection"></i></span>
+                                    <select class="form-select" id="labor_grupo" required>
+                                        <option value="">Seleccione&hellip;</option>
+                                        <?php foreach ($grupos as $grupo): ?>
+                                            <option value="<?= esc($grupo['codigo'], 'attr') ?>"><?= esc($grupo['codigo']) ?> &mdash; <?= esc($grupo['descripcion']) ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="col-md-5 col-xl-2">
                                 <label class="form-label mb-1 small fw-semibold text-muted" for="labor_codigo">Código <span class="text-danger">*</span></label>
                                 <div class="input-group">
                                     <span class="input-group-text bg-light"><i class="bi bi-hash"></i></span>
                                     <input type="text" class="form-control font-monospace" id="labor_codigo" maxlength="20" autocomplete="off" required>
+                                    <span class="input-group-text bg-light d-none" id="labor_codigo_sugerido" style="color:#2f7a4b" title="Código sugerido según el grupo. Puede cambiarlo."><i class="bi bi-magic"></i></span>
                                 </div>
+                                <div class="form-text" id="labor_codigo_ayuda"></div>
                             </div>
 
-                            <div class="col-md-5">
+                            <div class="col-md-7 col-xl-4">
                                 <label class="form-label mb-1 small fw-semibold text-muted" for="labor_concepto">Concepto <span class="text-danger">*</span></label>
                                 <div class="input-group">
                                     <span class="input-group-text bg-light"><i class="bi bi-cash-coin"></i></span>
@@ -219,20 +234,7 @@
                                 <h6 class="gp-seccion"><i class="bi bi-tags"></i>Clasificación</h6>
                             </div>
 
-                            <div class="col-md-3">
-                                <label class="form-label mb-1 small fw-semibold text-muted" for="labor_grupo">Grupo <span class="text-danger">*</span></label>
-                                <div class="input-group">
-                                    <span class="input-group-text bg-light"><i class="bi bi-collection"></i></span>
-                                    <select class="form-select" id="labor_grupo" required>
-                                        <option value="">Seleccione&hellip;</option>
-                                        <?php foreach ($grupos as $grupo): ?>
-                                            <option value="<?= esc($grupo['codigo'], 'attr') ?>"><?= esc($grupo['codigo']) ?> &mdash; <?= esc($grupo['descripcion']) ?></option>
-                                        <?php endforeach; ?>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div class="col-md-3">
+                            <div class="col-md-4">
                                 <label class="form-label mb-1 small fw-semibold text-muted" for="labor_umedida">Unidad de medida <span class="text-danger">*</span></label>
                                 <div class="input-group">
                                     <span class="input-group-text bg-light"><i class="bi bi-rulers"></i></span>
@@ -245,7 +247,7 @@
                                 </div>
                             </div>
 
-                            <div class="col-md-3">
+                            <div class="col-md-4">
                                 <label class="form-label mb-1 small fw-semibold text-muted" for="labor_clase">Clase de labor <span class="text-danger">*</span></label>
                                 <div class="input-group">
                                     <span class="input-group-text bg-light"><i class="bi bi-diagram-3"></i></span>
@@ -258,7 +260,7 @@
                                 </div>
                             </div>
 
-                            <div class="col-md-3">
+                            <div class="col-md-4">
                                 <label class="form-label mb-1 small fw-semibold text-muted" for="labor_equivalencia">Equivalencia</label>
                                 <div class="input-group">
                                     <span class="input-group-text bg-light"><i class="bi bi-arrow-left-right"></i></span>
@@ -480,4 +482,5 @@
 <?php echo $this->section('scripts'); ?>
 <script> const BASE_URL = "<?= base_url() ?>"; </script>
 <script src="<?= asset_url('public/assets/js/gestionpalma/labores_registro.js') ?>"></script>
+<script src="<?= asset_url('public/assets/js/tutoriales/modulos/gestionpalma/labores_registro.js') ?>"></script>
 <?php echo $this->endSection(); ?>

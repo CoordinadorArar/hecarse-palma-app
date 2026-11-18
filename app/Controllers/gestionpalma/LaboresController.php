@@ -348,6 +348,30 @@ class LaboresController extends GestionPalmaController
         ]);
     }
 
+    public function siguienteCodigoLabor(): ResponseInterface
+    {
+        if ($sinSesion = $this->sesionRequerida()) {
+            return $sinSesion;
+        }
+
+        $empresa = $this->empresaValida();
+
+        if ($empresa === null) {
+            return $this->error('Debe seleccionar una empresa válida.');
+        }
+
+        $grupo = $this->campo('grupo');
+
+        if ($grupo === '' || ! $this->laboresModel->grupoValido($empresa, $grupo)) {
+            return $this->error('Seleccione un grupo de labor válido.');
+        }
+
+        return $this->response->setJSON([
+            'success' => true,
+            'codigo'  => $this->laboresModel->siguienteCodigo($empresa, $grupo),
+        ]);
+    }
+
     // ── Endpoints JSON: labores (aNovedad) ─────────────────────────────────────
 
     public function listarLabores(): ResponseInterface
@@ -420,8 +444,12 @@ class LaboresController extends GestionPalmaController
             return $this->error($concepto[0]);
         }
 
-        if ($this->laboresModel->existe($empresa, $codigo, $concepto)) {
-            return $this->error("Ya existe una labor con el código {$codigo} y el concepto {$concepto}.");
+        if (($existente = $this->laboresModel->laborConCodigo($empresa, $codigo)) !== null) {
+            return $this->error(
+                "El código {$codigo} ya existe en la labor «" . trim((string) $existente['descripcion'])
+                    . '» (concepto ' . trim((string) $existente['concepto']) . '). Use otro código.',
+                'codigo'
+            );
         }
 
         $datos = $this->datosLabor($empresa, true);
@@ -1616,11 +1644,11 @@ class LaboresController extends GestionPalmaController
         return in_array($this->campo($nombre), ['1', 'on', 'true'], true) ? 1 : 0;
     }
 
-    private function error(string $mensaje): ResponseInterface
+    private function error(string $mensaje, ?string $campo = null): ResponseInterface
     {
         return $this->response->setJSON([
             'success' => false,
             'message' => $mensaje,
-        ])->setStatusCode(422);
+        ] + ($campo !== null ? ['campo' => $campo] : []))->setStatusCode(422);
     }
 }

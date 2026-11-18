@@ -82,6 +82,14 @@ class FertilizacionTransaccionModel extends LaboresTransaccionModel
         )->getRowArray() !== null;
     }
 
+    public function lotesDePlan(int $empresa, string $referencia): array
+    {
+        return array_column($this->db->query(
+            'SELECT DISTINCT LTRIM(RTRIM(lote)) AS lote FROM aTransaccionItem WHERE empresa = ? AND tipo = ? AND LTRIM(RTRIM(numero)) = ?',
+            [$empresa, self::PLAN, trim($referencia)]
+        )->getResultArray(), 'lote');
+    }
+
     public function lotesPlan(int $empresa, string $finca, string $referencia, string $seccion = ''): array
     {
         $sql = "SELECT LTRIM(RTRIM(l.codigo)) AS codigo, l.descripcion, LTRIM(RTRIM(ISNULL(l.seccion, ''))) AS seccion,

@@ -314,4 +314,5 @@ $meses = [
 <?php echo $this->section('scripts'); ?>
 <script> const BASE_URL = "<?= base_url() ?>"; const TIPOS_NOMINA = <?= json_encode($tipos_nomina) ?>; </script>
 <script src="<?= asset_url('public/assets/js/gestionpalma/nomina_periodos.js') ?>"></script>
+<script src="<?= asset_url('public/assets/js/tutoriales/modulos/gestionpalma/nomina_periodos.js') ?>"></script>
 <?php echo $this->endSection(); ?>

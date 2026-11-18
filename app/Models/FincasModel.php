@@ -28,6 +28,13 @@ class FincasModel extends Model
         . ' + (SELECT COUNT(*) FROM aTransaccionNovedad tn WHERE tn.empresa = f.empresa AND tn.finca = f.codigo)'
         . ' + (SELECT COUNT(*) FROM aTransaccionTercero tt WHERE tt.empresa = f.empresa AND tt.finca = f.codigo)';
 
+    private function usos(): string
+    {
+        return self::USOS . (model(UnidadesNegocioModel::class)->disponible()
+            ? ' + (SELECT COUNT(*) FROM aFincaUnidadNegocio fu WHERE fu.empresa = f.empresa AND fu.finca = f.codigo)'
+            : '');
+    }
+
     /**
      * Empresas activas disponibles para el selector.
      */
@@ -75,7 +82,7 @@ class FincasModel extends Model
     {
         $sql = 'SELECT ' . self::CAMPOS
             . ", ISNULL(NULLIF(LTRIM(RTRIM(t.razonSocial)), ''), t.descripcion) AS propietarioNombre"
-            . ', ' . self::USOS . ' AS usos'
+            . ', ' . $this->usos() . ' AS usos'
             . ' FROM aFinca f'
             . ' LEFT JOIN cTercero t ON t.empresa = f.empresa AND t.id = f.proveedor'
             . ' WHERE f.empresa = ?';
@@ -96,7 +103,7 @@ class FincasModel extends Model
         return $this->db->query(
             'SELECT ' . self::CAMPOS
             . ", ISNULL(NULLIF(LTRIM(RTRIM(t.razonSocial)), ''), t.descripcion) AS propietarioNombre"
-            . ', ' . self::USOS . ' AS usos'
+            . ', ' . $this->usos() . ' AS usos'
             . ' FROM aFinca f'
             . ' LEFT JOIN cTercero t ON t.empresa = f.empresa AND t.id = f.proveedor'
             . ' WHERE f.empresa = ? AND f.codigo = ?',
@@ -201,7 +208,7 @@ class FincasModel extends Model
     public function enUso(int $empresa, string $codigo): int
     {
         $fila = $this->db->query(
-            'SELECT ' . self::USOS . ' AS total FROM aFinca f WHERE f.empresa = ? AND f.codigo = ?',
+            'SELECT ' . $this->usos() . ' AS total FROM aFinca f WHERE f.empresa = ? AND f.codigo = ?',
             [$empresa, trim($codigo)]
         )->getRowArray();
 

@@ -978,26 +978,57 @@ const liquidar = async () => {
     pintarLineas();
 };
 
-const quitarTrabajador = (idLinea, tercero) => {
+const quitarTrabajador = async (idLinea, tercero) => {
     const linea = estado.lineas.find((item) => item.id === idLinea);
+    const quitado = linea?.trabajadores.find((trabajador) => trabajador.tercero === tercero);
 
-    if (!linea) return;
+    if (!quitado) return;
 
-    linea.trabajadores = linea.trabajadores.filter((trabajador) => trabajador.tercero !== tercero);
-
-    if (linea.trabajadores.length === 0) {
+    if (linea.trabajadores.length === 1) {
         estado.lineas = estado.lineas.filter((item) => item !== linea);
-    } else if (linea.manual) {
+        pintarLineas();
+
+        return;
+    }
+
+    const respuesta = await Swal.fire({
+        icon: 'question',
+        title: `¿Quitar a ${escaparHtml(quitado.terceroNombre || quitado.tercero)}?`,
+        html: `Tiene registrados <b>${escaparHtml(cant(quitado.cantidad))} ${escaparHtml(linea.uMedida)}</b>.<br><small class="text-muted"><b>Restar del total</b> baja la cantidad de la línea · <b>Repartir entre los demás</b> mantiene el total y lo distribuye entre los restantes.</small>`,
+        showDenyButton: true,
+        showCancelButton: true,
+        confirmButtonText: 'Restar del total',
+        confirmButtonColor: '#d6293e',
+        denyButtonText: 'Repartir entre los demás',
+        denyButtonColor: '#0d6efd',
+        cancelButtonText: 'Cancelar',
+        focusCancel: true
+    });
+
+    if ((!respuesta.isConfirmed && !respuesta.isDenied) || !estado.lineas.includes(linea) || !linea.trabajadores.includes(quitado) || linea.cargando) return;
+
+    linea.trabajadores = linea.trabajadores.filter((trabajador) => trabajador !== quitado);
+
+    if (respuesta.isConfirmed) {
         linea.cantidad = Math.round(linea.trabajadores.reduce((suma, item) => suma + item.cantidad, 0) * 100) / 100;
         linea.jornales = Math.round(linea.trabajadores.reduce((suma, item) => suma + item.jornales, 0) * 100) / 100;
         linea.insumos.forEach((insumo) => { insumo.cantidad = undefined; });
-        linea.marca = 'tx-recalculo';
+        linea.manual = true;
+    } else if (linea.manual) {
+        const cantidades = repartir(quitado.cantidad, linea.trabajadores.length);
+        const jornales = repartir(quitado.jornales, linea.trabajadores.length);
+
+        linea.trabajadores.forEach((trabajador, indice) => {
+            trabajador.cantidad = Math.round((trabajador.cantidad + cantidades[indice]) * 100) / 100;
+            trabajador.jornales = Math.round((trabajador.jornales + jornales[indice]) * 100) / 100;
+        });
     } else {
         repartirLinea(linea);
-        linea.marca = 'tx-recalculo';
     }
 
+    linea.marca = 'tx-recalculo';
     pintarLineas();
+    Toast.fire({ icon: 'success', title: respuesta.isConfirmed ? 'Trabajador quitado · total restado' : 'Trabajador quitado · cantidad repartida' });
 };
 
 const cuerpoBase = () => (EXT.activo?.() ? EXT.cuerpo() : {

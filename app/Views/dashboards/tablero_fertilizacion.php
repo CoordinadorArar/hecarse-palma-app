@@ -125,4 +125,5 @@
     const TABLERO = <?= json_encode(['tablero' => $tablero, 'meses' => array_values($meses), 'fincas' => $fincas], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>;
 </script>
 <script src="<?= asset_url('public/assets/js/dashboards/fertilizacion.js') ?>"></script>
+<script src="<?= asset_url('public/assets/js/tutoriales/modulos/tableroFertilizacion.js') ?>"></script>
 <?php echo $this->endSection(); ?>

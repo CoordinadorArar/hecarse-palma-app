@@ -410,4 +410,5 @@ $meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agost
     const TABLA_EXISTE = <?= $tabla_existe ? 'true' : 'false' ?>;
 </script>
 <script src="<?= asset_url('public/assets/js/gestionpalma/presupuesto_produccion.js') ?>"></script>
+<script src="<?= asset_url('public/assets/js/tutoriales/modulos/gestionpalma/presupuesto_produccion.js') ?>"></script>
 <?php echo $this->endSection(); ?>

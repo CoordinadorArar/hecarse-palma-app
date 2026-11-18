@@ -474,6 +474,7 @@ $verDuplicar = ! empty($permisos['registrar']) || ! empty($permisos['editar']);
                 <form id="formulario_cierre" novalidate>
                     <div class="modal-body px-4 py-3">
                         <div class="gp-referencia mb-3" id="cierre_referencia"></div>
+                        <div class="gp-subtexto mb-3 d-none" id="cierre_varios">¿Parte de la labor se hizo en otro lote? <button type="button" class="btn btn-link btn-sm p-0 align-baseline" data-accion="varios-lotes">Cerrar en varios lotes</button></div>
                         <div class="mb-3" id="cierre_col_cantidad">
                             <label class="form-label mb-1 small fw-semibold text-muted" for="cierre_cantidad">Cantidad ejecutada <span class="text-danger" id="cierre_marca">*</span></label>
                             <div class="input-group">
@@ -496,6 +497,54 @@ $verDuplicar = ! empty($permisos['registrar']) || ! empty($permisos['editar']);
                     <div class="modal-footer py-2">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><i class="bi bi-x-circle me-1" aria-hidden="true"></i>Cancelar</button>
                         <button type="submit" class="btn" id="cierre_confirmar"></button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="modalVariosLotes" tabindex="-1" aria-labelledby="titulo_varios_lotes" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable modal-fullscreen-lg-down">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title d-flex flex-wrap align-items-center gap-2" id="titulo_varios_lotes">
+                        <span><i class="bi bi-diagram-3 me-1" aria-hidden="true"></i>Cerrar en varios lotes</span>
+                        <span class="gp-chip-fila tx-chip-neutro font-monospace" id="vl_chip"></span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <form id="formulario_varios_lotes" novalidate>
+                    <div class="modal-body px-4 py-3">
+                        <div class="gp-referencia mb-3" id="vl_referencia"></div>
+                        <h6 class="gp-seccion mb-3"><i class="bi bi-geo-alt" aria-hidden="true"></i>Lotes donde se ejecutó</h6>
+                        <div class="tx-select-ancho pl-vl-agregar">
+                            <select class="form-select" id="vl_agregar_lote" aria-label="Agregar lote"></select>
+                        </div>
+                        <div class="invalid-feedback d-block d-none" id="error_vl_lotes"></div>
+                        <h6 class="gp-seccion mt-4 mb-3"><i class="bi bi-people" aria-hidden="true"></i>Cantidad ejecutada por trabajador <span class="tx-chip-cont verde ms-1" id="vl_contador">0</span></h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle mb-0 gp-tabla tx-grilla pl-vl-tabla" id="vl_tabla"></table>
+                        </div>
+                        <div class="invalid-feedback d-block d-none" id="error_vl_celdas"></div>
+                        <div class="d-flex justify-content-end mt-3">
+                            <div class="tx-reparto pl-indicador" id="vl_indicador"></div>
+                        </div>
+                        <div class="gp-nota mt-3" id="vl_resultado" aria-live="polite"></div>
+                        <div class="mt-3">
+                            <label class="form-label mb-1 small fw-semibold text-muted" for="vl_observacion">Observación <span id="vl_marca"></span></label>
+                            <textarea class="form-control" id="vl_observacion" rows="2" maxlength="250"></textarea>
+                            <div class="d-flex justify-content-between">
+                                <div class="invalid-feedback d-block d-none" id="error_vl_observacion">Indique el motivo del cierre parcial.</div>
+                                <span class="form-text tx-num ms-auto" id="contador_vl">0 / 250</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer py-2 justify-content-between">
+                        <small class="text-muted d-none d-sm-inline"><span class="text-danger">*</span> Campos obligatorios</small>
+                        <div class="d-flex flex-wrap gap-2 ms-auto pl-acciones-fin">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><i class="bi bi-x-circle me-1" aria-hidden="true"></i>Cancelar</button>
+                            <button type="submit" class="btn btn-success" id="vl_confirmar"></button>
+                        </div>
                     </div>
                 </form>
             </div>

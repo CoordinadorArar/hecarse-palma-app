@@ -1861,3 +1861,9 @@ body.gp-pantalla-bloqueo {
   justify-content: space-between;
   column-gap: .5rem;
 }
+
+/* Unidades de negocio */
+
+.gp-opcion-finca { cursor: pointer; }
+.gp-opcion-finca.bloqueada { cursor: not-allowed; }
+.gp-opcion-finca:has(.form-check-input:focus-visible) { box-shadow: 0 0 0 .2rem rgba(65, 168, 103, .35); }

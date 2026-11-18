@@ -7,11 +7,13 @@ use CodeIgniter\HTTP\ResponseInterface;
 
 use App\Models\FincasModel;
 use App\Models\TercerosModel;
+use App\Models\UnidadesNegocioModel;
 
 class FincasController extends GestionPalmaController
 {
     private $fincasModel;
     private $tercerosModel;
+    private $unidadesModel;
 
     public function __construct()
     {
@@ -19,6 +21,7 @@ class FincasController extends GestionPalmaController
 
         $this->fincasModel   = new FincasModel();
         $this->tercerosModel = new TercerosModel();
+        $this->unidadesModel = new UnidadesNegocioModel();
     }
 
     /**
@@ -47,6 +50,7 @@ class FincasController extends GestionPalmaController
         $data['empresa_sel']   = $empresaSel;
         $data['tabla_fincas']  = $this->renderizarFilasFincas($filas);
         $data['total_fincas']  = count($filas);
+        $data['unidades_disponibles'] = $this->unidadesModel->disponible();
 
         return view('gestionpalma/fincas', $data);
     }
@@ -455,6 +459,9 @@ class FincasController extends GestionPalmaController
 
         $ciudades = $this->resolverCiudades($fincas);
         $vacio    = '<span class="gp-chip-rol">&mdash;</span>';
+        $unidades = $this->unidadesModel->disponible()
+            ? ($fincas !== [] ? $this->unidadesModel->porFinca((int) $fincas[0]['empresa'], false) : [])
+            : null;
 
         foreach ($fincas as $f) {
             $empresa = (int) $f['empresa'];
@@ -474,6 +481,18 @@ class FincasController extends GestionPalmaController
 
             $celdaFinca = htmlspecialchars($descripcion)
                 . ($codigoEq !== '' ? '<div class="gp-subtexto">Cód. eq. ' . htmlspecialchars($codigoEq) . '</div>' : '');
+
+            $listaUnidades = $unidades[$codigo] ?? [];
+            $ordenUnidades = implode(', ', array_column($listaUnidades, 'descripcion'));
+
+            if ($listaUnidades === []) {
+                $celdaUnidades = '<span class="gp-chip-fila ambar" title="Asígnelas en Gestión Palma › Unidades de negocio.">Sin unidades</span>';
+            } else {
+                $celdaUnidades = implode('', array_map(
+                    static fn ($u) => '<span class="gp-chip-fila verde" title="' . htmlspecialchars($u['codigo']) . '">' . htmlspecialchars(trim((string) $u['descripcion'])) . '</span>',
+                    $listaUnidades
+                ));
+            }
 
             $codigoCiudad = trim((string) $f['ciudad']);
             $nombreCiudad = $codigoCiudad !== '' ? trim((string) ($ciudades[$codigoCiudad] ?? '')) : '';
@@ -501,7 +520,7 @@ class FincasController extends GestionPalmaController
 
             $celdaUsos = $usos > 0
                 ? '<span class="badge gp-badge-doc rounded-pill px-2 py-1 font-monospace" title="' . $usosFmt
-                    . ' registros asociados (lotes, secciones, sanidad y transacciones); no se puede eliminar mientras esté en uso.">'
+                    . ' registros asociados (lotes, secciones, ' . ($unidades !== null ? 'unidades de negocio, ' : '') . 'sanidad y transacciones); no se puede eliminar mientras esté en uso.">'
                     . $usosFmt . '</span>'
                 : '<span class="gp-chip-rol">0</span>';
 
@@ -535,6 +554,7 @@ class FincasController extends GestionPalmaController
                 . '" data-activo="' . $activo . '" data-usos="' . $usos . '">'
                 . '<td class="text-center"><span class="badge gp-badge-doc rounded-pill px-2 py-1 font-monospace">' . htmlspecialchars($codigo) . '</span></td>'
                 . '<td data-order="' . htmlspecialchars($descripcion) . '">' . $celdaFinca . '</td>'
+                . ($unidades !== null ? '<td data-order="' . htmlspecialchars($ordenUnidades) . '"><div class="d-flex flex-wrap gap-1">' . $celdaUnidades . '</div></td>' : '')
                 . '<td class="gp-truncar" title="' . htmlspecialchars($propietario) . '" data-order="' . $proveedor . '">'
                 . ($propietario !== '' ? htmlspecialchars($propietario) : $vacio) . '</td>'
                 . '<td data-order="' . htmlspecialchars($ordenCiudad) . '">' . $celdaCiudad . '</td>'

@@ -230,6 +230,42 @@ class LaboresModel extends Model
         )->getRowArray() !== null;
     }
 
+    public function laborConCodigo(int $empresa, string $codigo): ?array
+    {
+        return $this->db->query(
+            'SELECT TOP 1 descripcion, RTRIM(concepto) AS concepto FROM aNovedad WHERE empresa = ? AND RTRIM(codigo) = ? ORDER BY concepto ASC',
+            [$empresa, trim($codigo)]
+        )->getRowArray();
+    }
+
+    public function siguienteCodigo(int $empresa, string $grupo): string
+    {
+        $grupo   = trim($grupo);
+        $codigos = [];
+
+        foreach ($this->db->query('SELECT RTRIM(codigo) AS codigo FROM aNovedad WHERE empresa = ?', [$empresa])->getResultArray() as $fila) {
+            $codigos[(string) $fila['codigo']] = true;
+        }
+
+        for ($digitos = 2; ; $digitos++) {
+            $mayor = $digitos === 2 ? 0 : 10 ** ($digitos - 1) - 1;
+
+            foreach (array_keys($codigos) as $codigo) {
+                if (preg_match('/^' . preg_quote($grupo, '/') . '(\d{' . $digitos . '})$/', (string) $codigo, $m)) {
+                    $mayor = max($mayor, (int) $m[1]);
+                }
+            }
+
+            for ($n = $mayor + 1; $n < 10 ** $digitos; $n++) {
+                $codigo = $grupo . str_pad((string) $n, $digitos, '0', STR_PAD_LEFT);
+
+                if (! isset($codigos[$codigo])) {
+                    return $codigo;
+                }
+            }
+        }
+    }
+
     public function crear(int $empresa, string $codigo, string $concepto, array $data, ?int $usu_id, string $usuario): void
     {
         $codigo   = trim($codigo);

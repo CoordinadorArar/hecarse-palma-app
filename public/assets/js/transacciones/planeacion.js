@@ -224,6 +224,17 @@ const confirmar = async (titulo, mensaje, boton, peligro = false) => (await Swal
 const actividades = () => estado.plan?.actividades || [];
 const actividad = (id) => actividades().find((a) => a.id === Number(id)) || null;
 const pendientesPlan = () => actividades().filter((a) => a.estado === 'PENDIENTE');
+const variosLotes = () => estado.plan?.variosLotes === true;
+const listaY = (items) => (items.length > 1 ? `${items.slice(0, -1).join(', ')} y ${items[items.length - 1]}` : items.join(''));
+const cantTrab = (t) => (t.cantidadEjecutada != null ? Number(t.cantidadEjecutada) : t.cantidad);
+
+const bloque = (a) => {
+    const madre = a.division ? actividad(a.division) || a : a;
+
+    return [madre, ...actividades().filter((x) => x.division && Number(x.division) === madre.id)];
+};
+
+const reabrible = (a) => a.estado !== 'PENDIENTE' && bloque(a).every((x) => Number(x.vinculada) !== 1 && Number(x.trasladada) !== 1);
 const ausente = (t) => Number(t.ausente) === 1;
 const exportable = () => actividades().some((a) => a.trabajadores.some((t) => !ausente(t)));
 const editable = () => (estado.plan ? estado.plan.estado === 'ABIERTA' && PERMISOS.editar : PERMISOS.registrar);
@@ -440,7 +451,7 @@ const kebabActividad = (a) => {
     if (!editable()) return '';
 
     const pendiente = a.estado === 'PENDIENTE';
-    const reabrir = !pendiente && Number(a.vinculada) !== 1 && Number(a.trasladada) !== 1;
+    const reabrir = reabrible(a);
     const items = [
         pendiente ? `<li><button type="button" class="dropdown-item" data-accion="editar" data-act="${a.id}"><i class="bi bi-pencil me-2" aria-hidden="true"></i>Editar</button></li>` : '',
         `<li><button type="button" class="dropdown-item" data-accion="duplicar" data-act="${a.id}"><i class="bi bi-copy me-2" aria-hidden="true"></i>Duplicar</button></li>`,
@@ -478,7 +489,8 @@ const filaTrabajador = (a, t, acciones, unico) => {
 
     return `<tr class="${fuera ? 'pl-fila-ausente' : ''}">
         <td><span class="font-monospace fw-semibold me-1">${escaparHtml(t.codigo)}</span><span class="gp-truncar d-inline-block align-bottom pl-nombre" title="${nombre}">${nombre}</span>${fuera ? ` ${CHIP_AUSENTE}` : recibe}<span class="gp-subtexto font-monospace">${escaparHtml(t.tercero)}</span></td>
-        <td class="text-end tx-num">${fuera && !Number(t.cantidad) ? '0<span class="gp-subtexto">reasignada</span>' : cantUm(t.cantidad)}</td>
+        <td class="text-end tx-num">${fuera && !Number(t.cantidad) ? '0<span class="gp-subtexto">reasignada</span>'
+            : (!a.division && t.cantidadEjecutada != null ? `${cant(t.cantidadEjecutada)}<span class="gp-subtexto">de ${cant(t.cantidad)} plan.</span>` : cantUm(t.cantidad))}</td>
         ${acciones ? `<td class="text-center gp-col-sticky">${fuera ? '' : accionesTrabajador(a, t, unico)}</td>` : ''}
     </tr>`;
 };
@@ -493,7 +505,7 @@ const pieActividad = (a) => {
             <button type="button" class="btn btn-outline-success" data-accion="completar" data-act="${a.id}"><i class="bi bi-check-lg me-1" aria-hidden="true"></i><span class="d-none d-sm-inline">Completada</span><span class="d-sm-none">Completa</span></button>
             <button type="button" class="btn btn-outline-warning" data-accion="parcial" data-act="${a.id}"><i class="bi bi-circle-half me-1" aria-hidden="true"></i>Parcial</button>
             <button type="button" class="btn btn-outline-danger" data-accion="noejecutada" data-act="${a.id}"><i class="bi bi-x-lg me-1" aria-hidden="true"></i><span class="d-none d-sm-inline">No ejecutada</span><span class="d-sm-none">No ejec.</span></button>
-        </div></div>`;
+        </div>${variosLotes() && a.trabajadores.some((t) => !ausente(t)) ? `<div class="pl-cierre-extra d-flex justify-content-end mt-2"><button type="button" class="btn btn-link btn-sm p-0" data-accion="varios-lotes" data-act="${a.id}"><i class="bi bi-diagram-3 me-1" aria-hidden="true"></i>Se ejecutó en varios lotes</button></div>` : ''}</div>`;
     }
 
     let integracion = '';
@@ -506,7 +518,7 @@ const pieActividad = (a) => {
         integracion = '<span class="gp-chip-fila tx-chip-neutro" data-chip="por-registrar" title="Regístrela desde Labores, Fertilización o Producción › Planeaciones completadas"><i class="bi bi-hourglass-split me-1" aria-hidden="true"></i>Por registrar</span>';
     }
 
-    const reabrir = puede && Number(a.vinculada) !== 1 && Number(a.trasladada) !== 1
+    const reabrir = puede && reabrible(a)
         ? `<button type="button" class="btn btn-link btn-sm p-0" data-accion="reabrir" data-act="${a.id}">Reabrir</button>` : '';
     const trasladado = Number(a.trasladada) === 1 ? '<span class="gp-chip-fila tx-chip-neutro"><i class="bi bi-arrow-right me-1" aria-hidden="true"></i>Saldo trasladado</span>' : '';
 
@@ -518,6 +530,17 @@ const pieActividad = (a) => {
         </div>
         <div class="d-flex flex-wrap align-items-center gap-2 ms-auto">${trasladado}${integracion}${reabrir}</div>
     </div>`;
+};
+
+const chipDivision = (a) => {
+    const b = bloque(a);
+
+    if (b.length < 2) return '';
+
+    const madre = b[0];
+    const titulo = a.division ? `Planeada en ${madre.lote} · ${madre.novedad}` : b.map((x) => x.lote).join(', ');
+
+    return `<button type="button" class="gp-chip-fila tx-chip-neutro border-0" data-chip="division" data-accion="ver-division" data-act="${madre.id}" title="${escaparHtml(titulo)}"><i class="bi bi-diagram-3 me-1" aria-hidden="true"></i>${a.division ? `División de ${escaparHtml(madre.lote)}` : `Dividida en ${fmt(b.length)} lotes`}</button>`;
 };
 
 const tarjetaActividad = (a) => {
@@ -545,6 +568,7 @@ const tarjetaActividad = (a) => {
             <i class="bi bi-signpost" aria-hidden="true"></i>
             <span class="min-w-0 flex-grow-1">${texto(a.observacion) ? escaparHtml(a.observacion) : '<span class="text-muted">—</span>'}</span>
             ${a.origen ? `<span class="gp-chip-fila tx-chip-neutro"><i class="bi bi-arrow-return-right me-1" aria-hidden="true"></i>Trasladada del ${escaparHtml(fechaCorta(a.origenFecha).slice(4))}</span>` : ''}
+            ${chipDivision(a)}
             <span class="tx-chip-cont verde">${fmt(presentes.length)} trab.</span>
         </div>
         <div class="table-responsive">
@@ -608,7 +632,7 @@ const pintarVistaLote = () => {
     }).join('');
 };
 
-const lineaActividad = (a, t) => `${escaparHtml(a.lote)} · ${escaparHtml(a.novedadNombre || a.novedad)} · ${cantUm(t.cantidad, a.uMedida)}${texto(a.horaInicio) ? ` · ${escaparHtml(formatoHorario(a))}` : ''}`;
+const lineaActividad = (a, t) => `${escaparHtml(a.lote)} · ${escaparHtml(a.novedadNombre || a.novedad)} · ${cantUm(cantTrab(t), a.uMedida)}${texto(a.horaInicio) ? ` · ${escaparHtml(formatoHorario(a))}` : ''}`;
 
 const pintarVistaTrabajador = () => {
     const busca = texto($id('buscar_trabajador').value).toLowerCase();
@@ -639,7 +663,7 @@ const pintarVistaTrabajador = () => {
         ${i === 0 ? `<td rowspan="${p.filas.length}" class="font-monospace fw-semibold">${escaparHtml(p.codigo || '—')}</td><td rowspan="${p.filas.length}">${escaparHtml(p.nombre)}<span class="gp-subtexto font-monospace">${escaparHtml(p.tercero)}</span></td>` : ''}
         <td class="font-monospace">${escaparHtml(a.finca)} / ${escaparHtml(a.lote)}</td>
         <td><span class="font-monospace fw-semibold">${escaparHtml(a.novedad)}</span> <span class="gp-truncar d-inline-block align-bottom" title="${escaparHtml(a.novedadNombre)}">${escaparHtml(a.novedadNombre)}</span></td>
-        <td class="text-end tx-num text-nowrap">${Number(t.cantidad) > 0 ? `${cant(t.cantidad)} <span class="gp-chip-fila tx-chip-neutro">${escaparHtml(a.uMedida)}</span>` : '<span class="text-muted">—</span>'}</td>
+        <td class="text-end tx-num text-nowrap">${Number(cantTrab(t)) > 0 ? `${cant(cantTrab(t))} <span class="gp-chip-fila tx-chip-neutro">${escaparHtml(a.uMedida)}</span>` : '<span class="text-muted">—</span>'}</td>
         <td class="text-nowrap">${escaparHtml(formatoHorario(a))}</td>
         <td>${texto(a.observacion) ? escaparHtml(a.observacion) : '<span class="text-muted">—</span>'}</td>
         <td>${chipEstado(a.estado)}</td>
@@ -807,7 +831,7 @@ const ejecutar = async (ruta, datos, mensaje, destacar = null, titulo = 'No se p
     try {
         const respuesta = await pedir(ruta, datos);
 
-        aplicarPlan(respuesta.plan, destacar);
+        aplicarPlan(respuesta.plan, typeof destacar === 'function' ? destacar(respuesta) : destacar);
         Toast.fire({ icon: 'success', title: escaparHtml(mensaje) });
         invalidarSug();
 
@@ -1407,6 +1431,7 @@ const abrirCierre = (id, clave) => {
         <div class="text-end"><span class="gp-etiqueta-mini d-block">Total planeado</span><span class="tx-num fw-semibold">${cantUm(a.cantidad, a.uMedida)}</span></div>
     </div>`;
     mostrar($id('cierre_col_cantidad'), parcial);
+    mostrar($id('cierre_varios'), parcial && variosLotes() && a.trabajadores.some((t) => !ausente(t)));
     $id('cierre_marca').className = Number(a.cantidad) > 0 ? 'text-danger' : 'fw-normal text-muted';
     $id('cierre_marca').textContent = Number(a.cantidad) > 0 ? '*' : '(opcional)';
     $id('cierre_um').textContent = a.uMedida;
@@ -1454,6 +1479,321 @@ const guardarCierre = async (evento) => {
     }, parcial ? 'Actividad cerrada como parcial' : 'Actividad marcada como no ejecutada', a.id, 'No se pudo cerrar la actividad');
 
     if (ok) bootstrap.Modal.getOrCreateInstance($id('modalCierre')).hide();
+};
+
+const MAX_LOTES = 10;
+const vl = { a: null, lotes: [], disponibles: [], raw: new Map(), sucio: false, cerrar: false, enviando: false, turno: 0 };
+
+const pfaVl = () => texto(vl.a?.grupo) === '02' && texto(vl.a?.referencia) !== '';
+const presentesVl = () => vl.a.trabajadores.filter((t) => !ausente(t));
+const valorVl = (tercero, lote) => aNumero(vl.raw.get(`${tercero}|${lote}`) ?? '');
+const numVl = (tercero, lote) => (Number.isFinite(valorVl(tercero, lote)) ? valorVl(tercero, lote) : 0);
+const sumaLoteVl = (lote) => presentesVl().reduce((suma, t) => suma + numVl(t.tercero, lote), 0);
+const conCantidadVl = () => vl.lotes.filter((l) => milesimas(sumaLoteVl(l.codigo)) > 0);
+const camposVl = () => [...$id('vl_tabla').querySelectorAll('[data-vl-lote]')];
+
+const estadoMadreVl = () => {
+    const suma = milesimas(sumaLoteVl(vl.lotes[0].codigo));
+    const meta = milesimas(vl.a.cantidad);
+
+    return suma <= 0 ? '' : (meta > 0 && suma < meta ? 'PARCIAL' : 'COMPLETADA');
+};
+
+const botonVl = () => {
+    const n = conCantidadVl().length;
+
+    $id('vl_confirmar').disabled = vl.enviando;
+    $id('vl_confirmar').innerHTML = vl.enviando
+        ? '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>Cerrando…'
+        : `<i class="bi bi-diagram-3 me-1" aria-hidden="true"></i>${n > 1 ? `Cerrar en ${fmt(n)} lotes` : 'Cerrar en varios lotes'}`;
+};
+
+const calcularVl = () => {
+    const a = vl.a;
+    const um = escaparHtml(a.uMedida);
+    const meta = Number(a.cantidad) > 0;
+    const tabla = $id('vl_tabla');
+    const total = vl.lotes.reduce((suma, l) => suma + sumaLoteVl(l.codigo), 0);
+    const planeado = vl.lotes[0];
+    const madre = estadoMadreVl();
+    const hijas = conCantidadVl().filter((l) => !l.planeado).map((l) => `<span class="font-monospace fw-semibold">${escaparHtml(l.codigo)}</span>`);
+    const parcial = madre === 'PARCIAL';
+
+    tabla.querySelectorAll('[data-vl-total-trab]').forEach((celda) => {
+        const t = presentesVl().find((x) => x.tercero === celda.dataset.vlTotalTrab);
+        const suma = vl.lotes.reduce((s, l) => s + numVl(t.tercero, l.codigo), 0);
+        const dif = milesimas(suma) - milesimas(t.cantidad);
+
+        celda.innerHTML = `${cant(suma)}${Number(t.cantidad) > 0 ? (dif ? `<span class="gp-subtexto tx-texto-ambar">(${dif > 0 ? '+' : '−'}${cant(Math.abs(dif) / 1000)})</span>` : ' <i class="bi bi-check2 text-success" aria-hidden="true"></i>') : ''}`;
+    });
+    tabla.querySelectorAll('[data-vl-total-lote]').forEach((celda) => {
+        const l = vl.lotes.find((x) => x.codigo === celda.dataset.vlTotalLote);
+        const suma = sumaLoteVl(l.codigo);
+        const tope = esPal(a.uMedida) && l.palmas > 0;
+        const exceso = tope && milesimas(suma) > milesimas(l.palmas);
+        const propio = l.planeado && meta;
+
+        celda.className = `text-end tx-num${exceso ? ' text-danger' : (propio ? (milesimas(suma) < milesimas(a.cantidad) ? ' tx-texto-ambar' : ' text-success') : '')}`;
+        celda.innerHTML = `${propio ? `${cant(suma)} / ${cant(a.cantidad)}` : cant(suma)} ${um}${tope ? `<span class="gp-subtexto${exceso ? ' text-danger' : ''}">de ${fmt(l.palmas)} palmas</span>` : ''}`;
+    });
+    tabla.querySelector('[data-vl-total-general]').innerHTML = `${cant(total)} ${um}`;
+
+    if (camposVl().some((c) => malaCant(aNumero(c.value), a.uMedida))) {
+        pintarMensaje($id('vl_indicador'), 'pendiente', 'bi-exclamation-octagon', 'Hay cantidades inválidas');
+    } else {
+        const igual = meta && milesimas(total) === milesimas(a.cantidad);
+
+        pintarMensaje($id('vl_indicador'), igual ? 'cuadrado' : 'inactivo', igual ? 'bi-check-circle' : 'bi-calculator', `Total ejecutado <span class="tx-estado-num">${cant(total)}</span> ${um}${meta ? ` · planeado ${cant(a.cantidad)}` : ''}`);
+    }
+
+    $id('vl_resultado').innerHTML = madre
+        ? `<span class="font-monospace fw-semibold">${escaparHtml(planeado.codigo)}</span> quedará ${chipEstado(madre)} (${meta ? `${cant(sumaLoteVl(planeado.codigo))} / ${cant(a.cantidad)}` : cant(sumaLoteVl(planeado.codigo))} ${um})${hijas.length
+            ? ` y se ${hijas.length === 1 ? 'creará 1 actividad' : `crearán ${fmt(hijas.length)} actividades`} ${chipEstado('COMPLETADA')} en ${listaY(hijas)}.`
+            : '. Agregue los lotes donde también se ejecutó la labor.'}`
+        : `<i class="bi bi-exclamation-triangle tx-texto-ambar me-1" aria-hidden="true"></i>Indique la cantidad ejecutada en el lote planeado ${escaparHtml(planeado.codigo)}.`;
+    $id('vl_marca').className = parcial ? 'text-danger' : 'fw-normal text-muted';
+    $id('vl_marca').textContent = parcial ? '*' : '(opcional)';
+
+    if (!parcial) {
+        errorCampo('error_vl_observacion', false);
+        $id('vl_observacion').classList.remove('is-invalid');
+    }
+
+    botonVl();
+};
+
+const cabLoteVl = (l) => {
+    const codigo = escaparHtml(l.codigo);
+    const nombre = escaparHtml(l.nombre);
+    const pfa = l.enPfa
+        ? `<span class="gp-chip-ambito seccion font-monospace">PFA-${escaparHtml(vl.a.referencia)}</span>`
+        : '<span class="gp-chip-fila tx-chip-neutro" title="La actividad de este lote se crea sin referencia PFA">Sin PFA</span>';
+
+    return `<th class="text-end ${l.planeado ? 'pl-vl-planeado' : 'pl-vl-col-lote'}">
+        <span class="d-flex align-items-center justify-content-end"><span class="font-monospace fw-semibold">${codigo}</span>${l.planeado
+            ? '<span class="gp-chip-fila verde ms-1">Planeado</span>'
+            : `<button type="button" class="btn btn-sm btn-link text-danger p-0 ms-1" data-vl-quitar="${codigo}" aria-label="Quitar lote ${codigo}"><i class="bi bi-x-lg" aria-hidden="true"></i></button>`}</span>
+        <span class="gp-subtexto gp-truncar fw-normal ms-auto" title="${nombre}">${nombre || '—'}</span>
+        ${esPal(vl.a.uMedida) && l.palmas > 0 ?`<span class="gp-subtexto fw-normal">${fmt(l.palmas)} palmas</span>` : ''}
+        ${!l.planeado && pfaVl() ? `<span class="d-block mt-1">${pfa}</span>` : ''}
+    </th>`;
+};
+
+const pintarTablaVl = () => {
+    const a = vl.a;
+    const um = a.uMedida;
+    const filas = presentesVl().map((t) => {
+        const nombre = escaparHtml(t.nombre || t.tercero);
+
+        return `<tr>
+            <td class="gp-col-sticky pl-vl-trab"><span class="font-monospace fw-semibold me-1">${escaparHtml(t.codigo)}</span><span class="gp-truncar d-inline-block align-bottom" title="${nombre}">${escaparHtml(nombreCorto(t.nombre || t.tercero))}</span>${texto(t.reasignadoDe) ? `<span class="gp-chip-fila ambar ms-1">recibe de ${escaparHtml(codigoDe(t.reasignadoDe))}</span>` : ''}</td>
+            <td class="text-end tx-num text-muted">${cantUm(t.cantidad)}</td>
+            ${vl.lotes.map((l) => `<td class="text-end${l.planeado ? ' pl-vl-planeado' : ''}"><input type="text" class="form-control form-control-sm tx-input-num font-monospace text-end ms-auto${malaCant(valorVl(t.tercero, l.codigo), um) ? ' is-invalid' : ''}" data-vl-tercero="${escaparHtml(t.tercero)}" data-vl-lote="${escaparHtml(l.codigo)}" value="${escaparHtml(vl.raw.get(`${t.tercero}|${l.codigo}`) ?? '')}" placeholder="0" inputmode="${modoNum(um)}" maxlength="14" autocomplete="off" aria-label="Cantidad de ${nombre} en ${escaparHtml(l.codigo)}"></td>`).join('')}
+            <td class="text-end fw-semibold tx-num gp-col-sticky pl-vl-total" data-vl-total-trab="${escaparHtml(t.tercero)}"></td>
+        </tr>`;
+    }).join('');
+
+    $id('vl_tabla').innerHTML = `<thead class="gp-thead"><tr>
+            <th class="gp-col-sticky pl-vl-trab">Trabajador</th>
+            <th class="text-end">Plan</th>
+            ${vl.lotes.map(cabLoteVl).join('')}
+            <th class="text-end gp-col-sticky pl-vl-total">Total</th>
+        </tr></thead>
+        <tbody>${filas}</tbody>
+        <tfoot><tr class="pl-vl-pie fw-semibold">
+            <td class="gp-col-sticky pl-vl-trab">Total por lote</td>
+            <td class="text-end tx-num text-muted">${cantUm(a.cantidad)}</td>
+            ${vl.lotes.map((l) => `<td data-vl-total-lote="${escaparHtml(l.codigo)}"></td>`).join('')}
+            <td class="text-end tx-num gp-col-sticky pl-vl-total" data-vl-total-general></td>
+        </tr></tfoot>`;
+    calcularVl();
+};
+
+const pintarSelectorVl = (cargando = false) => {
+    const selector = $id('vl_agregar_lote');
+    const usados = new Set(vl.lotes.map((l) => l.codigo));
+    const libres = vl.disponibles.filter((l) => !usados.has(texto(l.codigo)) && Number(l.activo ?? 1) !== 0);
+    const lleno = vl.lotes.length >= MAX_LOTES;
+
+    if ($(selector).hasClass('select2-hidden-accessible')) $(selector).select2('destroy');
+
+    selector.innerHTML = '<option value=""></option>' + libres.map(opcionLote).join('');
+    selector.disabled = cargando || lleno || !libres.length;
+    $(selector).select2({
+        width: '100%',
+        language: IDIOMA_SELECT2,
+        dropdownParent: $('#modalVariosLotes'),
+        placeholder: cargando ? 'Cargando lotes…' : (lleno ? 'Puede distribuir la actividad en máximo 10 lotes.'
+            : (libres.length ? `Agregar lote de la finca ${vl.a.finca} — ${vl.a.fincaNombre}…` : 'No hay más lotes activos en la finca.')),
+        templateResult: (opcion) => (opcion.id && opcion.element
+            ? $(`<div><span class="font-monospace fw-semibold">${escaparHtml(opcion.id)}</span> ${escaparHtml(opcion.element.dataset.nombre)}${esPal(vl.a.uMedida) ? `<span class="gp-subtexto">${fmt(opcion.element.dataset.palmas)} palmas</span>` : ''}</div>`)
+            : opcion.text)
+    });
+};
+
+const cargarLotesVl = async () => {
+    const turno = ++vl.turno;
+    let filas = [];
+
+    pintarSelectorVl(true);
+
+    try {
+        filas = (await pedir('lotes', { empresa: empresaId(), finca: vl.a.finca, referencia: pfaVl() ? vl.a.referencia : '' })).filas || [];
+    } catch (error) {
+        avisar(error);
+    }
+
+    if (turno !== vl.turno) return;
+
+    const propio = filas.find((l) => texto(l.codigo) === vl.a.lote);
+
+    vl.disponibles = filas.filter((l) => texto(l.codigo) !== vl.a.lote);
+    vl.lotes[0].palmas = Number(propio?.palmas) || 0;
+    pintarSelectorVl();
+    calcularVl();
+};
+
+const agregarLoteVl = (codigo) => {
+    const l = vl.disponibles.find((x) => texto(x.codigo) === codigo);
+
+    if (!l || vl.lotes.length >= MAX_LOTES || vl.lotes.some((x) => x.codigo === codigo)) return;
+
+    vl.lotes.push({ codigo, nombre: texto(l.descripcion), palmas: Number(l.palmas) || 0, enPfa: Number(l.enPfa) === 1, planeado: false });
+    vl.sucio = true;
+    errorCampo('error_vl_lotes', false);
+    pintarSelectorVl();
+    pintarTablaVl();
+    camposVl().find((c) => c.dataset.vlLote === codigo)?.focus();
+};
+
+const quitarLoteVl = (codigo) => {
+    vl.lotes = vl.lotes.filter((l) => l.planeado || l.codigo !== codigo);
+    presentesVl().forEach((t) => vl.raw.delete(`${t.tercero}|${codigo}`));
+    vl.sucio = true;
+    pintarSelectorVl();
+    pintarTablaVl();
+};
+
+const abrirVariosLotes = async (id) => {
+    const a = actividad(id);
+    const modalCierre = $id('modalCierre');
+
+    if (!a || a.estado !== 'PENDIENTE' || !variosLotes()) return;
+
+    if (modalCierre.classList.contains('show')) {
+        await new Promise((fin) => {
+            modalCierre.addEventListener('hidden.bs.modal', fin, { once: true });
+            bootstrap.Modal.getOrCreateInstance(modalCierre).hide();
+        });
+    }
+
+    Object.assign(vl, { a, lotes: [{ codigo: a.lote, nombre: texto(a.loteNombre), palmas: 0, enPfa: true, planeado: true }], disponibles: [], raw: new Map(), sucio: false, cerrar: false, enviando: false });
+    presentesVl().forEach((t) => vl.raw.set(`${t.tercero}|${a.lote}`, valorCant(Number(t.cantidad))));
+    $id('vl_chip').textContent = `${a.lote} · ${a.novedad}`;
+    $id('vl_referencia').innerHTML = `<div class="d-flex flex-wrap gap-3">
+        <div><span class="gp-etiqueta-mini d-block">Lote planeado</span><span class="font-monospace fw-semibold">${escaparHtml(a.lote)}</span> ${escaparHtml(a.loteNombre)}</div>
+        <div class="min-w-0 flex-grow-1"><span class="gp-etiqueta-mini d-block">Labor</span><span class="font-monospace fw-semibold">${escaparHtml(a.novedad)}</span> ${escaparHtml(a.novedadNombre)}</div>
+        ${texto(a.referencia) ? `<div><span class="gp-etiqueta-mini d-block">Referencia</span><span class="gp-chip-ambito seccion font-monospace">PFA-${escaparHtml(a.referencia)}</span></div>` : ''}
+        <div class="text-end"><span class="gp-etiqueta-mini d-block">Total planeado</span><span class="tx-num fw-semibold">${cantUm(a.cantidad, a.uMedida)}</span></div>
+    </div>`;
+    $id('vl_contador').textContent = fmt(presentesVl().length);
+    $id('vl_observacion').value = '';
+    $id('vl_observacion').classList.remove('is-invalid');
+    $id('contador_vl').textContent = '0 / 250';
+    ['error_vl_lotes', 'error_vl_celdas', 'error_vl_observacion'].forEach((campo) => errorCampo(campo, false));
+    pintarTablaVl();
+    bootstrap.Modal.getOrCreateInstance($id('modalVariosLotes')).show();
+    cargarLotesVl();
+};
+
+const validarVl = () => {
+    const a = vl.a;
+    const um = a.uMedida;
+    const campos = camposVl();
+    const extras = vl.lotes.filter((l) => !l.planeado);
+    const lista = (lote) => presentesVl().map((t) => ({ tercero: t.tercero, codigo: texto(t.codigo) || t.tercero, cantidad: valorVl(t.tercero, lote) }));
+    const marcar = (lote, tercero = null) => campos.filter((c) => c.dataset.vlLote === lote && (!tercero || c.dataset.vlTercero === tercero)).forEach((c) => c.classList.add('is-invalid'));
+    const lotes = !extras.length ? 'Agregue al menos un lote adicional donde se ejecutó la labor.'
+        : (vl.lotes.length > MAX_LOTES ? 'Puede distribuir la actividad en máximo 10 lotes.' : '');
+    let celdas = '';
+
+    errorCampo('error_vl_lotes', lotes !== '', lotes);
+    campos.forEach((c) => c.classList.toggle('is-invalid', malaCant(aNumero(c.value), um)));
+
+    if (lotes) return lotes;
+
+    const vacio = extras.find((l) => milesimas(sumaLoteVl(l.codigo)) <= 0);
+    const exceso = vl.lotes.find((l) => excesoPalmas(lista(l.codigo), um, l.palmas, l.codigo));
+    const repetido = extras.flatMap((l) => lista(l.codigo).filter((t) => t.cantidad > 0 && duplicado(t.tercero, a.novedad, a.finca, l.codigo, a.id)).map((t) => ({ l, t })))[0];
+
+    if (campos.some((c) => c.classList.contains('is-invalid'))) {
+        celdas = msgCant(um);
+    } else if (milesimas(sumaLoteVl(vl.lotes[0].codigo)) <= 0) {
+        celdas = `Indique la cantidad ejecutada en el lote planeado ${vl.lotes[0].codigo}.`;
+        marcar(vl.lotes[0].codigo);
+    } else if (vacio) {
+        celdas = `El lote ${vacio.codigo} no tiene cantidades; indíquelas o quítelo.`;
+        marcar(vacio.codigo);
+    } else if (exceso) {
+        celdas = excesoPalmas(lista(exceso.codigo), um, exceso.palmas, exceso.codigo);
+        marcar(exceso.codigo);
+    } else if (repetido) {
+        celdas = `${repetido.t.codigo} ya tiene esta labor en ${repetido.l.codigo}`;
+        marcar(repetido.l.codigo, repetido.t.tercero);
+    }
+
+    errorCampo('error_vl_celdas', celdas !== '', celdas);
+
+    if (celdas) {
+        $id('vl_tabla').querySelector('.is-invalid')?.focus();
+
+        return celdas;
+    }
+
+    const falta = estadoMadreVl() === 'PARCIAL' && texto($id('vl_observacion').value) === '';
+
+    errorCampo('error_vl_observacion', falta);
+    $id('vl_observacion').classList.toggle('is-invalid', falta);
+
+    if (falta) $id('vl_observacion').focus();
+
+    return falta ? 'Indique el motivo del cierre parcial.' : '';
+};
+
+const guardarVl = async (evento) => {
+    evento.preventDefault();
+
+    if (vl.enviando || estado.guardando || !vl.a) return;
+
+    const error = validarVl();
+
+    if (error) {
+        Toast.fire({ icon: 'warning', title: escaparHtml(error) });
+
+        return;
+    }
+
+    const a = vl.a;
+    const n = conCantidadVl().length;
+    const distribucion = vl.lotes.map((l) => ({
+        lote: l.codigo,
+        trabajadores: presentesVl().map((t) => ({ tercero: t.tercero, cantidad: numVl(t.tercero, l.codigo) })).filter((t) => l.planeado || t.cantidad > 0)
+    }));
+
+    vl.enviando = true;
+    botonVl();
+
+    const ok = await ejecutar('cerrarVariosLotes', {
+        empresa: empresaId(), fecha: fechaPlan(), linea: a.id, observacionCierre: texto($id('vl_observacion').value), distribucion: JSON.stringify(distribucion)
+    }, `Actividad cerrada en ${fmt(n)} lotes`, (r) => (Array.isArray(r.ids) && r.ids.length ? r.ids.map(Number) : a.id), 'No se pudo cerrar la actividad');
+
+    vl.enviando = false;
+    botonVl();
+
+    if (!ok) return;
+
+    vl.cerrar = true;
+    bootstrap.Modal.getOrCreateInstance($id('modalVariosLotes')).hide();
 };
 
 const aus = { tercero: '', codigo: '', nombre: '', pasos: [], i: 0 };
@@ -1729,44 +2069,68 @@ const trasladar = async (id) => {
 };
 
 const duplicarPlan = async () => {
-    const total = actividades().length;
-    const personas = personasPlan().length;
+    const lista = actividades().filter((a) => !a.division);
     const origen = fechaPlan();
+    const fincas = agrupar([...lista].sort((x, y) => x.finca.localeCompare(y.finca, 'es', { numeric: true })), (a) => a.finca);
+    const nombre = (finca) => `${finca} — ${lista.find((a) => a.finca === finca)?.fincaNombre || ''}`;
+    const totalAct = (n) => `${fmt(n)} ${n === 1 ? 'actividad' : 'actividades'}`;
     let previos = new Set();
 
-    if (estado.guardando || !total) return;
+    if (estado.guardando || !lista.length) return;
+
+    const resumen = (finca) => {
+        const items = lista.filter((a) => !finca || a.finca === finca);
+        const fuera = nitsAusentes();
+        const personas = new Set(items.flatMap((a) => a.trabajadores.filter((t) => !ausente(t) && !fuera.has(t.tercero)).map((t) => t.tercero))).size;
+
+        return `Se copiarán <strong>${totalAct(items.length)}</strong> con <strong>${fmt(personas)} ${personas === 1 ? 'trabajador' : 'trabajadores'}</strong>${finca ? ` de la finca <strong>${escaparHtml(nombre(finca))}</strong>` : ''} del <strong>${escaparHtml(fechaLegible(origen))}</strong>, con sus cantidades, horario y observación.`;
+    };
+    const campoFinca = fincas.length > 1
+        ? `<label class="form-label mb-1 small fw-semibold text-muted" for="dup_finca">Finca</label>
+            <select class="form-select" id="dup_finca"><option value="">Todas las fincas (${totalAct(lista.length)})</option>${fincas.map(([finca, items]) => `<option value="${escaparHtml(finca)}">${escaparHtml(nombre(finca))} (${totalAct(items.length)})</option>`).join('')}</select>`
+        : `<span class="form-label d-block mb-1 small fw-semibold text-muted">Finca</span>
+            <div class="form-control-plaintext"><span class="font-monospace fw-semibold me-1">${escaparHtml(fincas[0][0])}</span>${escaparHtml(fincas[0][1][0].fincaNombre)}</div>`;
 
     const { value: r } = await Swal.fire({
         title: 'Duplicar plan',
-        html: `Se copiarán <strong>${fmt(total)} ${total === 1 ? 'actividad' : 'actividades'}</strong> con <strong>${fmt(personas)} ${personas === 1 ? 'trabajador' : 'trabajadores'}</strong> del <strong>${escaparHtml(fechaLegible(origen))}</strong>, con sus cantidades, horario y observación.`,
-        input: 'date',
-        inputLabel: 'Fecha destino',
-        inputValue: sumarDias(origen, 1),
-        inputAttributes: { 'aria-label': 'Fecha destino' },
+        width: '38rem',
+        focusConfirm: false,
+        html: `<div class="text-start">
+            <p class="mb-3" id="dup_resumen" aria-live="polite">${resumen('')}</p>
+            <div class="row g-3">
+                <div class="col-12 col-sm-6">
+                    <label class="form-label mb-1 small fw-semibold text-muted" for="dup_fecha">Fecha destino <span class="text-danger">*</span></label>
+                    <input type="date" class="form-control" id="dup_fecha" value="${sumarDias(origen, 1)}">
+                    <span class="small text-muted d-block mt-1" id="dup_legible" aria-live="polite"></span>
+                </div>
+                <div class="col-12 col-sm-6">${campoFinca}</div>
+            </div>
+            <small class="text-muted d-block mt-3">Se agregan como pendientes. Si el plan destino ya existe, se suman a sus actividades; se omiten los trabajadores ausentes en el destino y las actividades repetidas.</small>
+        </div>`,
         showCancelButton: true,
         confirmButtonText: 'Duplicar plan',
         cancelButtonText: 'Cancelar',
         showLoaderOnConfirm: true,
         allowOutsideClick: () => !Swal.isLoading(),
         didOpen: () => {
-            const input = Swal.getInput();
+            const fecha = $id('dup_fecha');
+            const legible = () => { $id('dup_legible').innerHTML = fechaRel(fecha.value); };
 
-            input.insertAdjacentHTML('afterend', `<div class="pl-dup-ayuda">
-                <span class="small text-muted d-block" id="dup_legible" aria-live="polite"></span>
-                <small class="text-muted d-block mt-2">Se agregan como pendientes. Si el plan destino ya existe, se suman a sus actividades; se omiten los trabajadores ausentes en el destino y las actividades repetidas.</small>
-            </div>`);
-
-            const legible = () => { $id('dup_legible').innerHTML = fechaRel(input.value); };
-
-            input.addEventListener('input', legible);
+            fecha.addEventListener('input', legible);
+            $id('dup_finca')?.addEventListener('change', () => { $id('dup_resumen').innerHTML = resumen($id('dup_finca').value); });
             legible();
+            fecha.focus();
         },
-        inputValidator: (valor) => {
-            if (!valor) return 'Seleccione la fecha destino.';
+        preConfirm: async () => {
+            const destino = $id('dup_fecha').value;
+            const finca = $id('dup_finca')?.value || '';
 
-            return valor === origen ? 'Elija una fecha distinta a la del plan actual.' : undefined;
-        },
-        preConfirm: async (destino) => {
+            if (!destino || destino === origen) {
+                Swal.showValidationMessage(destino ? 'Elija una fecha distinta a la del plan actual.' : 'Seleccione la fecha destino.');
+
+                return false;
+            }
+
             const botones = [...document.querySelectorAll('#barra_plan button:not(:disabled)')];
 
             estado.guardando = true;
@@ -1775,7 +2139,7 @@ const duplicarPlan = async () => {
             try {
                 previos = new Set(((await pedir('plan', { empresa: empresaId(), fecha: destino }).catch(() => null))?.plan?.actividades || []).map((a) => a.id));
 
-                return { ...await pedir('duplicar', { empresa: empresaId(), fecha: destino, origen }), destino };
+                return { ...await pedir('duplicar', { empresa: empresaId(), fecha: destino, origen, finca }), destino, finca };
             } catch (error) {
                 Swal.showValidationMessage(escaparHtml(error.message));
 
@@ -1791,6 +2155,7 @@ const duplicarPlan = async () => {
 
     const n = Number(r.duplicadas) || 0;
     const omitidas = r.omitidas || [];
+    const deFinca = r.finca ? escaparHtml(nombre(r.finca)) : '';
 
     invalidarSug();
     $id('fecha').value = r.destino;
@@ -1799,7 +2164,11 @@ const duplicarPlan = async () => {
     if (!estado.error && estado.plan) aplicarPlan(estado.plan, actividades().filter((a) => !previos.has(a.id)).map((a) => a.id));
 
     if (!omitidas.length) {
-        Toast.fire({ icon: 'success', title: `${fmt(n)} ${n === 1 ? 'actividad duplicada' : 'actividades duplicadas'} al ${escaparHtml(fechaCorta(r.destino))}`, timer: 5000 });
+        Toast.fire({
+            icon: 'success',
+            title: `${r.finca ? (n === 1 ? `1 actividad de ${deFinca} duplicada` : `${fmt(n)} actividades de ${deFinca} duplicadas`) : `${fmt(n)} ${n === 1 ? 'actividad duplicada' : 'actividades duplicadas'}`} al ${escaparHtml(fechaCorta(r.destino))}`,
+            timer: 5000
+        });
 
         return;
     }
@@ -1807,7 +2176,7 @@ const duplicarPlan = async () => {
     Swal.fire({
         icon: 'warning',
         title: 'Plan duplicado con omisiones',
-        html: `Se duplicaron <strong>${fmt(n)} de ${fmt(n + omitidas.length)}</strong> actividades. Se omitieron:
+        html: `Se duplicaron <strong>${fmt(n)} de ${fmt(n + omitidas.length)}</strong> actividades${r.finca ? ` de la finca ${deFinca}` : ''}. Se omitieron:
             <ul class="list-group list-group-flush text-start pl-omitidas mt-2">${omitidas.map((o) => `<li class="list-group-item px-0 py-2 small"><span class="font-monospace fw-semibold">${escaparHtml(o.actividad)}</span> — <span class="text-muted">${escaparHtml(o.motivo)}</span></li>`).join('')}</ul>`,
         confirmButtonText: 'Entendido'
     });
@@ -3326,7 +3695,20 @@ const ACCIONES = {
     duplicar: (d) => abrirActividad(actividad(d.act), true),
     eliminar: (d) => eliminarActividad(d.act),
     reabrir: async (d) => {
-        if (await confirmar('¿Reabrir la actividad?', 'La actividad vuelve a Pendiente.', 'Sí, reabrir')) ejecutar('reabrirActividad', { linea: d.act }, 'Actividad reabierta', Number(d.act));
+        const a = actividad(d.act);
+        const b = a ? bloque(a) : [];
+        const hijas = b.slice(1).map((x) => x.lote);
+        const ok = hijas.length
+            ? await confirmar('¿Reabrir la actividad dividida?', `${b[0].lote} vuelve a Pendiente y se ${hijas.length === 1 ? `eliminará la actividad creada en ${hijas[0]}` : `eliminarán las ${hijas.length} actividades creadas en ${listaY(hijas)}`}.`, 'Sí, reabrir', true)
+            : await confirmar('¿Reabrir la actividad?', 'La actividad vuelve a Pendiente.', 'Sí, reabrir');
+
+        if (ok) ejecutar('reabrirActividad', { linea: d.act }, 'Actividad reabierta', b[0]?.id || Number(d.act));
+    },
+    'varios-lotes': (d) => abrirVariosLotes(d.act || cierre.id),
+    'ver-division': (d) => {
+        const a = actividad(d.act);
+
+        if (a) aplicarPlan(estado.plan, bloque(a).map((x) => x.id));
     },
     completar: (d) => ejecutar('cerrarActividad', { linea: d.act, estado: 'COMPLETADA', cantidadEjecutada: '', observacionCierre: '' }, 'Actividad completada', Number(d.act), 'No se pudo cerrar la actividad'),
     parcial: (d) => abrirCierre(d.act, 'PARCIAL'),
@@ -3482,6 +3864,50 @@ document.addEventListener('DOMContentLoaded', () => {
         $id('contador_cierre').textContent = `${$id('cierre_observacion').value.length} / 250`;
     });
     $id('modalCierre').addEventListener('shown.bs.modal', () => ($id('cierre_col_cantidad').classList.contains('d-none') ? $id('cierre_observacion') : $id('cierre_cantidad')).focus());
+
+    $id('formulario_varios_lotes').addEventListener('submit', guardarVl);
+    $id('vl_tabla').addEventListener('input', (evento) => {
+        const campo = evento.target.closest('[data-vl-lote]');
+
+        if (!campo) return;
+
+        vl.raw.set(`${campo.dataset.vlTercero}|${campo.dataset.vlLote}`, campo.value);
+        vl.sucio = true;
+        campo.classList.toggle('is-invalid', malaCant(aNumero(campo.value), vl.a.uMedida));
+        errorCampo('error_vl_celdas', false);
+        calcularVl();
+    });
+    $id('vl_tabla').addEventListener('click', (evento) => {
+        const boton = evento.target.closest('[data-vl-quitar]');
+
+        if (boton) quitarLoteVl(boton.dataset.vlQuitar);
+    });
+    $('#vl_agregar_lote').on('change', () => {
+        const codigo = $id('vl_agregar_lote').value;
+
+        if (codigo) setTimeout(() => agregarLoteVl(codigo), 0);
+    });
+    $id('vl_observacion').addEventListener('input', () => {
+        vl.sucio = true;
+        $id('contador_vl').textContent = `${$id('vl_observacion').value.length} / 250`;
+        errorCampo('error_vl_observacion', false);
+        $id('vl_observacion').classList.remove('is-invalid');
+    });
+    $id('modalVariosLotes').addEventListener('shown.bs.modal', () => camposVl()[0]?.focus());
+    $id('modalVariosLotes').addEventListener('hide.bs.modal', async (evento) => {
+        if (vl.cerrar || (!vl.sucio && !vl.enviando)) return;
+
+        evento.preventDefault();
+
+        if (vl.enviando || !await descartarPla('¿Descartar la distribución por lotes?')) return;
+
+        vl.cerrar = true;
+        bootstrap.Modal.getOrCreateInstance($id('modalVariosLotes')).hide();
+    });
+    $id('modalVariosLotes').addEventListener('hidden.bs.modal', () => {
+        vl.cerrar = false;
+        vl.turno++;
+    });
 
     $id('aus_cuerpo').addEventListener('change', (evento) => {
         const paso = aus.pasos[aus.i];

@@ -29,7 +29,11 @@ class PlaneacionController extends LaboresController
 
     private const SIN_AJUSTES = 'Falta ejecutar el script planeacion_ajustes_noviembre.sql.';
 
+    private const SIN_VARIOS_LOTES = 'El cierre en varios lotes no está disponible: falta ejecutar el script planeacion_varios_lotes.sql.';
+
     private const MAX_ACTIVIDADES = 500;
+
+    private const MAX_LOTES = 10;
 
     private array $detalle = [];
 
@@ -270,6 +274,27 @@ class PlaneacionController extends LaboresController
             $this->laboresModel->buscarTercero($empresa, $this->campo('termino'), 20),
             static fn ($t) => (int) $t['activo'] === 1
         )), 'terceros');
+    }
+
+    public function lotes(): ResponseInterface
+    {
+        if ($sinSesion = $this->sesionRequerida(['registrar', 'editar'], 'registrar o editar la ' . static::NOMBRE)) {
+            return $sinSesion;
+        }
+
+        $empresa = $this->empresaValida();
+
+        if ($empresa === null) {
+            return $this->error('Debe seleccionar una empresa válida.');
+        }
+
+        $finca = trim($this->campo('finca'));
+
+        if ($finca === '') {
+            return $this->error('El campo "Finca" es obligatorio.');
+        }
+
+        return $this->listado(fn () => $this->laboresModel->lotes($empresa, $finca, trim($this->campo('seccion')), trim($this->campo('referencia'))), 'lotes');
     }
 
     public function planesFertilizacion(): ResponseInterface
@@ -535,16 +560,37 @@ class PlaneacionController extends LaboresController
             return $this->error('La fecha origen debe ser distinta de la fecha destino.');
         }
 
+        $finca = trim($this->campo('finca'));
+
+        if (strlen($finca) > 50) {
+            return $this->error('El campo "Finca" admite máximo 50 caracteres.');
+        }
+
         try {
             $fuente = $this->laboresModel->plan($empresa, $origen);
+            $valida = $finca === '' || $this->laboresModel->fincaValida($empresa, $finca);
         } catch (\Throwable $e) {
             log_message('error', 'Error consultando la planeación de labores: ' . $e->getMessage());
 
             return $this->error('No se pudo consultar el plan.', 500);
         }
 
-        if (($fuente['actividades'] ?? []) === []) {
+        if (! $valida) {
+            return $this->error('La finca ' . $finca . ' no existe.');
+        }
+
+        $fuente['actividades'] = array_values(array_filter($fuente['actividades'] ?? [], static fn ($a) => $a['division'] === null));
+
+        if ($fuente['actividades'] === []) {
             return $this->error('El plan del ' . $origen . ' no tiene actividades para duplicar.');
+        }
+
+        if ($finca !== '') {
+            $fuente['actividades'] = array_values(array_filter($fuente['actividades'], static fn ($a) => trim($a['finca']) === $finca));
+
+            if ($fuente['actividades'] === []) {
+                return $this->error('La finca ' . $finca . ' no tiene actividades en el plan del ' . $origen . '.');
+            }
         }
 
         $destino = $this->planDestino($empresa, $fecha);
@@ -616,6 +662,7 @@ class PlaneacionController extends LaboresController
             'empresa' => $empresa,
             'fecha'   => $fecha,
             'origen'  => $origen,
+            'finca'   => $finca,
             'usuario' => $this->usuarioRegistro(),
             'lineas'  => $lineas,
         ], $destino, $this->session->get('usu_id')) + ['duplicadas' => count($lineas), 'omitidas' => $omitidas]);
@@ -815,6 +862,168 @@ class PlaneacionController extends LaboresController
         ));
     }
 
+    public function cerrarVariosLotes(): ResponseInterface
+    {
+        $linea = $this->lineaPedida();
+
+        if ($linea instanceof ResponseInterface) {
+            return $linea;
+        }
+
+        if ($sinAjustes = $this->sinAjustes()) {
+            return $sinAjustes;
+        }
+
+        try {
+            $disponible = $this->laboresModel->variosLotesDisponible();
+            $plan       = $disponible ? $this->laboresModel->planPorId($linea['planeacion']) : null;
+            $lotes      = $disponible ? array_column($this->laboresModel->lotes($linea['empresa'], $linea['finca']), null, 'codigo') : [];
+            $pfa        = $disponible && $linea['referencia'] !== '' && $linea['grupo'] === FertilizacionTransaccionModel::GRUPO
+                ? (new FertilizacionTransaccionModel())->lotesDePlan($linea['empresa'], $linea['referencia']) : [];
+        } catch (\Throwable $e) {
+            log_message('error', 'Error consultando la actividad de planeación: ' . $e->getMessage());
+
+            return $this->error('No se pudo consultar la actividad.', 500);
+        }
+
+        if (! $disponible) {
+            return $this->error(self::SIN_VARIOS_LOTES);
+        }
+
+        if ($linea['estado'] !== 'PENDIENTE') {
+            return $this->error('La actividad ' . $this->etiqueta($linea) . ' ya está cerrada.');
+        }
+
+        $observacion  = trim($this->campo('observacionCierre'));
+        $distribucion = json_decode($this->campo('distribucion'), true);
+
+        if (strlen($observacion) > 250) {
+            return $this->error('La observación admite máximo 250 caracteres.');
+        }
+
+        if (! is_array($distribucion) || $distribucion === []) {
+            return $this->error('No se pudo leer la distribución por lotes.');
+        }
+
+        if (count($distribucion) > self::MAX_LOTES) {
+            return $this->error('Puede distribuir la actividad en máximo ' . self::MAX_LOTES . ' lotes.');
+        }
+
+        if (count($distribucion) < 2) {
+            return $this->error('Agregue al menos un lote adicional donde se ejecutó la labor.');
+        }
+
+        if (count($plan['actividades']) + count($distribucion) - 1 > self::MAX_ACTIVIDADES) {
+            return $this->error('El plan admite máximo ' . self::MAX_ACTIVIDADES . ' actividades.');
+        }
+
+        $ausentes  = array_column($plan['ausencias'], 'tercero');
+        $presentes = array_column(array_filter($linea['trabajadores'], static fn ($t) => ! in_array($t['tercero'], $ausentes, true)), null, 'tercero');
+        $entero    = PlaneacionModel::racimos($linea['uMedida']);
+        $usados    = [];
+        $vistos    = [];
+        $madre     = [];
+        $hijas     = [];
+        $ejecutada = 0;
+
+        foreach ($plan['actividades'] as $existente) {
+            $this->marcarUsados($usados, $existente);
+        }
+
+        foreach (array_values($distribucion) as $i => $fila) {
+            $lote      = is_array($fila) && ! is_array($fila['lote'] ?? null) ? trim((string) ($fila['lote'] ?? '')) : '';
+            $recibidos = is_array($fila) && is_array($fila['trabajadores'] ?? null) ? array_values($fila['trabajadores']) : null;
+
+            if ($lote === '' || $recibidos === null) {
+                return $this->error('No se pudo leer la distribución del lote ' . ($i + 1) . '.');
+            }
+
+            if (isset($vistos[$lote])) {
+                return $this->error('El lote ' . $lote . ' está repetido en la distribución.');
+            }
+
+            if ($i === 0 && $lote !== trim($linea['lote'])) {
+                return $this->error('El primer lote de la distribución debe ser el lote planeado ' . trim($linea['lote']) . '.');
+            }
+
+            if ($i > 0 && ! isset($lotes[$lote])) {
+                return $this->error('El lote ' . $lote . ' no pertenece a la finca ' . $linea['finca'] . '.');
+            }
+
+            if ($i > 0 && (int) $lotes[$lote]['activo'] !== 1) {
+                return $this->error('El lote ' . $lote . ' está inactivo.');
+            }
+
+            $vistos[$lote] = true;
+            $trabajadores  = [];
+            $suma          = 0;
+
+            foreach ($recibidos as $recibido) {
+                $nit      = is_array($recibido) && ! is_array($recibido['tercero'] ?? null) ? trim((string) ($recibido['tercero'] ?? '')) : '';
+                $cantidad = $this->cantidadDe(is_array($recibido) ? ($recibido['cantidad'] ?? null) : null, $entero);
+
+                if (! isset($presentes[$nit])) {
+                    return $this->error('El trabajador ' . $nit . ' no está asignado a la actividad ' . $this->etiqueta($linea) . ' o está ausente.');
+                }
+
+                if (isset($trabajadores[$nit])) {
+                    return $this->error('El trabajador ' . $this->nombre($presentes[$nit]) . ' está repetido en el lote ' . $lote . '.');
+                }
+
+                if ($cantidad === null || $cantidad < 0) {
+                    return $this->error($entero ? 'Use números enteros para racimos.' : 'Use números mayores o iguales a cero con máximo 3 decimales.');
+                }
+
+                if ($i > 0 && $cantidad > 0 && isset($usados[$this->llave($nit, ['lote' => $lote] + $linea)])) {
+                    return $this->error(($presentes[$nit]['codigo'] ?: $nit) . ' ya tiene esta labor en ' . $lote);
+                }
+
+                $suma += (int) round($cantidad * 1000);
+
+                $trabajadores[$nit] = ['tercero' => $nit, 'cantidad' => $cantidad, 'reasignadoDe' => null];
+            }
+
+            if ($suma === 0) {
+                return $this->error($i === 0 ? 'Indique la cantidad ejecutada en el lote planeado ' . $lote . '.' : 'El lote ' . $lote . ' no tiene cantidades; indíquelas o quítelo.');
+            }
+
+            $palmas = (int) ($lotes[$lote]['palmas'] ?? 0);
+
+            if (strtoupper(trim($linea['uMedida'])) === 'PAL' && $palmas > 0 && $suma > $palmas * 1000) {
+                return $this->error('La suma de palmas (' . $this->miles($suma / 1000) . ') supera las ' . $this->miles($palmas) . ' palmas en producción del lote ' . $lote . '.');
+            }
+
+            if ($i === 0) {
+                $madre     = array_values($trabajadores);
+                $ejecutada = $suma;
+                continue;
+            }
+
+            $hijas[] = [
+                'finca'        => $linea['finca'],
+                'lote'         => $lote,
+                'novedad'      => $linea['novedad'],
+                'uMedida'      => $linea['uMedida'],
+                'cantidad'     => $suma / 1000,
+                'horaInicio'   => $linea['horaInicio'] === '' ? null : $linea['horaInicio'],
+                'horaFin'      => $linea['horaFin'] === '' ? null : $linea['horaFin'],
+                'observacion'  => $linea['observacion'] === '' ? null : $linea['observacion'],
+                'referencia'   => in_array($lote, $pfa, true) ? $linea['referencia'] : null,
+                'trabajadores' => array_values(array_filter($trabajadores, static fn ($t) => $t['cantidad'] > 0)),
+            ];
+        }
+
+        $estado = $linea['cantidad'] <= 0 || $ejecutada >= (int) round($linea['cantidad'] * 1000) ? 'COMPLETADA' : 'PARCIAL';
+
+        if ($estado === 'PARCIAL' && $observacion === '') {
+            return $this->error('Indique el motivo del cierre parcial.');
+        }
+
+        return $this->resultado(fn () => $this->laboresModel->cerrarVarios(
+            $linea, $estado, $ejecutada / 1000, $observacion, $madre, $hijas, $this->usuarioRegistro(), $this->session->get('usu_id')
+        ));
+    }
+
     public function reabrirActividad(): ResponseInterface
     {
         $linea = $this->lineaPedida();
@@ -823,19 +1032,40 @@ class PlaneacionController extends LaboresController
             return $linea;
         }
 
+        try {
+            $linea = $linea['division'] === null ? $linea : $this->laboresModel->linea($linea['division']);
+            $hijas = $linea === null ? [] : $this->laboresModel->hijas($linea['id']);
+        } catch (\Throwable $e) {
+            log_message('error', 'Error consultando la actividad de planeación: ' . $e->getMessage());
+
+            return $this->error('No se pudo consultar la actividad.', 500);
+        }
+
+        if ($linea === null) {
+            return $this->error('No se encontró la actividad.', 404);
+        }
+
         if ($linea['estado'] === 'PENDIENTE') {
             return $this->error('La actividad ' . $this->etiqueta($linea) . ' no está cerrada.');
         }
 
-        if ($linea['vinculada'] === 1) {
-            return $this->error('La actividad ' . $this->etiqueta($linea) . ' ya fue registrada en ' . $linea['tipoTransaccion'] . ' ' . $linea['numeroTransaccion'] . '.');
+        foreach ($hijas === [] ? [$linea] : array_merge([$linea], $hijas) as $miembro) {
+            if ($miembro['vinculada'] === 1) {
+                return $this->error($hijas === []
+                    ? 'La actividad ' . $this->etiqueta($linea) . ' ya fue registrada en ' . $linea['tipoTransaccion'] . ' ' . $linea['numeroTransaccion'] . '.'
+                    : 'La actividad ' . trim($miembro['lote']) . ' · ' . $miembro['novedad'] . ' ya fue registrada en ' . $miembro['tipoTransaccion'] . ' '
+                        . $miembro['numeroTransaccion'] . '; no se puede reabrir el bloque.');
+            }
         }
 
         if ($linea['trasladada'] === 1) {
-            return $this->error('El pendiente de la actividad ' . $this->etiqueta($linea) . ' ya fue trasladado a otro día.');
+            return $this->error('El pendiente de la actividad ' . $this->etiqueta($linea) . ' ya fue trasladado a otro día'
+                . ($hijas === [] ? '.' : '; no se puede reabrir el bloque.'));
         }
 
-        return $this->resultado(fn () => $this->laboresModel->reabrirLinea($linea, $this->usuarioRegistro(), $this->session->get('usu_id')));
+        return $this->resultado(fn () => $this->laboresModel->reabrirLinea(
+            $linea, $this->usuarioRegistro(), $this->session->get('usu_id'), array_column($hijas, 'id')
+        ));
     }
 
     public function cerrarPlan(): ResponseInterface
@@ -1513,6 +1743,11 @@ class PlaneacionController extends LaboresController
         }
 
         return (float) str_replace(',', '.', $valor);
+    }
+
+    private function miles(float $valor): string
+    {
+        return rtrim(rtrim(number_format($valor, 3, ',', '.'), '0'), ',');
     }
 
     private function formato(bool $entero): string

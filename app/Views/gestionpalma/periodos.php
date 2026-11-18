@@ -264,4 +264,5 @@ $meses = [
 <?php echo $this->section('scripts'); ?>
 <script> const BASE_URL = "<?= base_url() ?>"; </script>
 <script src="<?= asset_url('public/assets/js/gestionpalma/periodos.js') ?>"></script>
+<script src="<?= asset_url('public/assets/js/tutoriales/modulos/gestionpalma/periodos.js') ?>"></script>
 <?php echo $this->endSection(); ?>

@@ -283,4 +283,5 @@ foreach ($lotes as $l) {
     const MES_SEL = <?= (int) $mes_sel ?>;
 </script>
 <script src="<?= asset_url('public/assets/js/gestionpalma/lotes_peso_rff.js') ?>"></script>
+<script src="<?= asset_url('public/assets/js/tutoriales/modulos/gestionpalma/lotes_peso_rff.js') ?>"></script>
 <?php echo $this->endSection(); ?>
