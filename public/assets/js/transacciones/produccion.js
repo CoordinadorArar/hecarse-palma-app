@@ -1293,7 +1293,7 @@ const iniciarTercero = (multiple) => {
     $id('trab_tercero').multiple = multiple;
 
     $('#trab_tercero').select2({
-        width: '100%', dropdownParent: $('#modalTrabajador'),
+        width: '100%', dropdownParent: $('#trab_tercero').parent(),
         placeholder: multiple ? 'Busque por código, identificación o nombre' : 'Código, identificación o nombre…',
         allowClear: true, minimumInputLength: 3, language: IDIOMA_SELECT2,
         ajax: {
@@ -2286,7 +2286,7 @@ const iniciarSelect2 = () => {
     });
 
     $('#trab_novedad').select2({
-        width: '100%', dropdownParent: $('#modalTrabajador'),
+        width: '100%', dropdownParent: $('#trab_novedad').parent(),
         placeholder: 'Seleccione una opción…', allowClear: true, language: IDIOMA_SELECT2
     });
 

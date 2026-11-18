@@ -588,7 +588,7 @@ $anchoAcciones = max([1 => 64, 2 => 98, 3 => 132][1 + (int) $pEditar + (int) $pE
                             <div class="col-12">
                                 <label class="form-label mb-1 small fw-semibold text-muted" for="trab_tercero">Tercero(s) <span class="text-danger">*</span></label>
                                 <span class="tx-chip-cont verde ms-1 d-none" id="trab_contador" aria-live="polite"></span>
-                                <div class="tx-select-ancho">
+                                <div class="tx-select-ancho position-relative">
                                     <select class="form-select" id="trab_tercero"></select>
                                 </div>
                                 <div class="invalid-feedback d-block d-none" id="error_trab_tercero"></div>
@@ -597,7 +597,7 @@ $anchoAcciones = max([1 => 64, 2 => 98, 3 => 132][1 + (int) $pEditar + (int) $pE
 
                             <div class="col-md-6">
                                 <label class="form-label mb-1 small fw-semibold text-muted" for="trab_novedad">Actividad <span class="text-danger">*</span></label>
-                                <div class="tx-select-ancho">
+                                <div class="tx-select-ancho position-relative">
                                     <select class="form-select" id="trab_novedad"></select>
                                 </div>
                                 <div class="invalid-feedback d-block d-none" id="error_trab_novedad"></div>
