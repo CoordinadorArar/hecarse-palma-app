@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
     const $q = (s) => document.querySelector(s);
+    const EXCEL = 'Descarga en Excel lo que está listado, de todas las páginas y respetando lo que haya escrito en Buscar. El archivo anota en el encabezado los filtros y la búsqueda usados, y no incluye la columna de acciones.';
     const campo = (id) => document.getElementById(id)?.parentElement;
     const busqueda = () => document.getElementById('filtro_busqueda')?.closest('.input-group')?.parentElement;
 
@@ -27,6 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 { id: 'contador', element: '#contador_terceros', side: 'bottom', title: 'Resultados', text: 'Indica cuántos terceros coinciden con los filtros.' },
                 { id: 'sin_resultados', element: '#gp_estado_vacio', side: 'top', title: 'Sin terceros', text: 'Ningún tercero coincide con los filtros. Ajústelos o pulse Nuevo tercero para crearlo.' },
                 { id: 'buscar_resultados', element: '#tabla_terceros_wrapper .gp-dt-barra:not(.gp-dt-pie)', side: 'bottom', title: 'Buscar y mostrar', text: 'Use Buscar en resultados para filtrar lo que ya está listado sin volver a consultar, y elija cuántos registros ver por página. Pulse el título de una columna para ordenar.' + deslizar },
+                { id: 'excel', element: '#tabla_terceros_wrapper .gp-dt-excel', side: 'bottom', title: 'Exportar a Excel', text: EXCEL + ($q('#tabla_terceros_wrapper .gp-dt-excel .btn')?.matches(':disabled, .disabled') ? ' Se habilita cuando la lista tiene registros.' : '') },
                 { id: 'fila', element: () => (conDatos ? (desborda ? fila.cells[2] : fila) : null), side: 'bottom', title: 'Terceros listados', text: 'Cada fila muestra el código, el tipo y número de documento, la descripción con su ciudad y si es persona natural o jurídica.', cuando: () => conDatos },
                 { id: 'roles', element: () => $q('#cuerpo_tabla_terceros .gp-chip-rol')?.closest('td'), side: 'bottom', title: 'Roles', text: 'CLI (cliente), PRO (proveedor) y EMPL (empleado) se muestran siempre: en verde si el tercero tiene el rol y en gris si no. ACC, CON, EXT y COM (accionista, contratista, extractora y comercializadora) solo aparecen si los tiene.' + (fino ? ' Pase el cursor sobre una etiqueta para ver su nombre.' : ''), cuando: () => conDatos },
                 { id: 'estado', element: estado, side: md ? 'left' : 'bottom', title: 'Estado', text: 'Activo indica que el tercero está en uso. Los inactivos no aparecen para escoger en otras pantallas, como Empleados.', cuando: () => conDatos },

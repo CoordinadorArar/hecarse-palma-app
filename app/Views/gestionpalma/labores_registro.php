@@ -328,13 +328,13 @@
                             </div>
 
                             <div class="col-md-3 d-none" id="labor_col_anio_desde">
-                                <label class="form-label mb-1 small fw-semibold text-muted" for="labor_anio_desde">Año desde</label>
-                                <input type="number" class="form-control" id="labor_anio_desde" min="1900">
+                                <label class="form-label mb-1 small fw-semibold text-muted" for="labor_anio_desde">Año desde <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="labor_anio_desde" min="0" step="1">
                             </div>
 
                             <div class="col-md-3 d-none" id="labor_col_anio_hasta">
-                                <label class="form-label mb-1 small fw-semibold text-muted" for="labor_anio_hasta">Año hasta</label>
-                                <input type="number" class="form-control" id="labor_anio_hasta" min="1900">
+                                <label class="form-label mb-1 small fw-semibold text-muted" for="labor_anio_hasta">Año hasta <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="labor_anio_hasta" min="0" step="1">
                             </div>
 
                             <div class="col-12">

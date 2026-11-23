@@ -130,6 +130,27 @@ a.gp-card:hover h6 {
   background-color: #eaf6ef;
 }
 
+.gp-chip-rol.gp-chip-dia {
+  min-width: 24px;
+  padding: .1rem .25rem;
+  margin-right: .1rem;
+  text-align: center;
+}
+
+.gp-expandir i {
+  display: inline-block;
+  transition: transform .15s;
+}
+
+.gp-expandir[aria-expanded="true"] i {
+  transform: rotate(90deg);
+}
+
+.gp-reparto {
+  border-left: 3px solid #41a867;
+  overflow-x: auto;
+}
+
 .gp-badge-doc {
   background-color: #eef2f7;
   color: #4a5b6c;
@@ -1867,3 +1888,8 @@ body.gp-pantalla-bloqueo {
 .gp-opcion-finca { cursor: pointer; }
 .gp-opcion-finca.bloqueada { cursor: not-allowed; }
 .gp-opcion-finca:has(.form-check-input:focus-visible) { box-shadow: 0 0 0 .2rem rgba(65, 168, 103, .35); }
+
+#filtro_domingo.is-invalid {
+  background-image: none;
+  padding-right: .75rem;
+}

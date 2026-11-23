@@ -51,6 +51,22 @@
                     </div>
                 </div>
 
+                <div class="col-12 col-md-auto" id="col_preliminar">
+                    <span class="form-label mb-1 small fw-semibold text-muted d-block">Preliminar</span>
+                    <div class="form-check form-switch mb-0 d-flex align-items-center gap-2" style="min-height:calc(1.5em + .75rem + 2px)">
+                        <input class="form-check-input" type="checkbox" role="switch" id="filtro_preliminar">
+                        <label class="form-check-label text-nowrap" for="filtro_preliminar">Activar</label>
+                    </div>
+                </div>
+
+                <div class="col-6 col-md-3 col-lg-2 d-none" id="col_corte">
+                    <label class="form-label mb-1 small fw-semibold text-muted" for="filtro_corte">Fecha de corte</label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-scissors" aria-hidden="true"></i></span>
+                        <input type="date" class="form-control" id="filtro_corte" aria-describedby="error_rango">
+                    </div>
+                </div>
+
                 <div class="col-12 col-md-auto">
                     <button type="submit" class="btn btn-primary w-100" id="consultar_liquidacion">
                         <i class="bi bi-search me-1"></i> Consultar
@@ -248,8 +264,10 @@
 
     <div class="gp-nota d-none align-items-start gap-2 mb-3" id="nota_rango">
         <i class="bi bi-info-circle" aria-hidden="true"></i>
-        <span>Cambió el rango de fechas. Pulse Consultar para actualizar.</span>
+        <span>Cambió el rango de fechas o la fecha de corte. Pulse Consultar para actualizar.</span>
     </div>
+
+    <div id="avisos_liquidacion"></div>
 
     <div class="card" id="tarjeta_reporte">
         <div class="card-body p-0">
@@ -280,15 +298,17 @@
             <div class="tab-content p-4 d-none">
 
                 <div class="tab-pane fade show active" id="reporteTotal">
-                    <table id="tabla-total" class="table table-striped w-100"></table>
+                    <table id="tabla-total" class="table table-hover align-middle gp-tabla inf-tabla w-100"></table>
 
-                    <div class="text-end mt-3">
-                        <button class="btn btn-success btn-sm d-none" id="btnExportar">
-                            <i class="bi bi-file-earmark-excel"></i> Exportar
+                    <div class="d-flex flex-wrap justify-content-end align-items-center gap-2 mt-3">
+                        <span class="gp-chip-fila d-none" id="chip_procesado"></span>
+
+                        <button class="btn btn-success d-none" id="btnExportar">
+                            <i class="bi bi-file-earmark-excel me-1"></i>Exportar
                         </button>
 
                         <button class="btn btn-primary d-none" id="btnProcesar">
-                            <i class="fas fa-save"></i> Procesar y Guardar
+                            <i class="bi bi-floppy me-1"></i>Procesar y Guardar
                         </button>
                     </div>
                 </div>
@@ -403,15 +423,54 @@
     let rangoTemporales = '';
     let turnoTemporales = 0;
     let rangoModal = null;
+    let calculoGlobal = null;
+
+    const LIQ_NUM = $.fn.dataTable.render.number('.', ',', 0, '$').display;
+    const ddmm = fecha => siesaFecha(fecha).slice(0, 5);
+    const diaAnterior = iso => {
+        const dia = new Date(`${iso}T00:00:00`);
+
+        dia.setDate(dia.getDate() - 1);
+        return isoDe(dia);
+    };
+    const corteActivo = () => $('#filtro_preliminar').is(':checked') && !$('#tab_siesa').hasClass('active');
+    const corteActual = () => $('#filtro_preliminar').is(':checked') ? $('#filtro_corte').val() : '';
+    const claveConsulta = () => `${rango().clave}|${corteActual()}`;
+    const corteSugerido = () => {
+        const { desde, hasta } = rango();
+
+        return desde && hasta ? [`${desde.slice(0, 7)}-26`, desde, diaAnterior(hasta)].sort()[1] : '';
+    };
+
+    function liqErrorCorte({ desde, hasta }) {
+        const maximo = diaAnterior(hasta);
+        const corte = $('#filtro_corte').attr({ min: desde, max: maximo }).val();
+
+        if (!corteActivo()) return '';
+
+        return corte && corte >= desde && corte <= maximo ? '' : `La fecha de corte debe estar entre el ${siesaFecha(desde)} y el ${siesaFecha(maximo)}.`;
+    }
+
+    function mostrarCorte() {
+        const temporales = !$('#tab_siesa').hasClass('active');
+        const visible = temporales && $('#filtro_preliminar').is(':checked');
+
+        $('#col_preliminar').toggleClass('d-none', !temporales);
+        if (visible && $('#col_corte').hasClass('d-none')) $('#col_corte').addClass('gp-revelar');
+        $('#col_corte').toggleClass('d-none', !visible);
+        validar();
+        revisarRango();
+    }
 
     document.addEventListener('DOMContentLoaded', () => {
         const [desde, hasta] = LIQ_RANGOS.anterior(new Date());
 
         $('#filtro_desde').val(desde);
         $('#filtro_hasta').val(hasta);
+        $('#filtro_corte').val(corteSugerido());
         validar();
 
-        $('#filtro_desde, #filtro_hasta').on('change', () => {
+        $('#filtro_desde, #filtro_hasta, #filtro_corte').on('change', () => {
             $('#aviso_cruces').empty();
             revisarRango();
             validar();
@@ -420,8 +479,15 @@
             const [desde, hasta] = LIQ_RANGOS[this.dataset.rango](new Date());
 
             $('#filtro_desde').val(desde);
-            $('#filtro_hasta').val(hasta).trigger('change');
+            $('#filtro_hasta').val(hasta);
+            $('#filtro_corte').val(corteSugerido());
+            $('#filtro_hasta').trigger('change');
         });
+        $('#filtro_preliminar').on('change', function () {
+            if (this.checked && liqErrorCorte(rango())) $('#filtro_corte').val(corteSugerido());
+            mostrarCorte();
+        });
+        $('#tab_temporales, #tab_siesa').on('shown.bs.tab', mostrarCorte);
         $('#form_filtros').on('submit', e => {
             e.preventDefault();
 
@@ -436,7 +502,9 @@
         $('#btnAbrirModalTemporales').on('click', function () {
             const actual = rango();
 
-            if (!validar()) {
+            validar();
+
+            if (!actual.valido) {
                 Swal.fire({ icon: 'warning', title: 'Atención', text: 'Seleccione un rango de fechas válido antes de subir los valores.', returnFocus: false })
                     .then(() => $('#filtro_desde').trigger('focus'));
                 return;
@@ -450,11 +518,14 @@
     });
 
     function revisarRango() {
-        const cambio = !!rangoConsulta && rangoConsulta !== rango().clave;
+        const cambio = !!rangoConsulta && rangoConsulta !== claveConsulta();
 
-        $('#tarjeta_reporte').toggleClass('inf-desactualizado', cambio);
+        $('#tarjeta_reporte, #avisos_liquidacion').toggleClass('inf-desactualizado', cambio);
         $('#nota_rango').toggleClass('d-none', !cambio).toggleClass('d-flex', cambio);
-        if (cambio) $('#btnProcesar, #btnExportar').hide();
+        if (cambio) {
+            $('#btnProcesar, #btnExportar').hide();
+            chipProcesado();
+        }
 
         return cambio;
     }
@@ -467,6 +538,20 @@
         $('#aviso_cruces').html(`<div class="gp-nota-alerta d-flex align-items-start gap-2 mb-3"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i><span>${contenido}</span></div>`);
     }
 
+    function chipProcesado(estado) {
+        const chip = $('#chip_procesado').removeClass('verde ambar').removeAttr('title');
+
+        if (!estado) {
+            chip.addClass('d-none').empty();
+            return;
+        }
+
+        if (estado.ajustadoEn) chip.attr('title', `Su ajuste se aplicó en la liquidación ${siesaFecha(estado.ajustadoEn.desde)} – ${siesaFecha(estado.ajustadoEn.hasta)}`);
+
+        chip.removeClass('d-none').addClass(estado.preliminar ? 'ambar' : 'verde')
+            .html(`<i class="bi ${estado.preliminar ? 'bi-hourglass-split' : 'bi-check-circle'} me-1" aria-hidden="true"></i>Procesado · ${estado.preliminar ? `Preliminar (corte ${siesaFecha(estado.corte)})` : 'Definitiva'}`);
+    }
+
     function mostrarErrorRespuesta(response, temporal, generico, codigo) {
         const cruces = Array.isArray(response?.cruces) ? response.cruces : [];
 
@@ -476,7 +561,7 @@
             reporteProcesado = false;
             $('#btnProcesar').hide();
             pintarCruces(contenido);
-            Swal.fire({ icon: 'warning', title: 'El rango se cruza con uno ya procesado', html: `<p class="mb-0">${contenido}</p>`, width: 560 });
+            Swal.fire({ icon: 'warning', title: cruces.length ? 'El rango se cruza con uno ya procesado' : 'No se puede procesar el rango', html: `<p class="mb-0">${contenido}</p>`, width: 560 });
             return;
         }
 
@@ -497,6 +582,7 @@
 
             // Ocultar botón de procesar si estaba visible
             $('#btnProcesar').hide();
+            chipProcesado();
 
             // Notificación opcional
             Swal.fire({
@@ -625,20 +711,25 @@
 
     function consultarReporte() {
         const { desde, hasta, clave } = rango();
+        const corte = corteActual();
+        const consulta = claveConsulta();
 
         if (!validar()) return;
 
         bloquearUI(true);
         reporteProcesado = false;
         $('#btnProcesar').hide();
+        chipProcesado();
         $('#aviso_cruces').empty();
 
-        $.post("<?= base_url('informes/consultar-reporte') ?>", {
-            desde, hasta
-        }, response => {
+        const calculo = $.post("<?= base_url('informes/calcular-liquidacion') ?>", { desde, hasta, corte })
+            .then(r => r?.status === 'success' ? r : null, xhr => corte ? $.Deferred().reject(xhr) : null);
 
-            dataGlobal = response;
-            rangoConsulta = clave;
+        $.when($.post("<?= base_url('informes/consultar-reporte') ?>", { desde, hasta, corte }), calculo).done((response, resumen) => {
+
+            dataGlobal = response[0];
+            calculoGlobal = resumen;
+            rangoConsulta = consulta;
             $('#reporte_vacio').addClass('d-none');
             $('#tarjeta_reporte .nav-tabs, #tarjeta_reporte .tab-content').removeClass('d-none');
             if (rangoTemporales !== clave) cargarTemporales();
@@ -651,7 +742,7 @@
             revisarRango();
         }).fail(xhr => {
             bloquearUI(false);
-            Swal.fire('Error', xhr.responseJSON?.message || 'No fue posible consultar el reporte', 'error');
+            Swal.fire('Error', xhr?.responseJSON?.message || 'No fue posible consultar el reporte', 'error');
         });
     }
 
@@ -702,11 +793,11 @@
     }
 
     /* Filtrar Tablas */
-    function filtrarDataGlobal() {
+    function filtrarDataGlobal(lista = dataGlobal) {
         const tipoContrato = $('#tipoContrato').val();
         const temporal = $('#temporal').val();
 
-        return dataGlobal.filter(item => {
+        return lista.filter(item => {
 
             let cumple = true;
 
@@ -722,28 +813,79 @@
         });
     }
 
+    function empleadosTotal() {
+        if (!calculoGlobal) {
+            return agruparPorEmpleado(filtrarDataGlobal()).map(e => ({ ...e, real: e.valorTotalTercero, estimado: 0, ajuste: 0, total: e.valorTotalTercero, ajusteDe: [] }));
+        }
+
+        return filtrarDataGlobal(calculoGlobal.empleados || []).map(e => ({ ...e, valorTotalTercero: e.total }));
+    }
+
+    function ajusteHtml(valor, titulo = '') {
+        const n = Math.round(Number(valor) || 0);
+        const attr = titulo ? ` title="${escaparHtml(titulo)}"` : '';
+
+        return n > 0 ? `<span class="inf-dif-positivo"${attr}>+${LIQ_NUM(n)}</span>`
+            : n < 0 ? `<span class="inf-dif-alerta"${attr}>−${LIQ_NUM(-n)}</span>`
+            : `<span class="text-muted"${attr}>${LIQ_NUM(0)}</span>`;
+    }
+
+    function pintarAvisos() {
+        const c = calculoGlobal;
+        const ajustes = c ? filtrarDataGlobal(c.ajustes || []) : [];
+        const restantes = c?.preliminar ? ` (${siesaNum(c.diasHabilesRestantes)} ${Number(c.diasHabilesRestantes) === 1 ? 'día hábil' : 'días hábiles'} y ${siesaNum(c.domingosRestantes)} ${Number(c.domingosRestantes) === 1 ? 'domingo' : 'domingos'})` : '';
+
+        $('#avisos_liquidacion').html(
+            (c?.preliminar ? `<div class="gp-nota-alerta d-flex align-items-start gap-2 mb-3"><i class="bi bi-hourglass-split" aria-hidden="true"></i><span>Liquidación preliminar: datos reales hasta <strong>${ddmm(c.corte)}</strong>, estimado <strong>${ddmm(c.estimadoDesde)}–${ddmm(c.estimadoHasta)}</strong>${restantes}</span></div>` : '')
+            + ajustes.map(a => `<div class="gp-nota d-flex align-items-start gap-2 mb-3"><i class="bi bi-arrow-left-right" aria-hidden="true"></i><span>Incluye ajuste de la liquidación preliminar <strong>${ddmm(a.desde)}–${ddmm(a.hasta)}</strong> · ${escaparHtml(a.RazonTemporal)}: ${ajusteHtml(a.valor)}</span></div>`).join('')
+        );
+    }
+
     function cargarReporteTotal() {
-        const dataFiltrada = filtrarDataGlobal();
-        const dataAgrupada = agruparPorEmpleado(dataFiltrada);
+        const empleados = empleadosTotal();
+        const conEstimado = Boolean(calculoGlobal?.preliminar);
+        const conAjuste = empleados.some(e => (e.ajusteDe || []).length || Math.round(Number(e.ajuste) || 0) !== 0);
+        const dinero = (v, tipo) => tipo === 'display' ? LIQ_NUM(v) : Number(v) || 0;
+        const suma = (api, i) => api.column(i, { search: 'applied' }).data().reduce((a, b) => a + (Number(b) || 0), 0);
+
+        pintarAvisos();
 
         if ($.fn.DataTable.isDataTable('#tabla-total')) {
             $('#tabla-total').DataTable().destroy();
         }
 
+        $('#tabla-total').html(`<thead class="gp-thead"></thead><tbody></tbody><tfoot><tr><th>Total</th>${'<th></th>'.repeat(3)}${'<th class="inf-num"></th>'.repeat(4)}</tr></tfoot>`);
+
         $('#tabla-total').DataTable({
-            data: dataAgrupada,
+            data: empleados,
             columns: [
-                { title: 'Cédula', data: 'cedula' },
-                { title: 'Empleado', data: 'nombreTercero' },
+                { title: 'Cédula', data: 'cedula', render: (v, tipo) => tipo === 'display' ? `<span class="font-monospace">${escaparHtml(v)}</span>` : v },
+                {
+                    title: 'Empleado', data: 'nombreTercero', render: (v, tipo, e) => tipo === 'display'
+                        ? `${escaparHtml(v)}${Number(e.real) === 0 && (e.ajusteDe || []).length ? '<span class="gp-chip-fila tx-chip-neutro ms-1">Solo ajuste</span>' : ''}` : v
+                },
                 { title: 'Tipo Contrato', data: 'TipoContrato' },
                 { title: 'Temporal', data: 'RazonTemporal' },
+                { title: 'Real', data: 'real', className: 'text-end inf-num', render: (v, tipo) => tipo === 'display' && !Number(v) ? `<span class="text-muted">${LIQ_NUM(0)}</span>` : dinero(v, tipo) },
                 {
-                    title: 'Total Pagado',
-                    data: 'valorTotalTercero',
-                    render: $.fn.dataTable.render.number('.', ',', 0, '$')
+                    title: 'Estimado', data: 'estimado', className: 'text-end inf-num', visible: conEstimado,
+                    render: (v, tipo, e) => tipo === 'display'
+                        ? `<span title="${e.diasConLabor ? `Promedio diario ${LIQ_NUM(e.promedioDiario)} · ${siesaNum(e.diasConLabor)} días con labor` : 'Sin días con labor hasta el corte'}">${Number(v) ? LIQ_NUM(v) : `<span class="text-muted">${LIQ_NUM(0)}</span>`}</span>` : Number(v) || 0
                 },
+                {
+                    title: 'Ajuste mes anterior', data: 'ajuste', className: 'text-end inf-num', visible: conAjuste,
+                    render: (v, tipo, e) => tipo === 'display'
+                        ? ajusteHtml(v, (e.ajusteDe || []).map(a => `${siesaFecha(a.desde)}–${siesaFecha(a.hasta)}: estimado ${LIQ_NUM(a.estimado)} · real ${LIQ_NUM(a.real)}`).join(' | ')) : Math.round(Number(v) || 0)
+                },
+                { title: 'Total a enviar', data: 'total', className: 'text-end inf-num fw-semibold', render: (v, tipo) => tipo === 'display' && Number(v) < 0 ? ajusteHtml(v) : dinero(v, tipo) }
             ],
-            pageLength: 10
+            pageLength: 10,
+            footerCallback: function () {
+                const api = this.api();
+
+                [4, 5, 7].forEach(i => $(api.column(i).footer()).html(LIQ_NUM(suma(api, i))));
+                $(api.column(6).footer()).html(ajusteHtml(suma(api, 6)));
+            }
         });
     }
 
@@ -885,6 +1027,7 @@
         const tipoContrato = $('#tipoContrato').val();
 
         $('#aviso_cruces').empty();
+        chipProcesado();
 
         if (revisarRango() || !valido || !temporal || !tipoContrato ||
             temporal === 'Seleccione la temporal' ||
@@ -906,10 +1049,13 @@
                 reporteProcesado = true;
                 $('#btnProcesar').hide();
                 $('#btnExportar').removeClass('d-none').show();
+                chipProcesado(response);
                 Swal.fire({
                     icon: 'info',
                     title: 'Reporte ya procesado',
-                    text: `Este rango ya fue procesado para ${temporal} (${rangoTexto(desde, hasta)}).`,
+                    text: response.preliminar
+                        ? `Este rango ya fue procesado como liquidación preliminar (corte ${siesaFecha(response.corte)}) para ${temporal}.`
+                        : `Este rango ya fue procesado para ${temporal} (${rangoTexto(desde, hasta)}).`,
                     toast: true,
                     position: 'top-end',
                     showConfirmButton: false,
@@ -985,7 +1131,7 @@
 
 
     function bloquearUI(estado) {
-        $('#filtro_desde, #filtro_hasta, [data-rango]').prop('disabled', estado);
+        $('#filtro_desde, #filtro_hasta, #filtro_preliminar, #filtro_corte, [data-rango]').prop('disabled', estado);
 
         if (estado) {
             $('#consultar_liquidacion').prop('disabled', true);
@@ -1032,6 +1178,8 @@
             return;
         }
 
+        const ajusteIncluido = Math.round(tabla.column(6, { search: 'applied' }).data().reduce((a, b) => a + (Number(b) || 0), 0));
+
         // Confirmar antes de procesar
         Swal.fire({
             title: '¿Procesar reporte?',
@@ -1042,6 +1190,8 @@
                         ${siesaDato('Días', siesaNum(actual.dias))}
                         ${siesaDato('Tipo de contrato', escaparHtml(tipoContrato))}
                         ${siesaDato('Temporal', escaparHtml(temporal))}
+                        ${siesaDato('Tipo', corteActual() ? `<span class="gp-chip-fila ambar">Preliminar (corte ${siesaFecha(corteActual())})</span>` : '<span class="gp-chip-fila verde">Definitiva</span>')}
+                        ${ajusteIncluido ? siesaDato('Ajuste incluido', ajusteHtml(ajusteIncluido)) : ''}
                     </div>
                 </div>
                 <div class="gp-nota text-start">El rango quedará registrado como procesado para esta temporal. No podrá procesarse otro rango que se cruce con él.</div>
@@ -1051,6 +1201,7 @@
             focusCancel: true,
             showCancelButton: true,
             confirmButtonText: 'Sí, procesar',
+            confirmButtonColor: '#1dab4d',
             cancelButtonText: 'Cancelar'
         }).then((result) => {
             if (result.isConfirmed) {
@@ -1096,6 +1247,7 @@
                 hasta,
                 temporal,
                 tipoContrato,
+                corte: corteActual(),
                 datos: JSON.stringify(dataAgrupada)
             },
             success: function (response) {
@@ -1106,13 +1258,15 @@
                         icon: 'success',
                         title: 'Procesado con éxito',
                         html: `
-                        <p>${response.message}</p>
-                        <p><strong>Registros guardados:</strong> ${response.registros_guardados}</p>
+                        <p>${escaparHtml(response.message)}</p>
+                        <p class="mb-0"><strong>Registros guardados:</strong> ${siesaNum(response.registros_guardados)}</p>
+                        ${Number(response.ajustes_aplicados) ? `<p class="mt-2 mb-0"><strong>Ajustes de liquidación preliminar aplicados:</strong> ${siesaNum(response.ajustes_aplicados)}</p>` : ''}
                     `
                     });
 
                     reporteProcesado = true;
                     $('#btnProcesar').hide();
+                    chipProcesado({ preliminar: Boolean(response.preliminar), corte: response.corte });
 
                 } else {
                     mostrarErrorRespuesta(response, temporal, 'Error al procesar');
@@ -1141,10 +1295,14 @@
         const { desde, hasta } = rango();
         const temporal = $('#temporal').val();
 
-        let csv = 'Fecha inicio,Fecha fin,Cedula,Empleado,Tipo Contrato,Temporal,Total Pagado\n';
+        const estimado = table.column(5).visible();
+        const ajuste = table.column(6).visible();
+        const corte = estimado ? calculoGlobal?.corte || '' : '';
+
+        let csv = `Fecha inicio,Fecha fin,${estimado ? 'Fecha corte,' : ''}Cedula,Empleado,Tipo Contrato,Temporal,Real,${estimado ? 'Estimado,' : ''}${ajuste ? 'Ajuste mes anterior,' : ''}Total a enviar\n`;
 
         table.rows({ search: 'applied' }).data().each(row => {
-            csv += `"${desde}","${hasta}","${row.cedula}","${row.nombreTercero}","${row.TipoContrato}","${row.RazonTemporal}","${row.valorTotalTercero}"\n`;
+            csv += `"${desde}","${hasta}",${estimado ? `"${corte}",` : ''}"${row.cedula}","${row.nombreTercero}","${row.TipoContrato}","${row.RazonTemporal}","${row.real}",${estimado ? `"${row.estimado}",` : ''}${ajuste ? `"${row.ajuste}",` : ''}"${row.total}"\n`;
         });
 
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });

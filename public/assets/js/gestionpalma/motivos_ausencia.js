@@ -32,7 +32,7 @@ const renderizarTabla = () => {
     $('#tabla_motivos').DataTable({
         paging: false,
         dom: "<'gp-dt-barra'if><'table-responsive't>",
-        columnDefs: [{ targets: [2, 4], orderable: false }],
+        columnDefs: [{ targets: [3, 5], orderable: false }],
         order: [[0, 'asc']],
         language: {
             info: '_TOTAL_ registros',
@@ -134,6 +134,7 @@ const abrirNuevo = () => {
     $id('mo_empresa').value = filtroEmpresa();
     $id('mo_codigo').value = '';
     $id('mo_activo').checked = true;
+    if ($id('mo_remunerado')) $id('mo_remunerado').checked = false;
     bloquearLlave(false);
     modalMotivo().show();
     $id('modalMotivo').addEventListener('shown.bs.modal', () => $id('mo_codigo').focus(), { once: true });
@@ -167,6 +168,7 @@ window.editarMotivo = async (empresa, codigo) => {
         $id('mo_codigo_pk').value = motivo.codigo;
         $id('mo_descripcion').value = motivo.descripcion || '';
         $id('mo_activo').checked = Number(motivo.activo) === 1;
+        if ($id('mo_remunerado')) $id('mo_remunerado').checked = Number(motivo.remunerado) === 1;
         bloquearLlave(true);
         modalMotivo().show();
         $id('modalMotivo').addEventListener('shown.bs.modal', () => $id('mo_descripcion').focus(), { once: true });
@@ -200,6 +202,7 @@ $id('formulario_motivo').addEventListener('submit', async (e) => {
         codigo: edicion ? $id('mo_codigo_pk').value : $id('mo_codigo').value.trim().toUpperCase(),
         descripcion: $id('mo_descripcion').value.trim(),
         activo: $id('mo_activo').checked ? 1 : 0,
+        ...($id('mo_remunerado') ? { remunerado: $id('mo_remunerado').checked ? 1 : 0 } : {}),
         ...filtrosActuales()
     });
 

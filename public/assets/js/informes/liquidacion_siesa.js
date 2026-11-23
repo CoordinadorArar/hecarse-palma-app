@@ -59,12 +59,15 @@ const rango = () => {
 const validar = () => {
     const actual = rango();
     const hoy = new Date();
+    const errorCorte = actual.valido ? liqErrorCorte(actual) : '';
+    const error = actual.error || errorCorte;
 
     $('#filtro_hasta').attr('min', actual.desde || '2000-01-01').toggleClass('is-invalid', Boolean(actual.error && actual.desde));
     $('#filtro_desde').toggleClass('is-invalid', Boolean(actual.error && !actual.desde));
-    $('#error_rango').text(actual.error);
-    $('#fila_error_rango').toggleClass('d-none', !actual.error);
-    $('#consultar_liquidacion').prop('disabled', !actual.valido || SIESA.ocupado);
+    $('#filtro_corte').toggleClass('is-invalid', Boolean(errorCorte));
+    $('#error_rango').text(error);
+    $('#fila_error_rango').toggleClass('d-none', !error);
+    $('#consultar_liquidacion').prop('disabled', Boolean(error) || SIESA.ocupado);
     $('[data-rango]').each(function () {
         const [desde, hasta] = LIQ_RANGOS[this.dataset.rango](hoy);
         const activo = desde === actual.desde && hasta === actual.hasta;
@@ -72,7 +75,7 @@ const validar = () => {
         $(this).toggleClass('active', activo).attr('aria-pressed', String(activo));
     });
 
-    return actual.valido;
+    return !error;
 };
 const rangoTexto = (desde, hasta) => desde === hasta ? siesaFecha(desde) : `${siesaFecha(desde)} – ${siesaFecha(hasta)}`;
 const siesaPeriodo = () => {

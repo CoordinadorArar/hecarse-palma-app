@@ -16,6 +16,8 @@ class MotivosAusenciaModel extends Model
 
     private ?bool $disponible = null;
 
+    private ?bool $remunerado = null;
+
     public function disponible(): bool
     {
         if ($this->disponible === null) {
@@ -26,6 +28,20 @@ class MotivosAusenciaModel extends Model
         }
 
         return $this->disponible;
+    }
+
+    public function remuneradoDisponible(): bool
+    {
+        if ($this->remunerado === null) {
+            $this->remunerado = $this->db->query("SELECT COL_LENGTH('dbo.pMotivoAusencia', 'remunerado') AS largo")->getRow()->largo !== null;
+        }
+
+        return $this->remunerado;
+    }
+
+    private function campos(): string
+    {
+        return self::CAMPOS . ($this->remuneradoDisponible() ? ', CAST(remunerado AS int) AS remunerado' : '');
     }
 
     public function getEmpresas(): array
@@ -44,7 +60,7 @@ class MotivosAusenciaModel extends Model
 
     public function listar(int $empresa, string $estado = ''): array
     {
-        $sql   = 'SELECT ' . self::CAMPOS . ', ' . self::USOS . ' AS usos FROM pMotivoAusencia m WHERE empresa = ?';
+        $sql   = 'SELECT ' . $this->campos() . ', ' . self::USOS . ' AS usos FROM pMotivoAusencia m WHERE empresa = ?';
         $binds = [$empresa];
 
         if ($estado === '1' || $estado === '0') {
@@ -58,7 +74,7 @@ class MotivosAusenciaModel extends Model
     public function obtener(int $empresa, string $codigo): ?array
     {
         return $this->db->query(
-            'SELECT ' . self::CAMPOS . ', ' . self::USOS . ' AS usos FROM pMotivoAusencia m WHERE empresa = ? AND codigo = ?',
+            'SELECT ' . $this->campos() . ', ' . self::USOS . ' AS usos FROM pMotivoAusencia m WHERE empresa = ? AND codigo = ?',
             [$empresa, trim($codigo)]
         )->getRowArray();
     }
@@ -72,9 +88,11 @@ class MotivosAusenciaModel extends Model
     {
         $codigo = trim($codigo);
 
+        $remunerado = $this->remuneradoDisponible() && isset($data['remunerado']);
+
         $this->db->query(
-            'INSERT INTO pMotivoAusencia (empresa, codigo, descripcion, activo) VALUES (?, ?, ?, ?)',
-            [$empresa, $codigo, $data['descripcion'], $data['activo']]
+            'INSERT INTO pMotivoAusencia (empresa, codigo, descripcion, activo' . ($remunerado ? ', remunerado) VALUES (?, ?, ?, ?, ?)' : ') VALUES (?, ?, ?, ?)'),
+            array_merge([$empresa, $codigo, $data['descripcion'], $data['activo']], $remunerado ? [$data['remunerado']] : [])
         );
 
         $this->insertarAuditoria('INSERT', array_merge(['empresa' => $empresa, 'codigo' => $codigo], $data), $usu_id);
@@ -84,9 +102,11 @@ class MotivosAusenciaModel extends Model
     {
         $codigo = trim($codigo);
 
+        $remunerado = $this->remuneradoDisponible() && isset($data['remunerado']);
+
         $this->db->query(
-            'UPDATE pMotivoAusencia SET descripcion = ?, activo = ? WHERE empresa = ? AND codigo = ?',
-            [$data['descripcion'], $data['activo'], $empresa, $codigo]
+            'UPDATE pMotivoAusencia SET descripcion = ?, activo = ?' . ($remunerado ? ', remunerado = ?' : '') . ' WHERE empresa = ? AND codigo = ?',
+            array_merge([$data['descripcion'], $data['activo']], $remunerado ? [$data['remunerado']] : [], [$empresa, $codigo])
         );
 
         $this->insertarAuditoria('UPDATE', array_merge(['empresa' => $empresa, 'codigo' => $codigo], $data), $usu_id);

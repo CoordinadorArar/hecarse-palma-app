@@ -5,6 +5,7 @@ namespace App\Controllers\gestionpalma;
 use CodeIgniter\HTTP\RedirectResponse;
 use CodeIgniter\HTTP\ResponseInterface;
 
+use App\Models\DominicalesModel;
 use App\Models\FuncionariosModel;
 use App\Models\PeriodosNominaModel;
 use App\Models\TercerosModel;
@@ -39,6 +40,10 @@ class NominaController extends GestionPalmaController
 
     private $tercerosModel;
 
+    private $dominicalesModel;
+
+    private const SIN_DOMINICALES = 'Falta ejecutar el script dominicales_automaticos.sql';
+
     /** Mapa empresa => [codigo => descripcion] del catálogo de tipos de nómina. */
     private $tiposNomina = [];
 
@@ -49,6 +54,7 @@ class NominaController extends GestionPalmaController
         $this->periodosModel     = new PeriodosNominaModel();
         $this->funcionariosModel = new FuncionariosModel();
         $this->tercerosModel     = new TercerosModel();
+        $this->dominicalesModel  = new DominicalesModel();
     }
 
     /**
@@ -122,6 +128,79 @@ class NominaController extends GestionPalmaController
         $data['total_empleados']      = count($filas);
 
         return view('gestionpalma/nomina_empleados', $data);
+    }
+
+    public function dominicales($id_loseta): string|RedirectResponse
+    {
+        helper('ConstruirDataVista');
+
+        $data = construirVista($this->session->get('usu_id'), $id_loseta);
+
+        if ($data instanceof RedirectResponse) {
+            return $data;
+        }
+
+        $empresas   = $this->periodosModel->getEmpresas();
+        $disponible = $this->dominicalesModel->disponible();
+        $hoy        = new \DateTime('today');
+
+        $data['title']                  = 'Gestión Palma · Dominicales';
+        $data['empresas']               = $empresas;
+        $data['empresa_sel']            = $this->empresaSeleccionada($empresas);
+        $data['domingo_sel']            = $hoy->modify('-' . $hoy->format('w') . ' days')->format('Y-m-d');
+        $data['dominicales_disponible'] = $disponible;
+        $data['mensaje_disponible']     = $disponible ? '' : self::SIN_DOMINICALES;
+        $data['puede_generar']          = $this->puedeGenerarDominicales();
+
+        return view('gestionpalma/nomina_dominicales', $data);
+    }
+
+    public function calcularDominicales(): ResponseInterface
+    {
+        $datos = $this->solicitudDominicales();
+
+        if ($datos instanceof ResponseInterface) {
+            return $datos;
+        }
+
+        try {
+            $calculo = $this->dominicalesModel->calcular(...$datos);
+        } catch (\Throwable $e) {
+            log_message('error', 'Error calculando los dominicales: ' . $e->getMessage());
+
+            return $this->error('No se pudieron calcular los dominicales.')->setStatusCode(500);
+        }
+
+        return $this->response->setJSON(['success' => true, 'message' => ''] + $calculo);
+    }
+
+    public function generarDominicales(): ResponseInterface
+    {
+        $datos = $this->solicitudDominicales();
+
+        if ($datos instanceof ResponseInterface) {
+            return $datos;
+        }
+
+        if (! $this->puedeGenerarDominicales()) {
+            return $this->error('No tiene permiso para generar dominicales: se requiere el permiso de registrar transacciones de labores (TLA).')->setStatusCode(403);
+        }
+
+        $usuario = trim((string) $this->session->get('usu_login'));
+
+        try {
+            $resultado = $this->dominicalesModel->generar($datos[0], $datos[1], $usuario === '' ? 'WEB' : substr($usuario, 0, 50), $this->session->get('usu_id'));
+        } catch (\Throwable $e) {
+            log_message('error', 'Error generando los dominicales: ' . $e->getMessage());
+
+            return $this->error('No se pudieron generar los dominicales.')->setStatusCode(500);
+        }
+
+        if (! $resultado['success']) {
+            return $this->error($resultado['message']);
+        }
+
+        return $this->response->setJSON($resultado);
     }
 
     // ── Endpoints JSON ────────────────────────────────────────────────────────
@@ -563,6 +642,39 @@ class NominaController extends GestionPalmaController
     }
 
     // ── Utilidades internas ───────────────────────────────────────────────────
+
+    private function puedeGenerarDominicales(): bool
+    {
+        $modulo = $this->dominicalesModel->idModulo();
+
+        return $modulo > 0 && in_array('registrar-labores', $this->dominicalesModel->accionesPermitidas((int) $this->session->get('usu_id'), $modulo), true);
+    }
+
+    private function solicitudDominicales(): array|ResponseInterface
+    {
+        if ($sinSesion = $this->sesionRequerida()) {
+            return $sinSesion;
+        }
+
+        if (! $this->dominicalesModel->disponible()) {
+            return $this->error(self::SIN_DOMINICALES . '.');
+        }
+
+        $empresa = $this->empresaValida();
+
+        if ($empresa === null) {
+            return $this->error('Debe seleccionar una empresa válida.');
+        }
+
+        $valor = trim((string) $this->request->getPost('domingo'));
+        $fecha = \DateTime::createFromFormat('!Y-m-d', $valor);
+
+        if ($fecha === false || $fecha->format('Y-m-d') !== $valor || $fecha->format('w') !== '0') {
+            return $this->error('Debe seleccionar un domingo válido (AAAA-MM-DD).');
+        }
+
+        return [$empresa, $valor];
+    }
 
     /**
      * Corta la petición con 401 cuando no hay sesión activa.

@@ -215,6 +215,9 @@ $routes->post('gestion-palma/nomina/empleados/crear', 'gestionpalma\NominaContro
 $routes->post('gestion-palma/nomina/empleados/actualizar', 'gestionpalma\NominaController::actualizarEmpleado');
 $routes->post('gestion-palma/nomina/empleados/eliminar', 'gestionpalma\NominaController::eliminarEmpleado');
 $routes->post('gestion-palma/nomina/empleados/buscar-tercero', 'gestionpalma\NominaController::buscarTercero');
+$routes->get('gestion-palma/nomina/dominicales/(:num)', 'gestionpalma\NominaController::dominicales/$1');
+$routes->post('gestion-palma/nomina/dominicales/calcular', 'gestionpalma\NominaController::calcularDominicales');
+$routes->post('gestion-palma/nomina/dominicales/generar', 'gestionpalma\NominaController::generarDominicales');
 $routes->get('gestion-palma/parametros/variedad/(:num)', 'gestionpalma\ParametrosAgronomicosController::variedad/$1');
 $routes->post('gestion-palma/parametros/variedad/listar', 'gestionpalma\ParametrosAgronomicosController::listarVariedades');
 $routes->post('gestion-palma/parametros/variedad/obtener', 'gestionpalma\ParametrosAgronomicosController::obtenerVariedad');
@@ -413,6 +416,7 @@ $routes->get('informes/contabilizar/(:num)', 'informes\InformeController::contab
 $routes->post('informes/temporales', 'informes\InformeController::temporales');
 $routes->post('informes/empleadosSinTemporal', 'informes\InformeController::empleadosSinTemporal');
 $routes->post('informes/consultar-reporte', 'informes\InformeController::consultarReporte');
+$routes->post('informes/calcular-liquidacion', 'informes\InformeController::calcularLiquidacion');
 // $routes->get('informes/procesar-reporte', 'informes\InformeController::procesarReporte');
 $routes->post('informes/exportar-excel', 'informes\InformeController::exportarExcel');
 $routes->post('informes/verificar-procesado', 'informes\InformeController::verificarProcesado');
