@@ -159,11 +159,21 @@ const revelar = (idSwitch, idsColumnas) => {
     });
 };
 
-const aplicarManejaRango = () => revelar('labor_maneja_rango', ['labor_col_anio_desde', 'labor_col_anio_hasta']);
+const aplicarMinAnioHasta = () => { $id('labor_anio_hasta').min = $id('labor_anio_desde').value || 0; };
+const aplicarManejaRango = () => {
+    revelar('labor_maneja_rango', ['labor_col_anio_desde', 'labor_col_anio_hasta']);
+    const activo = $id('labor_maneja_rango').checked;
+    ['labor_anio_desde', 'labor_anio_hasta'].forEach((id) => {
+        $id(id).required = activo;
+        $id(id).disabled = !activo;
+    });
+    aplicarMinAnioHasta();
+};
 const aplicarManejaCanal = () => revelar('labor_maneja_canal', ['labor_col_tipo_canal']);
 const aplicarImpuesto = () => revelar('labor_impuesto', ['labor_col_grupo_ir']);
 
 $id('labor_maneja_rango').addEventListener('change', aplicarManejaRango);
+$id('labor_anio_desde').addEventListener('input', aplicarMinAnioHasta);
 $id('labor_maneja_canal').addEventListener('change', aplicarManejaCanal);
 $id('labor_impuesto').addEventListener('change', aplicarImpuesto);
 
@@ -384,6 +394,7 @@ $id('formulario_labor').addEventListener('submit', async (e) => {
         const campo = form.querySelector('input:invalid, select:invalid, textarea:invalid');
         if (campo && campo.closest('#labor_heredados')) mostrarHeredados(true);
         if (campo && $(campo).hasClass('select2-hidden-accessible')) $(campo).select2('open');
+        else if (campo && campo.offsetParent === null && !campo.closest('#labor_heredados')) Toast.fire({ icon: 'warning', title: 'Revise los campos del formulario.' });
         else if (campo) campo.focus();
         return;
     }

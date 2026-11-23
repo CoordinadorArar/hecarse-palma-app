@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
     const $q = (selector) => document.querySelector(selector);
+    const EXCEL = 'Descarga en Excel lo que está listado, de todas las páginas y respetando lo que haya escrito en Buscar. El archivo anota en el encabezado los filtros y la búsqueda usados, y no incluye la columna de acciones.';
 
     window.Tutoriales?.registrar('gp-unidades-negocio', {
         titulo: 'Unidades de negocio',
@@ -21,6 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 { id: 'contador', element: '#contador_unidades', side: 'bottom', title: 'Registros', text: 'Indica cuántas unidades de negocio hay con los filtros elegidos.' },
                 { id: 'sin_registros', element: '#gp_estado_vacio', side: 'top', title: primerUso ? 'Aún no hay unidades de negocio' : 'Sin registros', text: primerUso ? 'Una unidad de negocio agrupa los lotes según su actividad, como Palma o Búfalos. Pulse Nueva unidad de negocio para crear la primera.' : 'Ninguna unidad de negocio coincide con los filtros de finca o estado. Ajústelos o pulse Nueva unidad de negocio para registrar una.' },
                 { id: 'buscar', element: '#tabla_unidades_wrapper .gp-dt-barra', side: 'bottom', title: 'Buscar y ordenar', text: 'Todos los registros aparecen en una sola lista. Escriba en Buscar para filtrarla por cualquier dato visible; a la izquierda verá cuántos se muestran. Pulse el título de una columna para ordenarla.' },
+                { id: 'excel', element: '#tabla_unidades_wrapper .gp-dt-excel', side: 'bottom', title: 'Exportar a Excel', text: EXCEL + ($q('#tabla_unidades_wrapper .gp-dt-excel .btn')?.matches(':disabled, .disabled') ? ' Se habilita cuando la lista tiene registros.' : '') },
                 { id: 'sin_coincidencias', element: '#cuerpo_tabla_unidades td.dataTables_empty', side: 'top', title: 'Sin coincidencias', text: 'Ningún registro coincide con lo que escribió en Buscar. Borre o cambie el texto para ver la lista completa.' },
                 { id: 'fila', element: () => (md ? fila : fila?.querySelector('td')), side: 'bottom', title: 'Registros', text: 'Cada fila muestra el código, la descripción, las fincas donde se maneja la unidad, cuántos lotes la usan y el estado.' + (md ? '' : ' Deslice la tabla hacia los lados para ver todas las columnas.'), cuando: () => hayFila },
                 { id: 'fincas', element: '#cuerpo_tabla_unidades .gp-chip-fila', side: 'bottom', title: 'Fincas', text: 'Cada etiqueta es una finca donde se maneja la unidad de negocio; si son muchas, la etiqueta +N agrupa las restantes' + (fino ? ' y al pasar el cursor muestra sus nombres.' : '.') + ' Para agregar o quitar fincas, edite el registro. Una finca no se puede quitar mientras alguno de sus lotes use la unidad: en el formulario aparece con candado.', cuando: () => hayFila },

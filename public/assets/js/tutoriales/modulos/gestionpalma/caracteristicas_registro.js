@@ -2,6 +2,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const $q = (selector) => document.querySelector(selector);
     const $id = (id) => document.getElementById(id);
     const DESLIZAR = ' Deslice la tabla hacia los lados para ver todas las columnas; las acciones quedan fijas a la derecha.';
+    const EXCEL = 'Descarga en Excel lo que está listado, de todas las páginas y respetando lo que haya escrito en Buscar. El archivo anota en el encabezado los filtros y la búsqueda usados, y no incluye la columna de acciones.';
 
     window.Tutoriales?.registrar('gp-caracteristicas-registro', {
         titulo: 'Características / Registro',
@@ -24,6 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 { id: 'resultados', element: () => $id('contador_caracteristicas')?.parentElement, side: 'bottom', title: 'Resultados', text: 'Indica cuántas características cumplen los filtros. Una misma característica puede repetirse en varios grupos: censarla y tratarla son registros distintos.' },
                 { id: 'sin_resultados', element: '#gp_estado_vacio', side: 'top', title: 'Sin características', text: 'No hay características con los filtros elegidos. Ajuste el grupo, el estado o la búsqueda, o pulse Nueva característica.' },
                 { id: 'buscar_resultados', element: '#tabla_caracteristicas_wrapper > .gp-dt-barra', side: 'bottom', title: 'Buscar en resultados', text: 'Filtra al instante lo que ya está listado, sin volver a consultar. Pulse el título de una columna para ordenar.' },
+                { id: 'excel', element: '#tabla_caracteristicas_wrapper .gp-dt-excel', side: 'bottom', title: 'Exportar a Excel', text: EXCEL + ($q('#tabla_caracteristicas_wrapper .gp-dt-excel .btn')?.matches(':disabled, .disabled') ? ' Se habilita cuando la lista tiene registros.' : '') },
                 { id: 'fila', element: '#tabla_caracteristicas tbody tr', side: 'bottom', title: 'Datos de la característica', text: 'Cada fila muestra el código, la descripción, el grupo (o Sin grupo), si está En uso en censos o tratamientos y su estado.' + (desborda ? DESLIZAR : ''), cuando: hayFilas },
                 { id: 'variante', element: '#cuerpo_tabla_caracteristicas .gp-marca-variante', side: 'bottom', title: 'Repetida en otros grupos', text: 'Este ícono indica que la misma descripción también está registrada en otros grupos.' + (fino ? ' Pase el cursor sobre él para ver cuáles.' : '') },
                 { id: 'acciones', element: '#cuerpo_tabla_caracteristicas tr .btn-group', side: md ? 'left' : 'bottom', title: 'Acciones', text: 'Use el lápiz para editarla (la empresa y el código no se pueden cambiar), el interruptor para activarla o inactivarla y la papelera para eliminarla. Activar, inactivar y eliminar piden confirmación.' + (bloqueada ? ' La papelera atenuada indica que la característica está En uso y no se puede eliminar; en ese caso inactívela.' : ''), cuando: hayFilas },

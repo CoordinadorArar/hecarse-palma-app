@@ -41,7 +41,7 @@
                     <div class="col-md-5 col-lg-4">
                         <label class="form-label mb-1 small fw-semibold text-muted" for="filtro_empresa">Empresa</label>
                         <div class="input-group">
-                            <span class="input-group-text"><i class="bi bi-building" aria-hidden="true"></i></span>
+                            <span class="input-group-text bg-light"><i class="bi bi-building" aria-hidden="true"></i></span>
                             <select class="form-select" id="filtro_empresa">
                                 <?php foreach ($empresas as $empresa): ?>
                                     <option value="<?= esc($empresa['id'], 'attr') ?>" <?= (int) $empresa['id'] === (int) $empresa_sel ? 'selected' : '' ?>><?= esc($empresa['razonSocial']) ?></option>
@@ -83,6 +83,7 @@
                             <tr>
                                 <th class="text-center" style="width:110px">Código</th>
                                 <th>Descripción</th>
+                                <th class="text-center" style="width:130px" title="Las ausencias remuneradas no quitan el derecho al dominical">Remunerada</th>
                                 <th class="text-center" style="width:110px" title="Ausencias que usan el motivo">Uso</th>
                                 <th class="text-center" style="width:110px">Estado</th>
                                 <th class="text-center gp-col-sticky" style="width:130px">Acciones</th>
@@ -167,10 +168,21 @@
                             </div>
 
                             <div class="col-12">
-                                <div class="form-check form-switch">
-                                    <input class="form-check-input" type="checkbox" id="mo_activo" checked>
-                                    <label class="form-check-label" for="mo_activo">Activo</label>
+                                <div class="d-flex flex-wrap gap-4">
+                                    <div class="form-check form-switch mb-0">
+                                        <input class="form-check-input" type="checkbox" id="mo_activo" checked>
+                                        <label class="form-check-label" for="mo_activo">Activo</label>
+                                    </div>
+                                    <?php if (! empty($remunerado_disponible)): ?>
+                                    <div class="form-check form-switch mb-0">
+                                        <input class="form-check-input" type="checkbox" id="mo_remunerado" aria-describedby="mo_remunerado_ayuda">
+                                        <label class="form-check-label" for="mo_remunerado">Remunerada</label>
+                                    </div>
+                                    <?php endif; ?>
                                 </div>
+                                <?php if (! empty($remunerado_disponible)): ?>
+                                <div class="form-text" id="mo_remunerado_ayuda">Las ausencias remuneradas no quitan el derecho al dominical.</div>
+                                <?php endif; ?>
                             </div>
 
                         </div>

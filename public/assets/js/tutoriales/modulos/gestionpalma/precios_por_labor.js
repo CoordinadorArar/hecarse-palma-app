@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
     const $q = (s) => document.querySelector(s);
+    const EXCEL = 'Descarga en Excel lo que está listado, de todas las páginas y respetando lo que haya escrito en Buscar. El archivo anota en el encabezado los filtros y la búsqueda usados, y no incluye la columna de acciones.';
     const $id = (id) => document.getElementById(id);
 
     window.Tutoriales?.registrar('gp-precios-por-labor', {
@@ -20,6 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 { id: 'contador', element: '#contador_anios', side: 'bottom', title: 'Años registrados', text: 'Indica cuántos años de precios tiene la empresa.', cuando: () => !editor },
                 { id: 'sin_anios', element: '#gp_estado_vacio', side: 'top', title: 'Sin años', text: 'No hay años de precios para esta empresa o ninguno coincide con la búsqueda. Pulse Nuevo año para crear el primero.', cuando: () => !editor },
                 { id: 'buscar_tabla', element: '#tabla_anios_wrapper .gp-dt-barra', side: 'bottom', title: 'Buscar en resultados', text: 'Muestra el total de años y filtra al instante lo listado, sin volver a consultar.', cuando: () => !editor },
+                { id: 'excel', element: '#tabla_anios_wrapper .gp-dt-excel', side: 'bottom', title: 'Exportar a Excel', text: EXCEL + ($q('#tabla_anios_wrapper .gp-dt-excel .btn')?.matches(':disabled, .disabled') ? ' Se habilita cuando la lista tiene registros.' : ''), cuando: () => !editor },
                 { id: 'fila', element: '#cuerpo_tabla_anios tr', side: 'bottom', title: 'Años', text: 'Cada fila muestra el año, cuántas labores tiene, cuántas con precio, la última actualización y el usuario que la hizo. Sin precios indica que ninguna labor tiene valor.', cuando: () => !editor && conAnios },
                 { id: 'acciones', element: '#cuerpo_tabla_anios tr .btn-group', side: md ? 'left' : 'top', title: 'Editar, duplicar o eliminar', text: 'Use el lápiz para abrir el editor de precios del año, el botón de copiar para duplicarlo en un año nuevo y la papelera para eliminar el año con todos sus precios.', cuando: () => !editor && conAnios },
                 { id: 'volver', element: '#btn_volver', side: 'bottom', title: 'Volver', text: 'Regresa a la lista de años. Si tiene cambios sin guardar, se le pedirá confirmar antes de salir.', cuando: () => editor },

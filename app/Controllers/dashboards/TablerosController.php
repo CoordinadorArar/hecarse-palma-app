@@ -23,7 +23,7 @@ class TablerosController extends BaseController
         'bascula'       => ['ruta' => 'dashboards/bascula', 'titulo' => 'Informe báscula', 'vista' => 'dashboards/tablero_bascula'],
     ];
 
-    private const MAX_PERDIDA_PCT = 0.02;
+    private const MAX_PERDIDA_KG = 100;
 
     private const BASCULA_CERO = ['viajes' => 0, 'kgBascula' => 0.0, 'kgCruzado' => 0.0, 'kgExtractora' => 0.0, 'cruzados' => 0, 'sin_tlc' => 0, 'fuera_regla' => 0, 'cumple' => 0, 'incompleto' => 0, 'kgSinTlc' => 0.0, 'kgFaltante' => 0.0, 'kgSobrante' => 0.0, 'faltante' => 0, 'sobrante' => 0];
 
@@ -1000,7 +1000,7 @@ class TablerosController extends BaseController
             $hoja = $this->hojaBascula($libro, 'Viajes del periodo', $info, [
                 'Fecha' => null, 'Hora entrada' => null, 'Placa' => null, 'Fincas' => null, 'Conductor' => null, 'Cédula' => null, 'Extractora' => null,
                 '1.ª pesada' => '#,##0', '2.ª pesada' => '#,##0', 'Kg báscula' => '#,##0.00', 'TLC(s)' => null, 'Tiquete' => null, 'Kg extractora' => '#,##0.00',
-                'Dif. kg' => '#,##0.00', '% pérdida' => '0.00%', 'Estado' => null, 'Prorrateado' => null,
+                'Dif. kg' => '#,##0.00', '% pérdida (ref.)' => '0.00%', 'Estado' => null, 'Prorrateado' => null,
             ], $filas);
 
             $encabezado = 3 + count($info);
@@ -1285,7 +1285,7 @@ class TablerosController extends BaseController
             $t          = isset($asignar[$n]) ? $cargas[$asignar[$n]] : null;
             $kgExt      = $t === null ? null : $t['kg'];
             $pct        = $t === null ? null : round(($kg - $kgExt) / $kg * 100, 4);
-            $estado     = ! $completo ? 'incompleto' : ($t === null ? 'sin_tlc' : ($pct > self::MAX_PERDIDA_PCT ? 'fuera_regla' : 'cumple'));
+            $estado     = ! $completo ? 'incompleto' : ($t === null ? 'sin_tlc' : (round($kg - $kgExt, 2) > self::MAX_PERDIDA_KG ? 'fuera_regla' : 'cumple'));
             $items      = $t === null ? [] : array_filter($t['items'], static fn ($i) => $i['finca'] !== '');
             $origen     = $this->fincasOrigen($p['origen'], $porLargo);
             $co         = $porCo[$p['coFinca'] ?? ''] ?? [];
@@ -1393,7 +1393,7 @@ class TablerosController extends BaseController
             'message' => '',
             'filtros' => ['empresa' => $empresa, 'desde' => $desde, 'hasta' => $hasta, 'dias' => (new \DateTime($desde))->diff(new \DateTime($hasta))->days + 1, 'fincas' => $sel, 'ultimoPesaje' => $ultimo],
             'fincasDisponibles' => $fincasDisp,
-            'regla'   => ['maxPerdidaPct' => self::MAX_PERDIDA_PCT],
+            'regla'   => ['maxPerdidaKg' => self::MAX_PERDIDA_KG],
             'kpis'    => [
                 'viajes'         => $total['viajes'],
                 'kgBascula'      => $kpis['kgBascula'],
@@ -1413,7 +1413,7 @@ class TablerosController extends BaseController
                 'viajesFaltante' => $total['faltante'],
                 'tlcSinPesaje'   => count($sinPesaje),
                 'kgTlcSinPesaje' => round(array_sum(array_column($sinPesaje, 'kgExtractora')), 2),
-                'cumpleMes'      => $kpis['pctNoLlegados'] === null ? null : $kpis['pctNoLlegados'] <= self::MAX_PERDIDA_PCT,
+                'cumpleMes'      => $total['cumple'] + $total['fuera_regla'] === 0 ? null : $total['fuera_regla'] === 0,
             ],
             'dias' => array_map(fn (string $fecha, array $d) => ['fecha' => $fecha, 'viajes' => $d['viajes'], 'kgBasculaTotal' => round($d['kgBascula'], 2)] + $this->resumenBascula($d, true) + $this->noLlegadosBascula($d), array_keys($dias), $dias),
             'viajes'       => $viajes,

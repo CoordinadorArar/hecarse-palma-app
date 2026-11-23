@@ -80,7 +80,7 @@ const nombrePropio = (valor) => texto(valor).toLocaleLowerCase('es').replace(/(^
 const fincasViaje = (fila) => (Array.isArray(fila.fincas) ? fila.fincas : []).map(String);
 const nombresFincas = (codigos) => codigos.map((codigo) => `${codigo} ${estado.fincas[codigo] || ''}`.trim()).join(' · ');
 
-const estado = { turno: 0, respuesta: null, graficas: {}, tablas: [], pendientes: {}, tab: 'panel_viajes', filtro: null, regla: 0.02, tablaViajes: null, fincas: {}, firmaFincas: '', esperaFincas: null, colapsadas: [], empresa: '', ocupado: false, exportando: false };
+const estado = { turno: 0, respuesta: null, graficas: {}, tablas: [], pendientes: {}, tab: 'panel_viajes', filtro: null, regla: 100, tablaViajes: null, fincas: {}, firmaFincas: '', esperaFincas: null, colapsadas: [], empresa: '', ocupado: false, exportando: false };
 
 const leerColapsadas = () => {
     try {
@@ -182,16 +182,9 @@ const badgeEstado = (clave) => {
     return e ? `<span class="ig-chip ${e.clase}"><i class="bi ${e.icono} me-1" aria-hidden="true"></i>${e.corto}</span>` : NULO;
 };
 
-const celdaDif = (valor) => (nulo(valor) ? NULO : `<span${Number(valor) < 0 ? ' class="text-muted"' : ''}>${f('kgSigno', valor)}</span>`);
-const celdaPct = (valor) => {
-    if (nulo(valor)) return NULO;
-
-    const numero = Number(valor);
-    const clase = numero > estado.regla ? 'ig-texto-rojo fw-semibold' : (numero < 0 ? 'text-muted' : '');
-
-    return `<span${clase ? ` class="${clase}"` : ''}>${f('pct', numero, ' %')}</span>`;
-};
-const chipPct = (valor) => (nulo(valor) ? NULO : `<span class="ig-chip ig-chip-pct ${Number(valor) > estado.regla ? 'rojo' : 'verde'}">${f('pct', valor, ' %')}</span>`);
+const celdaDif = (valor, fila) => (nulo(valor) ? NULO : `<span${fila?.estado === 'fuera_regla' ? ' class="ig-texto-rojo fw-semibold"' : (Number(valor) < 0 ? ' class="text-muted"' : '')}>${f('kgSigno', valor)}</span>`);
+const celdaPct = (valor) => (nulo(valor) ? NULO : `<span class="text-muted">${f('pct', valor, ' %')}</span>`);
+const chipPct = (valor) => (nulo(valor) ? NULO : `<span class="text-muted">${f('pct', valor, ' %')}</span>`);
 const celdaKgCero = (valor) => (Number(valor) ? f('kg', valor) : `<span class="text-muted">${f('kg', 0)}</span>`);
 const placa = (valor) => (texto(valor) ? `<span class="badge gp-badge-doc font-monospace">${escaparHtml(valor)}</span>` : NULO);
 
@@ -199,14 +192,12 @@ const conteos = (k) => ({ cumple: Number(k.cumplen) || 0, fuera_regla: Number(k.
 
 const kpiRegla = (k, n) => {
     const regla = estado.regla;
-    const pct = k.pctNoLlegados;
-    const sin = nulo(pct) || !(Number(k.kgBascula) > 0);
-    const fuera = !sin && Number(pct) > regla;
-    const cumple = typeof k.cumpleMes === 'boolean' ? k.cumpleMes : !fuera;
     const cruzados = Number(k.cruzados) || 0;
-    const veces = fuera && regla > 0 ? Number(pct) / regla : 0;
+    const sinPesajes = !(Number(k.kgBascula) > 0);
+    const sin = sinPesajes || cruzados === 0;
+    const cumple = typeof k.cumpleMes === 'boolean' ? k.cumpleMes : n.fuera_regla === 0;
     const chip = sin
-        ? '<span class="ig-chip ig-e-sin-dato">Sin pesajes</span>'
+        ? `<span class="ig-chip ig-e-sin-dato">${sinPesajes ? 'Sin pesajes' : 'Sin cruce TLC'}</span>`
         : (cumple ? '<span class="ig-chip verde"><i class="bi bi-check-circle me-1" aria-hidden="true"></i>Cumple</span>' : '<span class="ig-chip rojo"><i class="bi bi-x-octagon me-1" aria-hidden="true"></i>No cumple</span>');
     const claves = Object.keys(ESTADOS);
     const segmentos = claves.filter((clave) => n[clave] > 0).map((clave) => `<span class="${ESTADOS[clave].clase}" style="flex:${n[clave]} 1 0" title="${ESTADOS[clave].nombre}: ${f('entero', n[clave])}"></span>`).join('');
@@ -215,9 +206,9 @@ const kpiRegla = (k, n) => {
 
     return `<div class="col-12 col-xl-4">
         <div class="inf-kpi ba-regla${sin ? '' : (cumple ? ' ig-kpi-ok' : ' ig-kpi-critico')}">
-            <div class="d-flex align-items-center justify-content-between gap-2"><span class="gp-etiqueta-mini">Regla de kg no llegados · máx. ${f('pct', regla, ' %')}</span>${chip}</div>
-            <div class="d-flex flex-wrap align-items-baseline gap-2"><span class="ba-regla-valor${fuera ? ' ig-texto-rojo' : ''}">${sin ? '—' : f('pct', pct, ' %')}</span>${veces > 1 ? `<span class="tb-variacion text-muted">≈ ${f('entero', Math.round(veces))} veces el máximo</span>` : ''}</div>
-            <span class="gp-subtexto">${cruzados ? `${f('entero', n.fuera_regla)} de ${f('entero', cruzados)} viajes cruzados fuera de regla (${f('pctEje', (n.fuera_regla / cruzados) * 100, ' %')})` : 'Sin viajes cruzados con TLC en el periodo'}</span>
+            <div class="d-flex align-items-center justify-content-between gap-2"><span class="gp-etiqueta-mini" title="${escaparHtml(`Un viaje queda fuera de regla si los kg de báscula superan a los de extractora en más de ${f('kg', regla, ' kg')}. Los kg de más en extractora no compensan.`)}">Regla de kg no llegados · máx. ${f('kg', regla, ' kg')} por viaje</span>${chip}</div>
+            <div class="d-flex flex-wrap align-items-baseline gap-2"><span class="ba-regla-valor${!sin && n.fuera_regla > 0 ? ' ig-texto-rojo' : ''}">${sin ? '—' : f('entero', n.fuera_regla)}</span>${sin ? '' : `<span class="tb-variacion text-muted">de ${f('entero', cruzados)} ${cruzados === 1 ? 'viaje cruzado' : 'viajes cruzados'} fuera de regla</span>`}</div>
+            <span class="gp-subtexto">${cruzados ? `% no llegados del periodo: ${f('pct', k.pctNoLlegados, ' %')} · referencia` : 'Sin viajes cruzados con TLC en el periodo'}</span>
             <div class="ba-distribucion" role="img" aria-label="${escaparHtml(`Distribución de viajes. ${resumen}`)}">${segmentos}</div>
             <div class="ig-leyenda">${leyenda}</div>
         </div>
@@ -340,11 +331,10 @@ const opcionesDias = (dias, ejes) => {
         return { kgBascula, kgExtractora: suma(filas, 'kgExtractora'), pct, noLlegados };
     });
     const valores = (campo) => puntos.map((punto) => (punto ? punto[campo] : null));
-    const regla = estado.regla;
     const pcts = valores('pct');
     const conDato = pcts.filter((valor) => valor !== null);
     const minimo = Math.min(0, ...conDato);
-    const maximo = Math.max(regla, ...conDato);
+    const maximo = Math.max(0.01, ...conDato);
     const crudo = (maximo - minimo) / 5;
     const magnitud = 10 ** Math.floor(Math.log10(crudo));
     const paso = Math.max(0.01, [1, 2, 5, 10].map((factor) => factor * magnitud).find((valor) => valor >= crudo));
@@ -357,17 +347,16 @@ const opcionesDias = (dias, ejes) => {
         series: [
             { name: 'Kg báscula', type: 'column', data: valores('kgBascula') },
             { name: 'Kg extractora', type: 'column', data: valores('kgExtractora') },
-            { name: '% no llegados', type: 'line', data: pcts }
+            { name: '% no llegados (ref.)', type: 'line', data: pcts }
         ],
         colors: ['#2f7a4b', '#4a5b6c', '#f0a500'],
-        stroke: { width: [0, 0, 3], curve: 'straight' },
-        markers: { size: [0, 0, 4], strokeColors: '#fff', strokeWidth: 2 },
+        stroke: { width: [0, 0, 2], curve: 'straight' },
+        markers: { size: [0, 0, 3], strokeColors: '#fff', strokeWidth: 2 },
         xaxis: ejeX(base, ejes),
         yaxis: [
             { ...base.yaxis, seriesName: ['Kg báscula', 'Kg extractora'] },
-            { seriesName: '% no llegados', opposite: true, ...ejePct, tickAmount: Math.max(1, Math.round((ejePct.max - ejePct.min) / paso)), labels: { style: { colors: '#5c6b7a' }, formatter: (valor) => f('pctEje', valor, ' %') } }
+            { seriesName: '% no llegados (ref.)', opposite: true, ...ejePct, tickAmount: Math.max(1, Math.round((ejePct.max - ejePct.min) / paso)), labels: { style: { colors: '#5c6b7a' }, formatter: (valor) => f('pctEje', valor, ' %') } }
         ],
-        annotations: { yaxis: [{ y: regla, yAxisIndex: 1, borderColor: '#dc3545', strokeDashArray: 4, label: { text: `Regla ${f('pct', regla, ' %')}`, position: 'left', textAnchor: 'start', offsetY: -6, borderWidth: 0, style: { color: '#dc3545', background: 'transparent', fontSize: '11px', fontWeight: 700 } } }] },
         tooltip: {
             shared: true,
             intersect: false,
@@ -426,7 +415,7 @@ const opcionesConductores = (lista) => {
             custom: ({ dataPointIndex }) => {
                 const conductor = lista[dataPointIndex] || {};
 
-                return `<div class="inf-tooltip"><div class="fw-semibold mb-1">${escaparHtml(nombreConductor(conductor))}</div>${fila('Kg báscula', f('kg', conductor.kgBascula, ' kg'))}${fila('Kg extractora', f('kg', conductor.kgExtractora, ' kg'))}${fila('Kg no llegados', f('kg', conductor.kgNoLlegados, ' kg'))}${fila('Kg de más', f('kg', conductor.kgSobrante || 0, ' kg'))}${fila('% no llegados', f('pct', conductor.pctNoLlegados, ' %'))}</div>`;
+                return `<div class="inf-tooltip"><div class="fw-semibold mb-1">${escaparHtml(nombreConductor(conductor))}</div>${fila('Kg báscula', f('kg', conductor.kgBascula, ' kg'))}${fila('Kg extractora', f('kg', conductor.kgExtractora, ' kg'))}${fila('Kg no llegados', f('kg', conductor.kgNoLlegados, ' kg'))}${fila('Kg de más', f('kg', conductor.kgSobrante || 0, ' kg'))}${fila('% no llegados (ref.)', f('pct', conductor.pctNoLlegados, ' %'))}</div>`;
             }
         }
     };
@@ -662,7 +651,7 @@ const crearTablaViajes = (viajes) => {
                 `Total<span class="gp-subtexto fw-normal">${f('entero', filas.length)} viajes${prorrateados ? ` · ${f('entero', prorrateados)} prorrateados` : ''}</span>`, '', '', '',
                 incompletos ? `<span class="gp-subtexto fw-normal">${f('entero', incompletos)} sin 2.ª pesada</span>` : '',
                 f('kg', completos), '',
-                f('kg', kgExtractora), `${celdaDif(dif)}<span class="gp-subtexto fw-normal">De más ${f('kg', Math.abs(sumar(filas, 'perdidaKg', (fila) => Number(fila.perdidaKg) < 0)))}</span>`,
+                f('kg', kgExtractora), `${f('kgSigno', dif)}<span class="gp-subtexto fw-normal">De más ${f('kg', Math.abs(sumar(filas, 'perdidaKg', (fila) => Number(fila.perdidaKg) < 0)))}</span>`,
                 `${completos > 0 ? celdaPct((noLlegados / completos) * 100) : NULO}<span class="gp-subtexto fw-normal">No llegados ${f('kg', noLlegados)}</span>`, ''
             ];
 
@@ -710,7 +699,7 @@ const crearTablaConductores = (conductores) => {
             { data: 'kgExtractora', ...numerica((valor) => f('kg', valor)) },
             { data: 'kgNoLlegados', ...numerica(celdaKgCero) },
             { data: 'kgSobrante', ...numerica(celdaKgCero) },
-            { data: 'pctNoLlegados', ...numerica(chipPct), className: 'text-center' },
+            { data: 'pctNoLlegados', ...numerica(chipPct), className: 'inf-num text-end' },
             { data: 'fueraRegla', ...numerica((valor, fila) => barraFuera(valor, fila.viajes)) }
         ],
         footerCallback: function () {
@@ -849,7 +838,7 @@ const pintar = () => {
     const conFincas = (r.filtros?.fincas || []).length > 0;
     const unidadKg = viajes.some((viaje) => viaje.parcial) ? 'kg · incluye prorrateo' : 'kg';
 
-    estado.regla = nulo(r.regla?.maxPerdidaPct) ? 0.02 : Number(r.regla.maxPerdidaPct);
+    estado.regla = nulo(r.regla?.maxPerdidaKg) ? 100 : Number(r.regla.maxPerdidaKg);
     destruir();
     actualizarFincas(r);
     pintarContexto(r);
@@ -887,8 +876,8 @@ const pintar = () => {
 
     const paneles = [
         separar([
-            seccion('dias', 'bi-bar-chart-line', `Báscula vs extractora ${por}`, 'kg · % no llegados', (r.dias || []).length ? lienzo('grafica_dias', `Kg báscula, kg extractora y porcentaje de kg no llegados ${por} ${periodo}. Kg no llegados del periodo ${f('pct', k.pctNoLlegados, ' %')}`) : vacioGrafica()),
-            seccion('viajes', 'bi-list-ul', 'Viajes del periodo', `${f('entero', viajes.length)} viajes · kg`, filtroEstados(n, viajes.length) + tablaHtml('tabla_viajes', [['Fecha'], ['Placa / finca'], ['Conductor'], ['Extractora'], ['Pesajes', 'text-end'], ['Kg báscula', 'text-end'], ['TLC / tiquete'], ['Kg extractora', 'text-end'], ['Dif. kg', 'text-end'], ['% pérdida', 'text-end'], ['Estado']])),
+            seccion('dias', 'bi-bar-chart-line', `Báscula vs extractora ${por}`, 'kg · % no llegados como referencia', (r.dias || []).length ? lienzo('grafica_dias', `Kg báscula, kg extractora y porcentaje de kg no llegados ${por} ${periodo}. Kg no llegados del periodo ${f('pct', k.pctNoLlegados, ' %')}`) : vacioGrafica()),
+            seccion('viajes', 'bi-list-ul', 'Viajes del periodo', `${f('entero', viajes.length)} viajes · kg`, filtroEstados(n, viajes.length) + tablaHtml('tabla_viajes', [['Fecha'], ['Placa / finca'], ['Conductor'], ['Extractora'], ['Pesajes', 'text-end'], ['Kg báscula', 'text-end'], ['TLC / tiquete'], ['Kg extractora', 'text-end'], ['Dif. kg', 'text-end'], ['% pérdida (ref.)', 'text-end'], ['Estado']])),
             sinPesaje.length ? seccion('sin_pesaje', 'bi-receipt', 'TLC sin pesaje en báscula', `${f('entero', sinPesaje.length)} tiquetes · ${f('kg', k.kgTlcSinPesaje, ' kg')}`, tablaSinPesaje(sinPesaje)) : ''
         ]),
         separar([
@@ -897,7 +886,7 @@ const pintar = () => {
         ]),
         separar([
             seccion('conductores_grafica', 'bi-person-badge', 'Kg báscula por conductor', `${f('entero', conductores.length)} conductores · ${unidadKg}`, conductores.length ? `<div class="inf-grafica-scroll">${lienzo('grafica_conductores', `Kg báscula por conductor ${periodo}`)}</div>` : vacioGrafica()),
-            seccion('conductores_tabla', 'bi-table', 'Detalle por conductor', unidadKg, tablaHtml('tabla_conductores', [['Conductor'], ['Viajes', 'text-end'], ['Kg báscula', 'text-end'], ['Kg extractora', 'text-end'], ['No llegados kg', 'text-end'], ['Kg de más', 'text-end'], ['% no llegados', 'text-center'], ['Fuera de regla', 'text-end']]))
+            seccion('conductores_tabla', 'bi-table', 'Detalle por conductor', unidadKg, tablaHtml('tabla_conductores', [['Conductor'], ['Viajes', 'text-end'], ['Kg báscula', 'text-end'], ['Kg extractora', 'text-end'], ['No llegados kg', 'text-end'], ['Kg de más', 'text-end'], ['% no llegados (ref.)', 'text-end'], ['Fuera de regla', 'text-end']]))
         ]),
         panelFacturado(r, periodo)
     ];

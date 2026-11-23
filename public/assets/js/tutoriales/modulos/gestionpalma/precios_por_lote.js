@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
     const $q = (s) => document.querySelector(s);
+    const EXCEL = 'Descarga en Excel lo que está listado, de todas las páginas y respetando lo que haya escrito en Buscar. El archivo anota en el encabezado los filtros y la búsqueda usados, y no incluye la columna de acciones.';
     const $id = (id) => document.getElementById(id);
     const desliza = (sel) => { const el = $q(sel); return Boolean(el) && el.scrollWidth > el.clientWidth; };
 
@@ -35,6 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 { id: 'sin_precios', element: '#gp_estado_vacio', side: 'top', title: 'Sin precios por ámbito', text: 'Mientras no exista ninguno, todas las labores se liquidan con Precios por labor. Pulse Registrar el primero para empezar.' },
                 { id: 'sin_filtro', element: '#gp_estado_filtro', side: 'top', title: 'Sin resultados', text: 'Ningún precio coincide con los filtros. Ajuste año, finca o búsqueda, o pulse Limpiar filtros.' },
                 { id: 'buscar_tabla', element: '#tabla_precios_wrapper .gp-dt-barra:not(.gp-dt-pie)', side: 'bottom', title: 'Buscar y mostrar', text: 'Buscar en resultados filtra al instante lo listado, sin volver a consultar. También puede elegir cuántos registros ver por página.' },
+                { id: 'excel', element: '#tabla_precios_wrapper .gp-dt-excel', side: 'bottom', title: 'Exportar a Excel', text: EXCEL + ($q('#tabla_precios_wrapper .gp-dt-excel .btn')?.matches(':disabled, .disabled') ? ' Se habilita cuando la lista tiene registros.' : '') },
                 { id: 'fila', element: '#cuerpo_tabla_precios tr', side: 'bottom', title: 'Precios registrados', text: 'Cada fila muestra año, labor, ámbito y valores. La barra de color a la izquierda y la etiqueta indican el nivel: gris para finca, azul para sección y verde para lote. Un destajo tachado no se usa porque Base sueldo está activo.' + (desliza('#tabla_precios_wrapper .table-responsive') ? ' Deslice la tabla hacia los lados para ver todas las columnas.' : ''), cuando: () => conFilas },
                 { id: 'acciones', element: '#cuerpo_tabla_precios tr .btn-group', side: md ? 'left' : 'top', title: 'Editar, duplicar o eliminar', text: 'Use el lápiz para cargar el precio en el formulario y editar sus valores, el botón de copiar para duplicarlo en otro ámbito y la papelera para eliminarlo; desde entonces esa labor se liquida con el precio general.', cuando: () => conFilas },
                 { id: 'paginacion', element: '#tabla_precios_wrapper .gp-dt-pie', side: 'top', title: 'Páginas', text: 'Aquí ve qué registros se están mostrando y puede pasar de una página a otra.' },

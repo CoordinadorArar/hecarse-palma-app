@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
     const $q = (s) => document.querySelector(s);
+    const EXCEL = 'Descarga en Excel lo que está listado, de todas las páginas y respetando lo que haya escrito en Buscar. El archivo anota en el encabezado los filtros y la búsqueda usados, y no incluye la columna de acciones.';
     const campo = (id) => document.getElementById(id)?.parentElement;
     const busqueda = () => document.getElementById('filtro_busqueda')?.closest('.input-group')?.parentElement;
 
@@ -25,6 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 { id: 'contador', element: '#contador_periodos', side: 'bottom', title: 'Resultados', text: 'Indica cuántos periodos coinciden con los filtros.' },
                 { id: 'sin_resultados', element: '#gp_estado_vacio', side: 'top', title: 'Sin periodos', text: 'No hay periodos de nómina para los filtros elegidos. Ajústelos o pulse Nuevo periodo para crearlo.' },
                 { id: 'buscar_resultados', element: '#tabla_periodos_nomina_wrapper .gp-dt-barra:not(.gp-dt-pie)', side: 'bottom', title: 'Buscar y mostrar', text: 'Use Buscar en resultados para filtrar lo que ya está listado sin volver a consultar, y elija cuántos registros ver por página. Pulse el título de una columna para ordenar.' + deslizar },
+                { id: 'excel', element: '#tabla_periodos_nomina_wrapper .gp-dt-excel', side: 'bottom', title: 'Exportar a Excel', text: EXCEL + ($q('#tabla_periodos_nomina_wrapper .gp-dt-excel .btn')?.matches(':disabled, .disabled') ? ' Se habilita cuando la lista tiene registros.' : '') },
                 { id: 'fila', element: () => (conDatos ? (desborda ? fila.cells[1] : fila) : null), side: 'bottom', title: 'Periodos listados', text: 'Cada fila muestra el año, el mes, el número y el tipo del periodo, los días, la vigencia (fecha inicial y final), las fechas de corte y pago y el nombre.', cuando: () => conDatos },
                 { id: 'indicadores', element: () => (conDatos ? fila.cells[8] : null), side: 'bottom', title: 'Indicadores', text: 'AGR indica un periodo agronómico y LAB un periodo que ejecuta labores: en verde si aplica y en gris si no.' + (fino ? ' Pase el cursor sobre una etiqueta para ver su significado.' : ''), cuando: () => conDatos },
                 { id: 'estado', element: estado, side: md ? 'left' : 'bottom', title: 'Estado', text: 'Abierto permite modificar el periodo. Cerrado lo bloquea para cambios.', cuando: () => conDatos },

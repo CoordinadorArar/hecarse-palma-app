@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
     const $q = (s) => document.querySelector(s);
+    const EXCEL = 'Descarga en Excel lo que está listado, de todas las páginas y respetando lo que haya escrito en Buscar. El archivo anota en el encabezado los filtros y la búsqueda usados, y no incluye la columna de acciones.';
     const $id = (id) => document.getElementById(id);
     const desliza = (sel) => { const el = $q(sel); return Boolean(el) && el.scrollWidth > el.clientWidth; };
 
@@ -22,6 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 { id: 'contador', element: '#contador_labores', side: 'bottom', title: 'Resultados', text: 'Indica cuántas labores coinciden con los filtros.' },
                 { id: 'sin_resultados', element: '#gp_estado_vacio', side: 'top', title: 'Sin resultados', text: 'Ninguna labor coincide con los filtros. Ajuste grupo, estado o búsqueda, o pulse Nueva labor para registrar una.' },
                 { id: 'buscar_tabla', element: '#tabla_labores_wrapper .gp-dt-barra:not(.gp-dt-pie)', side: 'bottom', title: 'Buscar y mostrar', text: 'Buscar en resultados filtra al instante lo que ya está listado, sin volver a consultar. También puede elegir cuántos registros ver por página.' },
+                { id: 'excel', element: '#tabla_labores_wrapper .gp-dt-excel', side: 'bottom', title: 'Exportar a Excel', text: EXCEL + ($q('#tabla_labores_wrapper .gp-dt-excel .btn')?.matches(':disabled, .disabled') ? ' Se habilita cuando la lista tiene registros.' : '') },
                 { id: 'fila', element: '#cuerpo_tabla_labores tr', side: 'bottom', title: 'Labores', text: 'Cada fila muestra código, descripción (con la descripción corta debajo), grupo, concepto, unidad, ciclos, tarea (rendimiento) y signo. Uso indica si la labor ya tiene registros y Estado si está activa. Pulse un encabezado para ordenar.' + (desliza('#tabla_labores_wrapper .table-responsive') ? ' Deslice la tabla hacia los lados para ver todas las columnas.' : ''), cuando: () => conFilas },
                 { id: 'acciones', element: '#cuerpo_tabla_labores tr .btn-group', side: md ? 'left' : 'top', title: 'Editar, activar o eliminar', text: `Use el lápiz para editar la labor (empresa, código y concepto no se pueden cambiar), el interruptor para ${activa ? 'inactivarla' : 'activarla'} y la papelera para eliminarla.` + (usos > 0 ? ' Esta labor está en uso: la papelera aparece atenuada porque no se puede eliminar, solo inactivar.' : ' Las labores en uso no se pueden eliminar; en ellas la papelera aparece atenuada.'), cuando: () => conFilas },
                 { id: 'paginacion', element: '#tabla_labores_wrapper .gp-dt-pie', side: 'top', title: 'Páginas', text: 'Aquí ve qué registros se están mostrando y puede pasar de una página a otra.' },

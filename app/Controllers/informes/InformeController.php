@@ -9,6 +9,7 @@ use App\Models\InformeModel;
 use App\Models\LiquidacionSiesaModel;
 
 use CodeIgniter\HTTP\RedirectResponse;
+use CodeIgniter\HTTP\ResponseInterface;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -242,6 +243,32 @@ class InformeController extends BaseController
         return $rango;
     }
 
+    private function corteLiquidacion(array $rango): string|ResponseInterface|null
+    {
+        $valor = trim((string) $this->request->getPost('corte'));
+
+        if ($valor === '') {
+            return null;
+        }
+
+        $fecha = \DateTime::createFromFormat('!Y-m-d', $valor);
+
+        if ($fecha === false || $fecha->format('Y-m-d') !== $valor || $valor < $rango[0] || $valor >= $rango[1]) {
+            return $this->response->setStatusCode(422)->setJSON(['status' => 'error', 'message' => 'La fecha de corte debe estar entre la fecha de inicio y el día anterior a la fecha de fin (AAAA-MM-DD).']);
+        }
+
+        if (! $this->informe_model->tienePreliminar()) {
+            return $this->sinPreliminar();
+        }
+
+        return $valor;
+    }
+
+    private function sinPreliminar(): ResponseInterface
+    {
+        return $this->response->setStatusCode(500)->setJSON(['status' => 'error', 'message' => 'La liquidación preliminar no está disponible: falta ejecutar el script liquidacion_preliminar.sql en la base de datos.']);
+    }
+
     private function fechaTexto(string $fecha): string
     {
         return implode('/', array_reverse(explode('-', $fecha)));
@@ -335,9 +362,53 @@ class InformeController extends BaseController
             return $rango;
         }
 
-        $data = $this->informe_model->getReporteGeneral($rango);
+        $corte = $this->corteLiquidacion($rango);
+
+        if ($corte instanceof ResponseInterface) {
+            return $corte;
+        }
+
+        $data = $this->informe_model->getReporteGeneral($corte === null ? $rango : [$rango[0], $corte]);
 
         return $this->response->setJSON($data);
+    }
+
+    public function calcularLiquidacion()
+    {
+        if (empty($this->session->get('usu_id'))) {
+            return $this->sesionExpirada();
+        }
+
+        $rango = $this->rangoLiquidacion();
+
+        if (! is_array($rango)) {
+            return $rango;
+        }
+
+        $corte = $this->corteLiquidacion($rango);
+
+        if ($corte instanceof ResponseInterface) {
+            return $corte;
+        }
+
+        $temporal     = trim((string) $this->request->getPost('temporal'));
+        $tipoContrato = trim((string) $this->request->getPost('tipoContrato'));
+
+        try {
+            $calculo = $this->informe_model->calculoLiquidacion(
+                $rango[0],
+                $rango[1],
+                $corte,
+                $temporal === '' || $tipoContrato === '' ? null : $temporal,
+                $temporal === '' || $tipoContrato === '' ? null : $tipoContrato
+            );
+        } catch (\Throwable $e) {
+            log_message('error', 'Error calculando la liquidación: ' . $e->getMessage());
+
+            return $this->response->setStatusCode(500)->setJSON(['status' => 'error', 'message' => 'No se pudo calcular la liquidación.']);
+        }
+
+        return $this->response->setJSON(['status' => 'success', 'message' => '', 'preliminarDisponible' => $this->informe_model->tienePreliminar()] + $calculo);
     }
 
 
@@ -364,6 +435,12 @@ class InformeController extends BaseController
                 return $rango;
             }
 
+            $corte = $this->corteLiquidacion($rango);
+
+            if ($corte instanceof ResponseInterface) {
+                return $corte;
+            }
+
             [$desde, $hasta] = $rango;
             $temporal = $this->request->getPost('temporal');
             $tipoContrato = $this->request->getPost('tipoContrato');
@@ -383,6 +460,36 @@ class InformeController extends BaseController
                     'status' => 'error',
                     'message' => 'Ya existe una liquidación procesada para esta temporal que se cruza con el rango: ' . implode(', ', array_map(fn ($c) => $this->fechaTexto($c['desde']) . ' – ' . $this->fechaTexto($c['hasta']), $cruces)),
                     'cruces' => $cruces
+                ]);
+            }
+
+            if ($this->informe_model->tienePreliminar()) {
+                $ajustado = $this->informe_model->ajustadoPor($desde, $hasta, $temporal, $tipoContrato);
+
+                if ($ajustado !== null) {
+                    return $this->response->setStatusCode(409)->setJSON([
+                        'status' => 'error',
+                        'message' => 'La liquidación preliminar de este rango ya fue ajustada en la liquidación ' . $this->fechaTexto($ajustado['desde']) . ' – ' . $this->fechaTexto($ajustado['hasta']) . ' y no se puede reprocesar.'
+                    ]);
+                }
+
+                $cedulas = [];
+
+                foreach ($datos as $registro) {
+                    if (is_array($registro) && trim((string) ($registro['cedula'] ?? '')) !== '') {
+                        $cedulas[trim((string) $registro['cedula'])] = true;
+                    }
+                }
+
+                $resultado = $this->informe_model->guardarLiquidacion($cedulas, $desde, $hasta, $temporal, $tipoContrato, $corte);
+
+                return $this->response->setJSON([
+                    'status' => 'success',
+                    'message' => $corte === null ? 'Reporte procesado y guardado correctamente' : 'Liquidación preliminar procesada y guardada correctamente',
+                    'registros_guardados' => $resultado['registros'],
+                    'ajustes_aplicados' => $resultado['ajustes'],
+                    'preliminar' => $corte !== null,
+                    'corte' => $corte
                 ]);
             }
 

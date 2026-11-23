@@ -12,7 +12,360 @@ class InformeModel extends Model
     private const INICIO = 'COALESCE(FechaInicio, DATEFROMPARTS(TRY_CAST([Año] AS int), TRY_CAST(Mes AS int), 1))';
     private const FIN    = 'COALESCE(FechaFin, EOMONTH(DATEFROMPARTS(TRY_CAST([Año] AS int), TRY_CAST(Mes AS int), 1)))';
 
+    private const RAZON = "CASE WHEN v.TipoContrato = 'Directo' AND (v.RazonTemporal IS NULL OR LTRIM(RTRIM(v.RazonTemporal)) = '') THEN 'Nomina Hecarse' ELSE v.RazonTemporal END";
+
+    private const EMPRESA = 1;
+
     private static ?bool $columnasRango = null;
+
+    private static ?bool $columnasPreliminar = null;
+
+    private array $gruposDominicales = [];
+
+    private ?float $ultimoDominical = null;
+
+    public function tienePreliminar(): bool
+    {
+        return self::$columnasPreliminar ??= (int) $this->db->query(
+            "SELECT CASE WHEN COL_LENGTH('dbo.Liquidacion', 'FechaCorte') IS NULL OR COL_LENGTH('dbo.Liquidacion', 'ValorReal') IS NULL
+                          OR COL_LENGTH('dbo.Liquidacion', 'ValorEstimado') IS NULL OR COL_LENGTH('dbo.Liquidacion', 'ValorAjuste') IS NULL
+                          OR COL_LENGTH('dbo.Liquidacion', 'AjustadoEnInicio') IS NULL OR COL_LENGTH('dbo.Liquidacion', 'AjustadoEnFin') IS NULL
+                         THEN 0 ELSE 1 END AS existe"
+        )->getRow()->existe === 1;
+    }
+
+    public function calculoLiquidacion(string $desde, string $hasta, ?string $corte, ?string $temporal = null, ?string $tipoContrato = null): array
+    {
+        $empleados = [];
+
+        foreach ($this->movimientos($desde, $corte ?? $hasta, $temporal, $tipoContrato) as $m) {
+            $cedula = trim((string) $m['cedula']);
+            $clave  = $m['RazonTemporal'] . '|' . $m['TipoContrato'] . '|' . $cedula;
+            $valor  = (float) $m['valor'];
+
+            $empleados[$clave] ??= $this->empleadoLiquidacion($cedula, (string) $m['nombreTercero'], (string) $m['RazonTemporal'], (string) $m['TipoContrato']);
+            $empleados[$clave]['real'] += $valor;
+
+            if ((int) $m['dominical'] === 0) {
+                $empleados[$clave]['base'] += $valor;
+                $empleados[$clave]['grupos'][(string) $m['nombreGrupoLabor']] = ($empleados[$clave]['grupos'][(string) $m['nombreGrupoLabor']] ?? 0) + $valor;
+
+                if ((int) date('N', strtotime($m['fecha'])) <= 6) {
+                    $empleados[$clave]['dias'][$m['fecha']] = true;
+                }
+            }
+        }
+
+        $restantes = $corte === null ? ['habiles' => 0, 'domingos' => 0, 'primerDomingo' => null] : $this->diasRestantes($corte, $hasta);
+
+        foreach ($empleados as &$e) {
+            if ($corte !== null && $e['dias'] !== []) {
+                $e['diasConLabor']   = count($e['dias']);
+                $e['promedioDiario'] = round($e['base'] / $e['diasConLabor'], 2);
+                $e['jornalDominical'] = $restantes['domingos'] > 0 ? $this->precioDominical($e['cedula'], $e['grupos'], $restantes['primerDomingo']) : 0.0;
+                $e['estimado']       = round($e['promedioDiario'] * $restantes['habiles'] + $restantes['domingos'] * $e['jornalDominical']);
+            }
+        }
+
+        unset($e);
+
+        $ajustes = [];
+
+        foreach ($this->tienePreliminar() ? $this->preliminares($desde, $hasta, $temporal, $tipoContrato) : [] as $grupo) {
+            $reales = [];
+
+            foreach ($this->movimientos(date('Y-m-d', strtotime($grupo['corte'] . ' +1 day')), $grupo['hasta'], $grupo['RazonTemporal'], $grupo['TipoContrato']) as $m) {
+                $reales[trim((string) $m['cedula'])] = ($reales[trim((string) $m['cedula'])] ?? 0) + (float) $m['valor'];
+            }
+
+            $valorGrupo = 0.0;
+
+            foreach ($grupo['filas'] as $p) {
+                $clave = $grupo['RazonTemporal'] . '|' . $grupo['TipoContrato'] . '|' . $p['cedula'];
+                $valor = round(($reales[$p['cedula']] ?? 0) - (float) $p['estimado'], 2);
+
+                $empleados[$clave] ??= $this->empleadoLiquidacion($p['cedula'], (string) $p['NombreEmpleado'], $grupo['RazonTemporal'], $grupo['TipoContrato']);
+                $empleados[$clave]['ajuste']    += $valor;
+                $empleados[$clave]['ajusteDe'][] = ['desde' => $grupo['desde'], 'hasta' => $grupo['hasta'], 'corte' => $grupo['corte'], 'estimado' => (float) $p['estimado'], 'real' => round($reales[$p['cedula']] ?? 0, 2), 'ajuste' => $valor];
+                $valorGrupo                    += $valor;
+            }
+
+            unset($grupo['filas']);
+
+            $ajustes[] = $grupo + ['empleados' => count($grupo['ids']), 'valor' => round($valorGrupo, 2)];
+        }
+
+        foreach ($empleados as &$e) {
+            $e['real']   = round($e['real'], 2);
+            $e['ajuste'] = round($e['ajuste'], 2);
+            $e['total']  = round($e['real'] + $e['estimado'] + $e['ajuste']);
+            unset($e['base'], $e['grupos'], $e['dias']);
+        }
+
+        unset($e);
+
+        usort($empleados, static fn ($a, $b) => [$a['RazonTemporal'], $a['nombreTercero']] <=> [$b['RazonTemporal'], $b['nombreTercero']]);
+
+        return [
+            'preliminar'           => $corte !== null,
+            'corte'                => $corte,
+            'estimadoDesde'        => $corte === null ? null : date('Y-m-d', strtotime($corte . ' +1 day')),
+            'estimadoHasta'        => $corte === null ? null : $hasta,
+            'diasHabilesRestantes' => $restantes['habiles'],
+            'domingosRestantes'    => $restantes['domingos'],
+            'ajustes'              => $ajustes,
+            'empleados'            => $empleados,
+        ];
+    }
+
+    public function ajustadoPor(string $desde, string $hasta, string $temporal, string $tipoContrato): ?array
+    {
+        if (! $this->tienePreliminar()) {
+            return null;
+        }
+
+        return $this->db->query(
+            "SELECT TOP 1 CONVERT(varchar(10), AjustadoEnInicio, 23) AS desde, CONVERT(varchar(10), AjustadoEnFin, 23) AS hasta
+               FROM Liquidacion
+              WHERE RazonTemporal = ? AND TipoContrato = ? AND " . self::INICIO . " = ? AND " . self::FIN . " = ? AND AjustadoEnInicio IS NOT NULL",
+            [$temporal, $tipoContrato, $this->ymd($desde), $this->ymd($hasta)]
+        )->getRowArray();
+    }
+
+    public function guardarLiquidacion(array $cedulas, string $desde, string $hasta, string $temporal, string $tipoContrato, ?string $corte): array
+    {
+        $calculo = $this->calculoLiquidacion($desde, $hasta, $corte, $temporal, $tipoContrato);
+        $filas   = array_values(array_filter($calculo['empleados'], static fn ($e) => isset($cedulas[$e['cedula']]) || $e['ajusteDe'] !== []));
+
+        if ($filas === []) {
+            return ['registros' => 0, 'ajustes' => 0];
+        }
+
+        $rango = [$temporal, $tipoContrato, $this->ymd($desde), $this->ymd($hasta)];
+
+        $this->db->transBegin();
+
+        try {
+            $this->db->query(
+                'UPDATE Liquidacion SET AjustadoEnInicio = NULL, AjustadoEnFin = NULL
+                  WHERE RazonTemporal = ? AND TipoContrato = ? AND AjustadoEnInicio = ? AND AjustadoEnFin = ?',
+                $rango
+            );
+
+            $this->db->query(
+                "DELETE FROM Liquidacion WHERE RazonTemporal = ? AND TipoContrato = ? AND " . self::INICIO . " = ? AND " . self::FIN . " = ?",
+                $rango
+            );
+
+            foreach ($filas as $f) {
+                $this->db->query(
+                    'INSERT INTO Liquidacion ([Año], Mes, Cedula, NombreEmpleado, TipoContrato, RazonTemporal, ValorEnviado, FechaProcesado,
+                                              FechaInicio, FechaFin, FechaCorte, ValorReal, ValorEstimado, ValorAjuste)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    [
+                        substr($desde, 0, 4), substr($desde, 5, 2), $f['cedula'], $f['nombreTercero'], $tipoContrato, $temporal,
+                        $f['total'], date('Ymd H:i:s'), $this->ymd($desde), $this->ymd($hasta),
+                        $corte === null ? null : $this->ymd($corte), $f['real'], $f['estimado'], $f['ajuste'],
+                    ]
+                );
+            }
+
+            foreach ($calculo['ajustes'] as $a) {
+                $this->db->query(
+                    'UPDATE Liquidacion SET AjustadoEnInicio = ?, AjustadoEnFin = ?
+                      WHERE RazonTemporal = ? AND TipoContrato = ? AND FechaCorte IS NOT NULL AND FechaInicio = ? AND FechaFin = ?',
+                    [$this->ymd($desde), $this->ymd($hasta), $a['RazonTemporal'], $a['TipoContrato'], $this->ymd($a['desde']), $this->ymd($a['hasta'])]
+                );
+            }
+
+            if ($this->db->transStatus() === false) {
+                $this->db->transRollback();
+
+                throw new \RuntimeException('La transacción de la liquidación fue revertida.');
+            }
+
+            $this->db->transCommit();
+
+            return ['registros' => count($filas), 'ajustes' => count($calculo['ajustes'])];
+        } catch (\Throwable $e) {
+            $this->db->transRollback();
+            log_message('error', 'Error guardando la liquidación: ' . $e->getMessage());
+
+            throw $e;
+        }
+    }
+
+    private function empleadoLiquidacion(string $cedula, string $nombre, string $temporal, string $tipoContrato): array
+    {
+        return [
+            'cedula'          => $cedula,
+            'nombreTercero'   => $nombre,
+            'RazonTemporal'   => $temporal,
+            'TipoContrato'    => $tipoContrato,
+            'real'            => 0.0,
+            'estimado'        => 0.0,
+            'ajuste'          => 0.0,
+            'total'           => 0.0,
+            'diasConLabor'    => 0,
+            'promedioDiario'  => 0.0,
+            'jornalDominical' => 0.0,
+            'ajusteDe'        => [],
+            'base'            => 0.0,
+            'grupos'          => [],
+            'dias'            => [],
+        ];
+    }
+
+    private function movimientos(string $desde, string $hasta, ?string $temporal, ?string $tipoContrato): array
+    {
+        ini_set('sqlsrv.ClientBufferMaxKBSize', '51200');
+
+        $sql = "SELECT x.cedula, MAX(x.nombreTercero) AS nombreTercero, x.RazonTemporal, x.TipoContrato, ISNULL(x.nombreGrupoLabor, '') AS nombreGrupoLabor,
+                       x.fecha, x.dominical, SUM(x.valorTotalTercero) AS valor
+                  FROM (SELECT v.cedula, v.nombreTercero, " . self::RAZON . " AS RazonTemporal, v.TipoContrato, v.nombreGrupoLabor, v.fecha, v.valorTotalTercero,
+                               CASE WHEN EXISTS (SELECT 1 FROM aTransaccionTercero r
+                                                   JOIN aNovedad n ON n.empresa = r.empresa AND RTRIM(n.codigo) = RTRIM(r.novedad)
+                                                                  AND n.activo = 1 AND LTRIM(n.descripcion) LIKE 'DOMINICAL%'
+                                                  WHERE r.empresa IN (SELECT id FROM gEmpresa) AND r.tipo = v.codtransaccion
+                                                    AND r.numero = v.numeroTransaccion AND r.tercero = v.cedula AND r.fechaNovedad = v.fecha
+                                                    AND ABS(ISNULL(r.valorTotal, 0)) = ABS(v.valorTotalTercero)) THEN 1 ELSE 0 END AS dominical
+                          FROM dbo.vInformacionAgronomicoSiesaTotal v
+                         WHERE v.fecha >= ? AND v.fecha <= ?) x";
+
+        $binds = [$this->ymd($desde), $this->ymd($hasta)];
+
+        if ($temporal !== null && $tipoContrato !== null) {
+            $sql    .= ' WHERE x.RazonTemporal = ? AND x.TipoContrato = ?';
+            $binds[] = $temporal;
+            $binds[] = $tipoContrato;
+        }
+
+        return $this->db->query(
+            $sql . ' GROUP BY x.cedula, x.RazonTemporal, x.TipoContrato, ISNULL(x.nombreGrupoLabor, \'\'), x.fecha, x.dominical',
+            $binds
+        )->getResultArray();
+    }
+
+    private function diasRestantes(string $corte, string $hasta): array
+    {
+        $festivos = array_column($this->db->query(
+            'SELECT CONVERT(varchar(10), fecha, 23) AS fecha FROM nFestivo WHERE empresa = ? AND fecha > ? AND fecha <= ?',
+            [self::EMPRESA, $this->ymd($corte), $this->ymd($hasta)]
+        )->getResultArray(), 'fecha', 'fecha');
+
+        $restantes = ['habiles' => 0, 'domingos' => 0, 'primerDomingo' => null];
+
+        for ($dia = strtotime($corte . ' +1 day'); $dia <= strtotime($hasta); $dia = strtotime('+1 day', $dia)) {
+            if (date('N', $dia) === '7') {
+                $restantes['domingos']++;
+                $restantes['primerDomingo'] ??= date('Y-m-d', $dia);
+            } elseif (! isset($festivos[date('Y-m-d', $dia)])) {
+                $restantes['habiles']++;
+            }
+        }
+
+        return $restantes;
+    }
+
+    private function precioDominical(string $cedula, array $grupos, string $domingo): float
+    {
+        if ($this->gruposDominicales === []) {
+            foreach ($this->db->query(
+                "SELECT g.descripcion AS grupo, MIN(RTRIM(n.codigo)) AS novedad
+                   FROM aGrupoNovedad g
+                   JOIN aNovedad n ON n.empresa = g.empresa AND n.grupo = g.codigo AND n.activo = 1 AND LTRIM(n.descripcion) LIKE 'DOMINICAL%'
+                  WHERE g.empresa = ?
+                  GROUP BY g.descripcion",
+                [self::EMPRESA]
+            )->getResultArray() as $fila) {
+                $this->gruposDominicales[(string) $fila['grupo']] = $fila['novedad'];
+            }
+        }
+
+        arsort($grupos);
+
+        foreach (array_keys($grupos) as $grupo) {
+            if (isset($this->gruposDominicales[(string) $grupo]) && ctype_digit($cedula)) {
+                try {
+                    $precio = (float) $this->db->query(
+                        'SELECT dbo.fRetornaPrecioLaboresTercero(?, ?, ?, ?, ?, ?, ?, ?, ?) AS precio',
+                        [self::EMPRESA, $this->gruposDominicales[(string) $grupo], (int) substr($domingo, 0, 4), (int) $cedula, $this->ymd($domingo), '', '', '', 0]
+                    )->getRow()->precio;
+                } catch (\Throwable $e) {
+                    log_message('error', 'Error resolviendo el precio dominical: ' . $e->getMessage());
+                    $precio = 0.0;
+                }
+
+                if ($precio > 0) {
+                    return round($precio, 2);
+                }
+
+                break;
+            }
+        }
+
+        $dominical = "EXISTS (SELECT 1 FROM aNovedad n WHERE n.empresa = r.empresa AND RTRIM(n.codigo) = RTRIM(r.novedad)
+                                 AND n.activo = 1 AND LTRIM(n.descripcion) LIKE 'DOMINICAL%')";
+
+        $fila = $this->db->query(
+            "SELECT TOP 1 r.precioLabor FROM aTransaccionTercero r
+              WHERE r.empresa = ? AND LTRIM(RTRIM(r.tercero)) = ? AND ISNULL(r.precioLabor, 0) > 0 AND {$dominical}
+              ORDER BY r.fechaNovedad DESC",
+            [self::EMPRESA, $cedula]
+        )->getRowArray();
+
+        if ($fila !== null) {
+            return round((float) $fila['precioLabor'], 2);
+        }
+
+        $this->ultimoDominical ??= (float) ($this->db->query(
+            "SELECT TOP 1 r.precioLabor FROM aTransaccionTercero r
+              WHERE r.empresa = ? AND ISNULL(r.precioLabor, 0) > 0 AND {$dominical}
+              ORDER BY r.fechaNovedad DESC",
+            [self::EMPRESA]
+        )->getRowArray()['precioLabor'] ?? 0);
+
+        return round($this->ultimoDominical, 2);
+    }
+
+    private function preliminares(string $desde, string $hasta, ?string $temporal, ?string $tipoContrato): array
+    {
+        $sql = "SELECT Id, LTRIM(RTRIM(CAST(Cedula AS varchar(50)))) AS cedula, NombreEmpleado, RazonTemporal, TipoContrato,
+                       CONVERT(varchar(10), FechaInicio, 23) AS desde, CONVERT(varchar(10), FechaFin, 23) AS hasta,
+                       CONVERT(varchar(10), FechaCorte, 23) AS corte, ISNULL(ValorEstimado, 0) AS estimado
+                  FROM Liquidacion
+                 WHERE FechaCorte IS NOT NULL AND FechaInicio IS NOT NULL AND FechaFin < ?
+                   AND (AjustadoEnInicio IS NULL OR (AjustadoEnInicio = ? AND AjustadoEnFin = ?))";
+
+        $binds = [$this->ymd($desde), $this->ymd($desde), $this->ymd($hasta)];
+
+        if ($temporal !== null && $tipoContrato !== null) {
+            $sql    .= ' AND RazonTemporal = ? AND TipoContrato = ?';
+            $binds[] = $temporal;
+            $binds[] = $tipoContrato;
+        }
+
+        $grupos = [];
+
+        foreach ($this->db->query($sql . ' ORDER BY FechaFin, Id', $binds)->getResultArray() as $fila) {
+            $clave = implode('|', [$fila['RazonTemporal'], $fila['TipoContrato'], $fila['desde'], $fila['hasta']]);
+
+            $grupos[$clave] ??= [
+                'RazonTemporal' => (string) $fila['RazonTemporal'],
+                'TipoContrato'  => (string) $fila['TipoContrato'],
+                'desde'         => $fila['desde'],
+                'hasta'         => $fila['hasta'],
+                'corte'         => $fila['corte'],
+                'ids'           => [],
+                'filas'         => [],
+            ];
+
+            $grupos[$clave]['ids'][]   = (int) $fila['Id'];
+            $grupos[$clave]['filas'][] = $fila;
+        }
+
+        return array_values($grupos);
+    }
 
     public function tieneRangoFechas(): bool
     {
@@ -124,9 +477,24 @@ class InformeModel extends Model
             [$temporal, $tipoContrato, $this->ymd($hasta), $this->ymd($desde)]
         )->getResultArray();
 
-        $cruces = array_values(array_filter($rangos, fn ($r) => $r['desde'] !== $desde || $r['hasta'] !== $hasta));
+        $cruces    = array_values(array_filter($rangos, fn ($r) => $r['desde'] !== $desde || $r['hasta'] !== $hasta));
+        $procesado = count($cruces) < count($rangos);
+        $marca     = $procesado && $this->tienePreliminar() ? $this->db->query(
+            "SELECT TOP 1 CONVERT(varchar(10), FechaCorte, 23) AS corte, CONVERT(varchar(10), AjustadoEnInicio, 23) AS ajustadoDesde,
+                    CONVERT(varchar(10), AjustadoEnFin, 23) AS ajustadoHasta
+               FROM Liquidacion
+              WHERE RazonTemporal = ? AND TipoContrato = ? AND " . self::INICIO . " = ? AND " . self::FIN . " = ?
+              ORDER BY FechaCorte DESC, AjustadoEnInicio DESC",
+            [$temporal, $tipoContrato, $this->ymd($desde), $this->ymd($hasta)]
+        )->getRowArray() : null;
 
-        return ['procesado' => count($cruces) < count($rangos), 'cruces' => $cruces];
+        return [
+            'procesado'  => $procesado,
+            'cruces'     => $cruces,
+            'preliminar' => ($marca['corte'] ?? null) !== null,
+            'corte'      => $marca['corte'] ?? null,
+            'ajustadoEn' => ($marca['ajustadoDesde'] ?? null) === null ? null : ['desde' => $marca['ajustadoDesde'], 'hasta' => $marca['ajustadoHasta']],
+        ];
     }
 
 

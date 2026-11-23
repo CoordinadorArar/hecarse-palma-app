@@ -49,6 +49,7 @@ class ParametrosAgronomicosController extends GestionPalmaController
         $data['total_motivos']      = count($filas);
         $data['tabla_disponible']   = $disponible;
         $data['mensaje_disponible'] = $disponible ? '' : self::SIN_MOTIVOS;
+        $data['remunerado_disponible'] = $disponible && $this->motivosModel->remuneradoDisponible();
 
         return view('gestionpalma/motivos_ausencia', $data);
     }
@@ -100,6 +101,7 @@ class ParametrosAgronomicosController extends GestionPalmaController
                 'codigo'      => trim((string) $motivo['codigo']),
                 'descripcion' => (string) $motivo['descripcion'],
                 'activo'      => (int) $motivo['activo'],
+                'remunerado'  => isset($motivo['remunerado']) ? (int) $motivo['remunerado'] : null,
                 'usos'        => (int) ($motivo['usos'] ?? 0),
             ],
         ]);
@@ -272,6 +274,7 @@ class ParametrosAgronomicosController extends GestionPalmaController
         return [
             'descripcion' => $descripcion,
             'activo'      => $this->bit('activo'),
+            'remunerado'  => $this->request->getPost('remunerado') === null ? null : $this->bit('remunerado'),
         ];
     }
 
@@ -319,6 +322,14 @@ class ParametrosAgronomicosController extends GestionPalmaController
                 ? '<span class="badge gp-badge-abierto rounded-pill px-3 py-2"><i class="bi bi-check-circle-fill me-1" aria-hidden="true"></i>Activo</span>'
                 : '<span class="badge gp-badge-cerrado rounded-pill px-3 py-2"><i class="bi bi-slash-circle me-1" aria-hidden="true"></i>Inactivo</span>';
 
+            $remunerado = isset($m['remunerado']) ? ((int) $m['remunerado'] === 1 ? 1 : 0) : null;
+
+            $celdaRemunerada = $remunerado === null
+                ? '<span class="text-muted">—</span>'
+                : ($remunerado === 1
+                    ? '<span class="badge gp-badge-abierto rounded-pill px-3 py-2"><i class="bi bi-check-circle-fill me-1" aria-hidden="true"></i>Sí</span>'
+                    : '<span class="badge gp-badge-doc rounded-pill px-3 py-2"><i class="bi bi-dash-circle me-1" aria-hidden="true"></i>No</span>');
+
             $tituloEstado = $activo === 1 ? 'Desactivar' : 'Activar';
             $iconoEstado  = $activo === 1 ? 'bi bi-toggle-on' : 'bi bi-toggle-off';
 
@@ -330,9 +341,10 @@ class ParametrosAgronomicosController extends GestionPalmaController
                 : '<button type="button" class="btn btn-outline-danger" title="Eliminar" aria-label="Eliminar" onclick="eliminarMotivo(' . $claveJs . ',&#039;' . $descJs . '&#039;)"><i class="bi bi-trash" aria-hidden="true"></i></button>';
 
             $html .= '<tr data-empresa="' . $empresa . '" data-codigo="' . htmlspecialchars($codigo)
-                . '" data-activo="' . $activo . '" data-usos="' . $usos . '">'
+                . '" data-activo="' . $activo . '" data-usos="' . $usos . '" data-remunerado="' . ($remunerado ?? '') . '">'
                 . '<td class="text-center"><span class="badge gp-badge-doc rounded-pill px-2 py-1 font-monospace">' . htmlspecialchars($codigo) . '</span></td>'
                 . '<td data-order="' . htmlspecialchars($descripcion) . '">' . htmlspecialchars($descripcion) . '</td>'
+                . '<td class="text-center" data-order="' . ($remunerado ?? -1) . '">' . $celdaRemunerada . '</td>'
                 . '<td class="text-center" data-order="' . $usos . '">' . $celdaUsos . '</td>'
                 . '<td class="text-center" data-order="' . $activo . '">' . $badge . '</td>'
                 . '<td class="text-center gp-col-sticky">'
