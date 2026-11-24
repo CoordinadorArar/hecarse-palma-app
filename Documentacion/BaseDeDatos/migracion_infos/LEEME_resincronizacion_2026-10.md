@@ -1,5 +1,7 @@
 # Resincronización Infos -> AppPalma (octubre 2026)
 
+> **OBSOLETO desde 2026-11-04: Infos ya no se usa.** Todo este procedimiento quedó sin efecto y **no debe ejecutarse**: sincronizar desde Infos borraría datos actuales de AppPalma. Los scripts 02, 04 y 06 y `app/Database/sql/resincronizar_tlc_desde_4371.sql` están bloqueados (RAISERROR + `SET NOEXEC ON`).
+
 AppPalma debe quedar igual a Infos (Infos manda), incluidos números de transacción y consecutivos. Hay dos excepciones decididas a propósito: la proyección de `aLotePesosPeriodo` y la tabla `aLotes`.
 
 ## 1. Requisitos

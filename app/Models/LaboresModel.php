@@ -266,13 +266,13 @@ class LaboresModel extends Model
         }
     }
 
-    public function crear(int $empresa, string $codigo, string $concepto, array $data, ?int $usu_id, string $usuario): void
+    public function crear(int $empresa, string $codigo, string $concepto, array $data, ?int $usu_id, string $usuario): bool
     {
         $codigo   = trim($codigo);
         $concepto = trim($concepto);
-        $hoy      = date('Y-m-d');
+        $hoy      = date('Y-m-d\TH:i:s');
 
-        $this->db->query(
+        $ok = $this->db->query(
             'INSERT INTO aNovedad (empresa, codigo, descripcion, desCorta, grupo, uMedida, concepto, equivalencia,
                 ciclos, tarea, naturaleza, claseLabor, porHaNeta, porHaBruta, porHaProduccion,
                 manejaRango, [añoDesde], [añoHasta], impuesto, grupoIR, manejaCanal, tipoCanal,
@@ -291,9 +291,13 @@ class LaboresModel extends Model
                 $data['manejaFecha'], $data['manejaDecimal'], $data['manejaCaracteristica'], $data['noPrestacional'],
                 $data['activo'], $data['calculaJornal'], $hoy, $usuario,
             ]
-        );
+        ) !== false;
 
-        $this->insertarAuditoria('INSERT', array_merge(['empresa' => $empresa, 'codigo' => $codigo, 'concepto' => $concepto], $data), $usu_id);
+        if ($ok) {
+            $this->insertarAuditoria('INSERT', array_merge(['empresa' => $empresa, 'codigo' => $codigo, 'concepto' => $concepto], $data), $usu_id);
+        }
+
+        return $ok;
     }
 
     /**

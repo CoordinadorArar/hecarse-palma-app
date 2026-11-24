@@ -1,4 +1,5 @@
 /* ============================================================================
+   OBSOLETO desde 2026-11-04: Infos ya no se usa
    Migración Infos -> AppPalma: sincronización de datos
    ----------------------------------------------------------------------------
    QUÉ HACE
@@ -47,6 +48,10 @@
    Este archivo es UTF-8 y contiene columnas [año]. Ejecutarlo SOLO desde SSMS
    o con "sqlcmd -f 65001 -i 02_sincronizar_infos_a_apppalma.sql".
    ============================================================================ */
+
+RAISERROR (N'OBSOLETO: Infos dejó de usarse el 2026-11-04. Este script sincroniza Infos -> AppPalma y borraría datos actuales de AppPalma. No ejecutar.', 16, 1);
+SET NOEXEC ON;
+GO
 
 SET NOCOUNT ON;
 SET XACT_ABORT ON;
