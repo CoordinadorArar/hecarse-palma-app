@@ -1,4 +1,5 @@
 ﻿/* ============================================================================
+   OBSOLETO desde 2026-11-04: Infos ya no se usa
    Resincronización de las TLC desde TLC000000004371 (Infos -> AppPalma)
    ----------------------------------------------------------------------------
    QUÉ HACE
@@ -60,6 +61,10 @@
      Ver el bloque comentado al final: restaura el rango y el consecutivo desde
      las tablas resp_TLC4371_*. Borrar esas tablas cuando ya no se necesiten.
    ============================================================================ */
+
+RAISERROR (N'OBSOLETO: Infos dejó de usarse el 2026-11-04. Este script sincroniza Infos -> AppPalma y borraría datos actuales de AppPalma. No ejecutar.', 16, 1);
+SET NOEXEC ON;
+GO
 
 SET NOCOUNT ON;
 SET XACT_ABORT ON;

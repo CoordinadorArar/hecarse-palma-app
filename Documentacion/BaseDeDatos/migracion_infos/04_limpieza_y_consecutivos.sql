@@ -1,4 +1,5 @@
 /* ============================================================================
+   OBSOLETO desde 2026-11-04: Infos ya no se usa
    Migración Infos -> AppPalma: limpieza de documentos de prueba y consecutivos
    ----------------------------------------------------------------------------
    QUÉ HACE
@@ -40,6 +41,10 @@
    Ejecutarlo SOLO desde SSMS o con
    "sqlcmd -f 65001 -i 04_limpieza_y_consecutivos.sql".
    ============================================================================ */
+
+RAISERROR (N'OBSOLETO: Infos dejó de usarse el 2026-11-04. Este script sincroniza Infos -> AppPalma y borraría datos actuales de AppPalma. No ejecutar.', 16, 1);
+SET NOEXEC ON;
+GO
 
 SET NOCOUNT ON;
 SET XACT_ABORT ON;

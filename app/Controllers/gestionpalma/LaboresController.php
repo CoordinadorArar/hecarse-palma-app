@@ -458,7 +458,9 @@ class LaboresController extends GestionPalmaController
             return $this->error($datos);
         }
 
-        $this->laboresModel->crear($empresa, $codigo, $concepto, $datos, $this->session->get('usu_id'), $this->usuarioRegistro());
+        if (! $this->laboresModel->crear($empresa, $codigo, $concepto, $datos, $this->session->get('usu_id'), $this->usuarioRegistro())) {
+            return $this->error('No se pudo guardar la labor. Intente de nuevo o contacte a soporte.');
+        }
 
         return $this->respuestaTablaLabores($empresa, 'Labor creada correctamente.');
     }

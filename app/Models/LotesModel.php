@@ -335,7 +335,7 @@ class LotesModel extends Model
     ): bool {
         $codigo = trim($codigo);
         $finca  = trim($finca);
-        $hoy    = date('Y-m-d');
+        $hoy    = date('Y-m-d\TH:i:s');
 
         $this->db->transStart();
 

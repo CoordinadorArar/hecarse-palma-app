@@ -35,16 +35,7 @@
           queda alguna fila hace ROLLBACK; si no, deja la transacción ABIERTA
           para que se revise y se ejecute COMMIT o ROLLBACK (ver final).
 
-   ADVERTENCIA INFOS
-   -----------------
-     migracion_infos/02_sincronizar_infos_a_apppalma.sql copia de Infos a
-     AppPalma aLotePesosPeriodo, aTransaccion, aTransaccionNovedad y
-     aTransaccionTercero (incluida la finca). Si Infos sigue sincronizando, el
-     mismo traslado 004 -> 002 debe hacerse también en Infos; de lo contrario la
-     siguiente sincronización volverá a dejar filas con finca 004. En
-     aLotePesosPeriodo (llave con finca), con @ConservarPesosSoloAppPalma = 0
-     la sincronización BORRA las filas movidas a 002 (no existen en Infos) y
-     REINSERTA las de 004.
+   INFOS: dejó de usarse el 2026-11-04; no se requiere replicar el traslado allí.
 
    IDEMPOTENTE: si ya se aplicó, no encuentra filas de la finca origen y no
    vuelve a crear el lote nuevo.
