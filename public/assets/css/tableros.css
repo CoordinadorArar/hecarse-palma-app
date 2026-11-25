@@ -57,6 +57,12 @@
   max-height: 560px;
 }
 
+#form_filtros #filtro_desde.is-invalid,
+#form_filtros #filtro_hasta.is-invalid {
+  --bs-form-select-bg-icon: none;
+  padding-right: 2.25rem;
+}
+
 @media (max-width: 767.98px) {
   .tb-gauge {
     height: 260px;

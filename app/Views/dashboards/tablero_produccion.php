@@ -1,5 +1,4 @@
 <?php echo $this->extend('template/layout'); ?>
-<?php $anios = $anios ?: [$anio_sel]; ?>
 
 <?php echo $this->section('css'); ?>
 <link rel="stylesheet" href="<?= asset_url('public/assets/css/gestionpalma.css') ?>">
@@ -33,7 +32,7 @@
                     <span class="form-label mb-1 small fw-semibold text-muted d-block">Vista</span>
                     <div class="btn-group btn-group-sm w-100 tb-vista" role="group" aria-label="Vista del tablero">
                         <input type="radio" class="btn-check" name="vista" id="vista_actual" value="actual" checked>
-                        <label class="btn btn-outline-success text-nowrap" for="vista_actual"><i class="bi bi-calendar3 me-1" aria-hidden="true"></i>Año actual</label>
+                        <label class="btn btn-outline-success text-nowrap" for="vista_actual"><i class="bi bi-calendar-range me-1" aria-hidden="true"></i>Periodo</label>
                         <input type="radio" class="btn-check" name="vista" id="vista_historico" value="historico">
                         <label class="btn btn-outline-success text-nowrap" for="vista_historico"><i class="bi bi-clock-history me-1" aria-hidden="true"></i>Histórico</label>
                     </div>
@@ -49,28 +48,15 @@
                         </select>
                     </div>
                 </div>
-                <div class="col-6 col-md-3 col-lg-2">
-                    <label class="form-label mb-1 small fw-semibold text-muted" for="filtro_anio">Año</label>
-                    <div class="input-group">
-                        <span class="input-group-text"><i class="bi bi-calendar3" aria-hidden="true"></i></span>
-                        <select class="form-select" id="filtro_anio">
-                            <?php foreach ($anios as $anio): ?>
-                                <option value="<?= esc($anio, 'attr') ?>" <?= (string) $anio === (string) $anio_sel ? 'selected' : '' ?>><?= esc($anio) ?></option>
-                            <?php endforeach; ?>
-                        </select>
+                <?php foreach (['filtro_desde' => 'Desde', 'filtro_hasta' => 'Hasta'] as $id_filtro => $etiqueta): ?>
+                    <div class="col-6 col-md-3 col-lg-2">
+                        <label class="form-label mb-1 small fw-semibold text-muted" for="<?= $id_filtro ?>"><?= $etiqueta ?></label>
+                        <div class="input-group has-validation">
+                            <span class="input-group-text"><i class="bi bi-calendar-event" aria-hidden="true"></i></span>
+                            <select class="form-select" id="<?= $id_filtro ?>" aria-describedby="error_rango"></select>
+                        </div>
                     </div>
-                </div>
-                <div class="col-6 col-md-3 col-lg-2">
-                    <label class="form-label mb-1 small fw-semibold text-muted" for="filtro_mes">Mes de corte</label>
-                    <div class="input-group">
-                        <span class="input-group-text"><i class="bi bi-calendar-check" aria-hidden="true"></i></span>
-                        <select class="form-select" id="filtro_mes">
-                            <?php foreach ($meses as $numero => $mes): ?>
-                                <option value="<?= (int) $numero ?>" <?= (int) $mes_sel === (int) $numero ? 'selected' : '' ?>><?= esc($mes) ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                </div>
+                <?php endforeach; ?>
                 <div class="col-12 col-md-6 col-lg-3">
                     <label class="form-label mb-1 small fw-semibold text-muted" for="filtro_finca">Finca</label>
                     <div class="input-group flex-nowrap inf-select2">
@@ -85,7 +71,7 @@
                         </div>
                     </div>
                 </div>
-                <div class="col-12 col-md-6 col-lg-3">
+                <div class="col-12 col-md-6 col-lg-2">
                     <label class="form-label mb-1 small fw-semibold text-muted" for="filtro_siembra">Año de siembra</label>
                     <div class="input-group flex-nowrap inf-select2">
                         <span class="input-group-text"><i class="bi bi-tree" aria-hidden="true"></i></span>
@@ -99,8 +85,11 @@
                 <div class="col-12 col-lg text-lg-end">
                     <button type="submit" class="btn btn-success ig-consultar" id="btn_consultar"><i class="bi bi-search me-1" aria-hidden="true"></i>Consultar</button>
                 </div>
+                <div class="col-12 d-none" id="fila_error_rango">
+                    <div class="invalid-feedback d-block small mt-0" id="error_rango" role="alert"></div>
+                </div>
                 <div class="col-12 d-none" id="nota_vista">
-                    <span class="gp-subtexto"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Año y mes de corte no aplican al histórico</span>
+                    <span class="gp-subtexto"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>El periodo Desde/Hasta no aplica al histórico: se muestran todos los años registrados</span>
                 </div>
             </form>
         </div>
@@ -120,7 +109,7 @@
 <?php echo $this->section('scripts'); ?>
 <script>
     const BASE_URL = "<?= base_url() ?>";
-    const TABLERO = <?= json_encode(['tablero' => $tablero, 'meses' => array_values($meses)], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>;
+    const TABLERO = <?= json_encode(['tablero' => $tablero, 'meses' => array_values($meses), 'desde' => $desde_sel, 'hasta' => $hasta_sel, 'periodoMin' => $periodo_min, 'periodoMax' => $periodo_max, 'desdeMax' => $desde_max],JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>;
 </script>
 <script src="<?= asset_url('public/assets/js/dashboards/analisisProduccion.js') ?>"></script>
 <script src="<?= asset_url('public/assets/js/tutoriales/modulos/tableroProduccion.js') ?>"></script>
