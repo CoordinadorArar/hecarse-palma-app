@@ -32,6 +32,30 @@ const semaforoAnterior = (valor) => (valor >= 0 ? 'verde' : (valor >= -0.1 ? 'am
 const movil = () => window.innerWidth < 768;
 const alto = () => (movil() ? 260 : 320);
 
+const partesMes = (periodo) => texto(periodo).split('-').map(Number);
+const indiceMes = (periodo) => { const [anio, mes] = partesMes(periodo); return anio * 12 + mes - 1; };
+const periodoDe = (indice) => `${Math.floor(indice / 12)}-${String((indice % 12) + 1).padStart(2, '0')}`;
+const etiquetaMes = (periodo) => { const [anio, mes] = partesMes(periodo); return MESES[mes - 1] ? `${MESES[mes - 1]} ${anio}` : ''; };
+const restarAnio = (periodo) => periodoDe(indiceMes(periodo) - 12);
+const rango = (desde, hasta) => `${etiquetaMes(desde)} – ${etiquetaMes(hasta)}`;
+const cuentaMeses = (desde, hasta) => indiceMes(hasta) - indiceMes(desde) + 1;
+const periodoConsulta = (r) => {
+    const desde = texto(r.filtros?.desde) || estado.filtros.desde;
+    const hasta = texto(r.filtros?.hasta) || estado.filtros.hasta;
+
+    const corte = texto(r.filtros?.corte);
+
+    return {
+        desde,
+        hasta,
+        meses: cuentaMeses(desde, hasta),
+        conReal: (r.meses || []).filter((mes) => !nulo(mes.real)).length,
+        corte: corte && indiceMes(hasta) > indiceMes(corte) ? corte : '',
+        texto: rango(desde, hasta),
+        comparado: rango(restarAnio(desde), restarAnio(hasta))
+    };
+};
+
 const estado = { turno: 0, respuesta: null, filtros: null, textos: null, graficas: {}, meta: null };
 const SCRIPT_HISTORICO = 'crear_produccion_historica.sql';
 const FUENTE = { bascula: ['verde', 'Báscula', ''], historico: ['gris', 'Excel', ' · Histórico Excel'], mixto: ['ambar', 'Mixto', ' · Báscula/Excel'] };
@@ -73,9 +97,8 @@ const pedir = async (ruta, datos) => {
 
 const valores = () => ({
     empresa: $id('filtro_empresa').value,
-    anio: $id('filtro_anio').value,
-    mes: $id('filtro_mes').value,
-    modo: 'acumulado',
+    desde: $id('filtro_desde').value,
+    hasta: $id('filtro_hasta').value,
     finca: $id('filtro_finca').value,
     siembra: $id('filtro_siembra').value,
     vista: document.querySelector('input[name="vista"]:checked').value
@@ -83,9 +106,24 @@ const valores = () => ({
 
 const textoSeleccion = (id) => $id(id).selectedOptions[0]?.text || '';
 
-const revisarVigencia = () => {
-    const cambiado = Boolean(estado.filtros) && JSON.stringify(valores()) !== JSON.stringify(estado.filtros);
+const errorRango = () => {
+    if ($id('vista_historico').checked) return '';
 
+    const meses = cuentaMeses($id('filtro_desde').value, $id('filtro_hasta').value);
+
+    if (meses < 1) return '«Hasta» no puede ser anterior a «Desde».';
+
+    return meses > 24 ? `El periodo máximo es de 24 meses; el seleccionado tiene ${meses}.` : '';
+};
+
+const revisarVigencia = () => {
+    const error = errorRango();
+    const cambiado = !error && Boolean(estado.filtros) && JSON.stringify(valores()) !== JSON.stringify(estado.filtros);
+
+    ['filtro_desde', 'filtro_hasta'].forEach((id) => $id(id).classList.toggle('is-invalid', Boolean(error)));
+    $id('error_rango').textContent = error;
+    mostrar($id('fila_error_rango'), Boolean(error));
+    $id('btn_consultar').disabled = Boolean(error) || $id('resultado_cuerpo').getAttribute('aria-busy') === 'true';
     mostrar($id('chip_desactualizado'), cambiado);
     $id('resultado_cuerpo').classList.toggle('inf-desactualizado', cambiado);
 };
@@ -93,7 +131,7 @@ const revisarVigencia = () => {
 const ocupado = (activo) => {
     const boton = $id('btn_consultar');
 
-    boton.disabled = activo;
+    boton.disabled = activo || Boolean(errorRango());
     boton.innerHTML = activo
         ? '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>Consultando…'
         : '<i class="bi bi-search me-1" aria-hidden="true"></i>Consultar';
@@ -125,62 +163,56 @@ const variacion = (valor, etiqueta, color) => {
 
 const progreso = (valor, color) => `<div class="progress ig-progreso mt-1" role="progressbar" aria-valuenow="${Math.round(Number(valor) * 100)}" aria-valuemin="0" aria-valuemax="100" aria-label="Cumplimiento"><div class="progress-bar ig-barra-${color}" style="width:${Math.min(Math.max(Number(valor), 0) * 100, 100)}%"></div></div>`;
 
-const kpi = (icono, etiqueta, valor, sub, extra = '', clase = '') => `<div class="col-12 col-sm-6 col-lg-4 col-xxl min-w-0">
+const kpi = (icono, etiqueta, valor, sub, extra = '', clase = '', titulo = '') => `<div class="col-12 col-sm-6 col-lg-4 col-xxl min-w-0">
     <div class="inf-kpi ${clase}">
         <span class="gp-icono rounded-circle d-inline-flex align-items-center justify-content-center"><i class="bi ${icono}" aria-hidden="true"></i></span>
         <div class="min-w-0 flex-grow-1">
             <span class="gp-etiqueta-mini d-block">${etiqueta}</span>
             <div class="inf-kpi-valor" title="${escaparHtml(valor.replace(/<[^>]+>/g, ''))}">${valor}</div>
             ${extra}
-            ${sub ? `<div class="gp-subtexto text-truncate" title="${escaparHtml(sub.replace(/<[^>]+>/g, ''))}">${sub}</div>` : ''}
+            ${sub ? `<div class="gp-subtexto text-truncate" title="${escaparHtml(titulo || sub.replace(/<[^>]+>/g, ''))}">${sub}</div>` : ''}
         </div>
     </div>
 </div>`;
 
-const metaTonHaCorte = (kpis, mes) => {
-    if (nulo(kpis.metaTonHa)) return null;
+const metaTonHaPeriodo = (kpis, meses) => (nulo(kpis.metaTonHa) ? null : (Number(kpis.metaTonHa) * meses) / 12);
 
-    const factor = !nulo(kpis.meta) && Number(kpis.metaAnual) > 0 ? Number(kpis.meta) / Number(kpis.metaAnual) : mes / 12;
-
-    return Number(kpis.metaTonHa) * factor;
-};
-
-const kpiTonHa = (kpis, mes, porFinca) => {
+const kpiTonHa = (kpis, meses) => {
     const real = escaparHtml(f('tonHa', kpis.tonHa, ' t/ha'));
-    const corte = metaTonHaCorte(kpis, mes);
+    const metaPeriodo = metaTonHaPeriodo(kpis, meses);
 
-    if (corte === null) return kpi('bi-speedometer2', 'Rendimiento t/ha', real, 'Sin meta t/ha cargada');
+    if (metaPeriodo === null) return kpi('bi-speedometer2', 'Rendimiento t/ha', real, 'Sin meta t/ha cargada');
 
-    const sub = escaparHtml(`${kpis.metaTonHaOrigen === 'finca' ? 'Meta finca' : 'Meta empresa'}: ${f('tonHa', kpis.metaTonHa)} t/ha anual · ${f('tonHa', corte)} t/ha al corte`);
+    const sub = escaparHtml(`${kpis.metaTonHaOrigen === 'finca' ? 'Meta finca' : 'Meta empresa'}: ${f('tonHa', kpis.metaTonHa)} t/ha anual · ${f('tonHa', metaPeriodo)} t/ha del periodo`);
 
-    if (!(corte > 0) || nulo(kpis.tonHa)) return kpi('bi-speedometer2', 'Rendimiento t/ha', real, sub);
+    if (!(metaPeriodo > 0) || nulo(kpis.tonHa)) return kpi('bi-speedometer2', 'Rendimiento t/ha', real, sub);
 
-    const cumple = Number(kpis.tonHa) / corte;
+    const cumple = Number(kpis.tonHa) / metaPeriodo;
     const color = semaforo(cumple);
 
-    return kpi('bi-speedometer2', 'Rendimiento t/ha', real, sub, `${variacion(cumple - 1, 'vs meta al corte', color)}${progreso(cumple, color)}`, `ig-kpi-${CLASE_KPI[color]}`);
+    return kpi('bi-speedometer2', 'Rendimiento t/ha', real, sub, `${variacion(cumple - 1, 'vs meta del periodo', color)}${progreso(cumple, color)}`, `ig-kpi-${CLASE_KPI[color]}`);
 };
 
-const pintarKpis = (kpis, corte, mes, porFinca) => {
+const pintarKpis = (kpis, periodo) => {
     const conMeta = !nulo(kpis.meta) && Number(kpis.meta) > 0;
     const cumple = conMeta && !nulo(kpis.cumplimiento);
     const color = cumple ? semaforo(Number(kpis.cumplimiento)) : null;
     const colorAnt = nulo(kpis.vsAnterior) ? null : semaforoAnterior(Number(kpis.vsAnterior));
     const flechaMeta = Number(kpis.difMeta) > 0 ? 'bi-arrow-up-right' : (Number(kpis.difMeta) < 0 ? 'bi-arrow-down-right' : 'bi-dash');
-    const periodo = escaparHtml(`Ene – ${corte}`);
+    const anterior = f('ton', kpis.anterior, ' t');
 
     return `<div class="row g-3 mb-3">
-        ${kpi('bi-basket', 'Producción real', escaparHtml(f('ton', kpis.real, ' t')), periodo, cumple ? variacion(Number(kpis.cumplimiento) - 1, 'vs meta', color) : '')}
-        ${kpi('bi-flag', 'Meta', conMeta ? escaparHtml(f('ton', kpis.meta, ' t')) : '—', conMeta ? 'Presupuesto al corte' : 'Sin meta cargada')}
+        ${kpi('bi-basket', 'Producción real', escaparHtml(f('ton', kpis.real, ' t')), escaparHtml(periodo.texto), cumple ? variacion(Number(kpis.cumplimiento) - 1, 'vs meta', color) : '')}
+        ${kpi('bi-flag', 'Meta', conMeta ? escaparHtml(f('ton', kpis.meta, ' t')) : '—', conMeta ? 'Presupuesto del periodo' : 'Sin meta cargada')}
         ${cumple
             ? kpi('bi-bullseye', 'Real vs Meta', `<span class="ig-texto-${color}">${escaparHtml(f('tonSigno', kpis.difMeta, ' t'))}</span>`, '',
                 `<span class="tb-variacion ig-texto-${color}"><i class="bi ${flechaMeta}" aria-hidden="true"></i><span class="visually-hidden">${Number(kpis.difMeta) < 0 ? 'baja' : 'sube'}</span>${f('pct', kpis.cumplimiento)} cumplimiento</span>${progreso(kpis.cumplimiento, color)}<div class="tb-sparkline" id="spark_meta" role="img" aria-label="Producción real mensual"></div>`,
                 `ig-kpi-${CLASE_KPI[color]}`)
             : kpi('bi-bullseye', 'Real vs Meta', '—', 'Sin meta cargada', '<div class="tb-sparkline" id="spark_meta" role="img" aria-label="Producción real mensual"></div>')}
-        ${kpi('bi-calendar2-range', 'Real vs Año anterior', `<span class="${colorAnt ? `ig-texto-${colorAnt}` : ''}">${escaparHtml(f('tonSigno', kpis.difAnterior, ' t'))}</span>`, nulo(kpis.vsAnterior) ? 'Sin producción el año anterior' : escaparHtml(`Año anterior: ${f('ton', kpis.anterior, ' t')}`),
+        ${kpi('bi-calendar2-range', 'Real vs Año anterior', `<span class="${colorAnt ? `ig-texto-${colorAnt}` : ''}">${escaparHtml(f('tonSigno', kpis.difAnterior, ' t'))}</span>`, nulo(kpis.vsAnterior) ? 'Sin producción el año anterior' : escaparHtml(`Año anterior: ${anterior}`),
             `${variacion(kpis.vsAnterior, 'vs año anterior', colorAnt || 'verde')}<div class="tb-sparkline" id="spark_anterior" role="img" aria-label="Producción real y del año anterior por mes"></div>`,
-            colorAnt ? `ig-kpi-${CLASE_KPI[colorAnt]}` : '')}
-        ${kpiTonHa(kpis, mes, porFinca)}
+            colorAnt ? `ig-kpi-${CLASE_KPI[colorAnt]}` : '', nulo(kpis.vsAnterior) ? '' : `${periodo.comparado}: ${anterior}`)}
+        ${kpiTonHa(kpis, periodo.conReal)}
     </div>`;
 };
 
@@ -195,7 +227,15 @@ const opcionesBase = (altura) => ({
     yaxis: { min: 0, labels: { style: { colors: '#5c6b7a' }, formatter: (valor) => FORMATOS.compacto.format(valor) } }
 });
 
-const anotacion = (x, etiqueta) => ({ x, borderColor: '#8795a4', strokeDashArray: 4, label: { text: etiqueta, borderColor: '#8795a4', orientation: 'horizontal', style: { color: '#fff', background: '#8795a4', fontSize: '11px' } } });
+const ejeMeses = (base, meses) => ({
+    ...base.xaxis,
+    categories: meses.map((fila, indice) => { const [anio, mes] = partesMes(fila.periodo); return indice === 0 || mes === 1 ? [MESES[mes - 1], String(anio)] : MESES[mes - 1]; }),
+    labels: { ...base.xaxis.labels, rotate: 0, hideOverlappingLabels: true, style: { ...base.xaxis.labels.style, fontSize: '11px' } }
+});
+
+const barrasMeses = (base, meses) => ({ ...base.plotOptions, bar: { ...base.plotOptions.bar, columnWidth: meses.length > 18 ? '70%' : base.plotOptions.bar.columnWidth } });
+
+const tooltipMes = (meses) => ({ formatter: (valor, { dataPointIndex }) => etiquetaMes(meses[dataPointIndex]?.periodo) });
 
 const serie = (lista, campo) => lista.map((fila) => (nulo(fila[campo]) ? null : Number(fila[campo])));
 
@@ -212,28 +252,36 @@ const tarjeta = (col, icono, titulo, unidad, cuerpo) => `<div class="${col}">
 const lienzo = (id, etiqueta) => `<div class="inf-grafica" id="${id}" role="img" aria-label="${escaparHtml(etiqueta)}"></div>`;
 const vacioGrafica = (mensaje = 'Sin datos') => `<div class="tb-grafica-vacia"><i class="bi bi-bar-chart" aria-hidden="true"></i>${escaparHtml(mensaje)}</div>`;
 
-const opcionesSpark = (series, colores) => ({
+const opcionesSpark = (series, colores, meses) => ({
     chart: { type: 'line', height: 40, sparkline: { enabled: true }, animations: { enabled: false } },
     series,
     colors: colores,
     stroke: { width: 2, curve: 'straight' },
-    xaxis: { categories: MESES },
-    tooltip: { fixed: { enabled: false }, x: { show: true }, marker: { show: false }, y: { formatter: (valor) => f('ton', valor, ' t') } }
+    xaxis: { categories: meses.map((fila) => etiquetaMes(fila.periodo)) },
+    tooltip: {
+        fixed: { enabled: false },
+        x: { show: true },
+        marker: { show: false },
+        y: {
+            formatter: (valor) => f('ton', valor, ' t'),
+            title: { formatter: (nombre, { dataPointIndex }) => (nombre === 'Año anterior' ? `Año anterior (${etiquetaMes(restarAnio(meses[dataPointIndex]?.periodo))})` : nombre) }
+        }
+    }
 });
 
-const opcionesMensual = (r, porFinca) => {
+const opcionesMensual = (r, porFinca, meses) => {
     const base = opcionesBase(alto());
-    const corte = Number(r.filtros?.mes);
     const series = [
         { name: 'Ton ejecutadas', type: 'column', data: serie(r.meses, 'real') },
         { name: 'Presupuesto', type: 'column', data: serie(r.meses, 'meta') }
     ];
 
     const kpis = r.kpis || {};
-    const conMetaTonHa = porFinca && !nulo(kpis.metaTonHa) && Number(kpis.metaAnual) > 0 && r.meses.some((mes) => !nulo(mes.meta));
+    const metaPeriodo = metaTonHaPeriodo(kpis, meses);
+    const conMetaTonHa = porFinca && metaPeriodo > 0 && Number(kpis.meta) > 0 && r.meses.some((mes) => !nulo(mes.meta));
 
     if (porFinca) series.push({ name: 'Ton/Ha', type: 'line', data: serie(r.meses, 'tonHa') });
-    if (conMetaTonHa) series.push({ name: 'Meta t/ha', type: 'line', data: r.meses.map((mes) => (nulo(mes.meta) ? null : (Number(kpis.metaTonHa) * Number(mes.meta)) / Number(kpis.metaAnual))) });
+    if (conMetaTonHa) series.push({ name: 'Meta t/ha', type: 'line', data: r.meses.map((mes) => (nulo(mes.meta) ? null : (metaPeriodo * Number(mes.meta)) / Number(kpis.meta))) });
 
     return {
         ...base,
@@ -243,7 +291,8 @@ const opcionesMensual = (r, porFinca) => {
         stroke: { width: [0, 0, 3, 2], curve: 'straight', dashArray: [0, 0, 0, 6] },
         markers: { size: [0, 0, 4, 0], strokeColors: '#fff', strokeWidth: 2 },
         legend: { ...base.legend, formatter: (nombre) => escaparHtml(nombre) },
-        xaxis: { ...base.xaxis, categories: MESES },
+        plotOptions: barrasMeses(base, r.meses),
+        xaxis: ejeMeses(base, r.meses),
         yaxis: porFinca
             ? [
                 { ...base.yaxis, seriesName: 'Ton ejecutadas' },
@@ -252,8 +301,7 @@ const opcionesMensual = (r, porFinca) => {
                 ...(conMetaTonHa ? [{ seriesName: 'Ton/Ha', show: false }] : [])
             ]
             : base.yaxis,
-        annotations: { xaxis: corte >= 1 && corte <= 12 ? [anotacion(MESES[corte - 1], 'Corte')] : [] },
-        tooltip: { shared: true, intersect: false, y: { formatter: (valor, { seriesIndex }) => (seriesIndex >= 2 ? f('tonHa', valor, ' t/ha') : f('ton', valor, ' t')) } }
+        tooltip: { shared: true, intersect: false, x: tooltipMes(r.meses), y:{ formatter: (valor, { seriesIndex }) => (seriesIndex >= 2 ? f('tonHa', valor, ' t/ha') : f('ton', valor, ' t')) } }
     };
 };
 
@@ -293,9 +341,10 @@ const opcionesPpr = (r) => {
         series: [{ name: 'PPR', data: serie(r.meses, 'ppr') }],
         colors: [COLOR.ppr],
         legend: { show: false },
-        xaxis: { ...base.xaxis, categories: MESES },
+        plotOptions: barrasMeses(base, r.meses),
+        xaxis: ejeMeses(base, r.meses),
         yaxis: { ...base.yaxis, labels: { ...base.yaxis.labels, formatter: (valor) => f('ppr', valor) } },
-        tooltip: { shared: true, intersect: false, y: { formatter: (valor) => f('ppr', valor, ' kg/racimo') } }
+        tooltip: { shared: true, intersect: false, x: tooltipMes(r.meses), y:{ formatter: (valor) => f('ppr', valor, ' kg/racimo') } }
     };
 };
 
@@ -328,8 +377,9 @@ const opcionesGauge = (cumplimiento) => {
 const pintarContexto = () => {
     const r = estado.respuesta;
     const historico = estado.filtros.vista === 'historico';
-    const ultimo = historico ? 0 : Number(r.filtros?.ultimoMes);
-    const chips = [historico ? `Vista: Histórico ${texto(r.desde)}–${texto(r.hasta)}` : `Corte: Ene – ${estado.textos.mes} ${texto(r.filtros?.anio)}`];
+    const periodo = historico ? null : periodoConsulta(r);
+    const ultimo = historico ? '' : texto(r.filtros?.ultimoMes);
+    const chips = historico ? [`Vista: Histórico ${texto(r.desde)}–${texto(r.hasta)}`] : [`Comparado con: ${periodo.comparado}`];
     const fuentes = historico ? [] : [r.kpis?.fuentes?.real, r.kpis?.fuentes?.anterior].filter(Boolean);
     const mixto = fuentes.includes('mixto') || (fuentes.includes('historico') && fuentes.includes('bascula'));
 
@@ -337,12 +387,14 @@ const pintarContexto = () => {
 
     const html = chips.map((chip) => `<span class="gp-chip-fila inf-chip-filtro">${escaparHtml(chip)}</span>`);
 
+    if (periodo) html.unshift(`<span class="gp-chip-fila inf-chip-filtro"><i class="bi bi-calendar-range me-1" aria-hidden="true"></i>${escaparHtml(`Periodo: ${periodo.texto} · ${periodo.meses} ${periodo.meses === 1 ? 'mes' : 'meses'}`)}</span>`);
+
     html.push(estado.filtros.finca
         ? `<span class="gp-chip-fila verde">Finca: ${escaparHtml(estado.textos.finca)}<button type="button" class="tb-chip-quitar" data-accion="todas" aria-label="Quitar filtro de finca y ver todas"><span aria-hidden="true">×</span></button></span>`
         : '<span class="gp-chip-fila inf-chip-filtro">Finca: Todas las fincas</span>');
 
     if (estado.filtros.siembra) html.push(`<span class="gp-chip-fila inf-chip-filtro">Siembra: ${escaparHtml(estado.filtros.siembra)}</span>`);
-    if (ultimo >= 1 && ultimo <= 12) html.push(`<span class="gp-chip-fila ${Number(r.filtros?.mes) > ultimo ? 'ambar' : 'inf-chip-filtro'}">Último mes facturado: ${escaparHtml(MESES[ultimo - 1])}</span>`);
+    if (etiquetaMes(ultimo)) html.push(`<span class="gp-chip-fila ${indiceMes(periodo.hasta) > indiceMes(ultimo) ? 'ambar' : 'inf-chip-filtro'}">Último mes facturado: ${escaparHtml(etiquetaMes(ultimo))}</span>`);
     if (mixto || fuentes.includes('historico')) html.push(`<span class="gp-chip-fila ${mixto ? 'ambar' : 'gris'}" title="Parte de los datos proviene del histórico cargado desde Excel"><i class="bi bi-database me-1" aria-hidden="true"></i>Datos: ${mixto ? 'Mixto' : 'Histórico Excel'}</span>`);
 
     $id('chips_contexto').innerHTML = html.join('');
@@ -407,14 +459,16 @@ const pintar = () => {
     const fincas = (r.fincas || []).filter((finca) => !nulo(finca.real) || !nulo(finca.meta) || !nulo(finca.anterior));
     const hay = [kpis.real, kpis.meta, kpis.anterior].some((valor) => Number(valor) > 0);
     const conMeta = !nulo(kpis.meta) && Number(kpis.meta) > 0 && !nulo(kpis.cumplimiento);
-    const corte = MESES[Number(r.filtros?.mes) - 1] || estado.textos.mes;
+    const periodo = periodoConsulta(r);
+    const meses = r.meses || [];
+    const avisos = [...(r.avisos || []), ...(periodo.corte ? [`Los totales comparan hasta ${etiquetaMes(periodo.corte)}; los meses posteriores solo se muestran en la gráfica con su meta y año anterior.`] : [])];
 
     destruirGraficas();
     pintarContexto();
     pintarSiembras(r.opciones?.siembras);
 
     if (!hay) {
-        $id('resultado_cuerpo').innerHTML = avisosHtml(r.avisos) + `<div class="card mb-3">${estadoVacio('bi-bar-chart', 'Sin datos para los filtros seleccionados', '<p class="text-muted mb-0">Ajuste el año, el mes de corte, la finca o el año de siembra.</p>')}</div>`;
+        $id('resultado_cuerpo').innerHTML = avisosHtml(avisos) + `<div class="card mb-3">${estadoVacio('bi-bar-chart', 'Sin datos para los filtros seleccionados', '<p class="text-muted mb-0">Ajuste el periodo, la finca o el año de siembra.</p>')}</div>`;
         return;
     }
 
@@ -425,9 +479,9 @@ const pintar = () => {
     const participan = fincas.filter((finca) => Number(finca.real) > 0);
     const resumen = `Real ${f('ton', kpis.real, ' t')} de Meta ${f('ton', kpis.meta, ' t')}`;
 
-    let html = avisosHtml(r.avisos) + pintarKpis(kpis, corte, r.filtros?.modo === 'mes' ? 1 : (Number(r.filtros?.mes) || 12), porFinca) + `<div class="row g-3 mb-3">
-        ${tarjeta('col-12 col-xl-8', 'bi-bar-chart-line', 'Producción mensual vs presupuesto', porFinca ? 't · t/ha' : 't', conMeses ? lienzo('grafica_mensual', `Producción mensual: ${resumen} al corte de ${corte}`) : vacioGrafica())}
-        ${tarjeta('col-12 col-xl-4', 'bi-speedometer2', 'Cumplimiento al corte', '%', conMeta
+    let html = avisosHtml(avisos) + pintarKpis(kpis, periodo) + `<div class="row g-3 mb-3">
+        ${tarjeta('col-12 col-xl-8', 'bi-bar-chart-line', 'Producción mensual vs presupuesto', porFinca ? 't · t/ha' : 't', conMeses ? lienzo('grafica_mensual', `Producción mensual ${periodo.texto}: ${resumen}`) : vacioGrafica())}
+        ${tarjeta('col-12 col-xl-4', 'bi-speedometer2', 'Cumplimiento del periodo', '%', conMeta
             ? `<div class="tb-gauge" id="grafica_gauge" role="img" aria-label="${escaparHtml(`Cumplimiento ${f('pct', kpis.cumplimiento)}. ${resumen}`)}"></div><div class="gp-subtexto tb-gauge-texto">${escaparHtml(resumen)}</div>`
             : vacioGrafica('Sin meta para calcular cumplimiento'))}
     </div>`;
@@ -442,9 +496,9 @@ const pintar = () => {
 
     $id('resultado_cuerpo').innerHTML = html;
 
-    crear('sparkMeta', 'spark_meta', opcionesSpark([{ name: 'Real', data: serie(r.meses || [], 'real') }], [COLOR.real]));
-    crear('sparkAnterior', 'spark_anterior', opcionesSpark([{ name: 'Real', data: serie(r.meses || [], 'real') }, { name: 'Año anterior', data: serie(r.meses || [], 'anterior') }], [COLOR.real, COLOR.anterior]));
-    if (conMeses) crear('mensual', 'grafica_mensual', opcionesMensual(r, porFinca));
+    crear('sparkMeta', 'spark_meta', opcionesSpark([{ name: 'Real', data: serie(meses, 'real') }], [COLOR.real], meses));
+    crear('sparkAnterior', 'spark_anterior', opcionesSpark([{ name: 'Real', data: serie(meses, 'real') }, { name: 'Año anterior', data: serie(meses, 'anterior') }], [COLOR.real, COLOR.anterior], meses));
+    if (conMeses) crear('mensual', 'grafica_mensual', opcionesMensual(r, porFinca, periodo.conReal));
     if (conMeta) {
         estado.graficas.gauge = echarts.init($id('grafica_gauge'));
         estado.graficas.gauge.setOption(opcionesGauge(kpis.cumplimiento));
@@ -570,12 +624,14 @@ const metaHistorico = (filtros) => (estado.meta?.clave === claveMeta(filtros)
     : pedir('produccion/datos', { ...filtros, vista: '' }).then((r) => guardarMeta(r, filtros)).catch(() => null));
 
 const consultar = async () => {
+    if (errorRango()) return revisarVigencia();
+
     const turno = ++estado.turno;
     const filtros = valores();
 
     destruirGraficas();
     estado.filtros = filtros;
-    estado.textos = { empresa: textoSeleccion('filtro_empresa'), mes: textoSeleccion('filtro_mes'), finca: filtros.finca ? textoSeleccion('filtro_finca') : 'Todas las fincas' };
+    estado.textos = { empresa: textoSeleccion('filtro_empresa'), finca: filtros.finca ? textoSeleccion('filtro_finca') : 'Todas las fincas' };
     ocupado(true);
     revisarVigencia();
     $id('chips_contexto').innerHTML = '';
@@ -624,14 +680,33 @@ const drill = (codigo) => {
     consultar();
 };
 
+const opcionesPeriodo = (inicio, fin) => {
+    let html = '';
+
+    for (let indice = fin; indice >= inicio; indice--) {
+        const periodo = periodoDe(indice);
+
+        if (indice === fin || indice % 12 === 11) html += `${indice === fin ? '' : '</optgroup>'}<optgroup label="${periodo.slice(0, 4)}">`;
+        html += `<option value="${periodo}">${escaparHtml(etiquetaMes(periodo))}</option>`;
+    }
+
+    return html ? `${html}</optgroup>` : '';
+};
+
+const pintarPeriodos = (minimo, maximo, desdeMaximo, desde, hasta) => {
+    const inicio = indiceMes(minimo || desde);
+
+    $id('filtro_desde').innerHTML = opcionesPeriodo(inicio, indiceMes(desdeMaximo || desde));
+    $id('filtro_hasta').innerHTML = opcionesPeriodo(inicio, indiceMes(maximo || hasta));
+    $id('filtro_desde').value = texto(desde);
+    $id('filtro_hasta').value = texto(hasta);
+};
+
 const cargarEmpresa = async () => {
     try {
         const resultado = await pedir('tableros/fincas', { tablero: TABLERO.tablero, empresa: $id('filtro_empresa').value });
-        const anios = (resultado.anios || []).length ? resultado.anios : [resultado.anio_sel];
 
-        $id('filtro_anio').innerHTML = anios.map((anio) => `<option value="${escaparHtml(anio)}">${escaparHtml(anio)}</option>`).join('');
-        $id('filtro_anio').value = String(resultado.anio_sel);
-        $id('filtro_mes').value = String(resultado.mes_sel);
+        pintarPeriodos(resultado.periodo_min, resultado.periodo_max, resultado.desde_max, resultado.desde_sel, resultado.hasta_sel);
         $id('filtro_finca').innerHTML = '<option value="">Todas las fincas</option>' + (resultado.fincas || []).map((finca) => `<option value="${escaparHtml(finca.codigo)}">${escaparHtml(`${texto(finca.codigo)} — ${texto(finca.nombre)}`)}</option>`).join('');
         $id('filtro_siembra').innerHTML = '<option value="">Todos</option>';
         $('#filtro_finca, #filtro_siembra').trigger('change.select2');
@@ -647,13 +722,13 @@ $('#filtro_finca, #filtro_siembra').select2({
     language: { noResults: () => 'No se encontraron resultados' }
 }).on('change', revisarVigencia);
 
-['filtro_anio', 'filtro_mes'].forEach((id) => $id(id).addEventListener('change', revisarVigencia));
+['filtro_desde', 'filtro_hasta'].forEach((id) => $id(id).addEventListener('change', revisarVigencia));
 $id('filtro_empresa').addEventListener('change', cargarEmpresa);
 
 document.querySelectorAll('input[name="vista"]').forEach((radio) => radio.addEventListener('change', () => {
     const historico = radio.value === 'historico';
 
-    ['filtro_anio', 'filtro_mes'].forEach((id) => { $id(id).disabled = historico; });
+    ['filtro_desde', 'filtro_hasta'].forEach((id) => { $id(id).disabled = historico; });
     mostrar($id('nota_vista'), historico);
     consultar();
 }));
@@ -673,4 +748,5 @@ $id('resultado_cuerpo').addEventListener('click', (evento) => {
 
 window.addEventListener('resize', () => estado.graficas.gauge?.resize());
 
+pintarPeriodos(TABLERO.periodoMin, TABLERO.periodoMax, TABLERO.desdeMax, TABLERO.desde, TABLERO.hasta);
 consultar();

@@ -98,13 +98,26 @@ class TablerosController extends BaseController
 
     private function filtrosEmpresa(string $tablero, int $empresa): array
     {
+        if ($tablero === 'produccion') {
+            $anios = $empresa > 0 ? $this->model->getAnios($empresa) : [];
+
+            return [
+                'desde_sel'   => ((int) date('Y') - 1) . date('-m'),
+                'hasta_sel'   => date('Y-m'),
+                'desde_max'   => date('Y-m'),
+                'periodo_min' => min(array_merge($anios, [(int) date('Y') - 1])) . '-01',
+                'periodo_max' => date('Y') . '-12',
+                'fincas'      => $empresa > 0 ? $this->model->getFincas($empresa) : [],
+            ];
+        }
+
         if ($empresa <= 0) {
             return ['anios' => [], 'fincas' => [], 'anio_sel' => (int) date('Y'), 'mes_sel' => (int) date('n')];
         }
 
-        $anios   = $tablero === 'produccion' ? $this->model->getAnios($empresa) : $this->model->aniosFertilizacion($empresa);
+        $anios   = $this->model->aniosFertilizacion($empresa);
         $anioSel = in_array((int) date('Y'), $anios, true) ? (int) date('Y') : ($anios[0] ?? (int) date('Y'));
-        $mesSel  = $tablero === 'produccion' ? $this->model->ultimoMesFacturado($empresa, $anioSel) : ($anioSel === (int) date('Y') ? (int) date('n') : 12);
+        $mesSel  = $anioSel === (int) date('Y') ? (int) date('n') : 12;
 
         return [
             'anios'    => $anios,
@@ -145,12 +158,14 @@ class TablerosController extends BaseController
         return $this->response->setJSON(['success' => true, 'message' => ''] + $filtros);
     }
 
-    private function filtrosBase(): array|ResponseInterface
+    private function filtrosBase(bool $rango = false): array|ResponseInterface
     {
         $empresa = (int) $this->request->getPost('empresa');
         $anio    = (int) $this->request->getPost('anio');
         $mes     = (int) $this->request->getPost('mes');
         $modo    = trim((string) ($this->request->getPost('modo') ?? 'acumulado'));
+        $desde   = trim((string) $this->request->getPost('desde'));
+        $hasta   = trim((string) $this->request->getPost('hasta'));
         $finca   = trim((string) $this->request->getPost('finca'));
 
         try {
@@ -166,23 +181,52 @@ class TablerosController extends BaseController
             return $this->error('Debe seleccionar una empresa válida.');
         }
 
-        if ($anio < 2000 || $anio > 2100) {
-            return $this->error('Debe seleccionar un año válido.');
-        }
+        if ($rango) {
+            $formato = static fn (string $v) => preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $v) === 1 && $v >= '2000-01';
 
-        if ($mes < 1 || $mes > 12) {
-            return $this->error('Debe seleccionar un mes válido.');
-        }
+            if (! $formato($desde)) {
+                return $this->error('Debe seleccionar un periodo inicial válido (AAAA-MM).');
+            }
 
-        if (! in_array($modo, ['acumulado', 'mes'], true)) {
-            return $this->error('El modo de mes debe ser "acumulado" o "mes".');
+            if (! $formato($hasta)) {
+                return $this->error('Debe seleccionar un periodo final válido (AAAA-MM).');
+            }
+
+            if ($desde > date('Y-m')) {
+                return $this->error('«Desde» no puede ser posterior al mes actual.');
+            }
+
+            if ($desde > $hasta) {
+                return $this->error('El periodo inicial no puede ser posterior al periodo final.');
+            }
+
+            if (((int) substr($hasta, 0, 4) - (int) substr($desde, 0, 4)) * 12 + (int) substr($hasta, 5) - (int) substr($desde, 5) + 1 > 24) {
+                return $this->error('El rango no puede superar 24 meses.');
+            }
+
+            if ($hasta > date('Y') . '-12') {
+                return $this->error('El periodo final no puede ser posterior a diciembre de ' . date('Y') . '.');
+            }
+        } else {
+            if ($anio < 2000 || $anio > 2100) {
+                return $this->error('Debe seleccionar un año válido.');
+            }
+
+            if ($mes < 1 || $mes > 12) {
+                return $this->error('Debe seleccionar un mes válido.');
+            }
+
+            if (! in_array($modo, ['acumulado', 'mes'], true)) {
+                return $this->error('El modo de mes debe ser "acumulado" o "mes".');
+            }
         }
 
         if ($finca !== '' && ! array_key_exists($finca, $fincas)) {
             return $this->error('La finca seleccionada no es válida.');
         }
 
-        return ['empresa' => $empresa, 'anio' => $anio, 'mes' => $mes, 'modo' => $modo, 'finca' => $finca, 'fincas' => $fincas];
+        return $rango ? ['empresa' => $empresa, 'desde' => $desde, 'hasta' => $hasta, 'finca' => $finca, 'fincas' => $fincas]
+            : ['empresa' => $empresa, 'anio' => $anio, 'mes' => $mes, 'modo' => $modo, 'finca' => $finca, 'fincas' => $fincas];
     }
 
     public function datosProduccion(): ResponseInterface
@@ -193,7 +237,7 @@ class TablerosController extends BaseController
             return $acceso;
         }
 
-        $f = $this->filtrosBase();
+        $f = $this->filtrosBase(true);
 
         if ($f instanceof ResponseInterface) {
             return $f;
@@ -216,18 +260,30 @@ class TablerosController extends BaseController
 
     private function produccionDatos(array $f, int $siembra): array
     {
-        $empresa = $f['empresa'];
-        $anio    = $f['anio'];
-        $mes     = $f['mes'];
-        $finca   = $f['finca'];
-        $enRango = static fn (int $i) => $f['modo'] === 'mes' ? $i === $mes : $i <= $mes;
-        $lotesBd = array_column($this->model->lotes($empresa), null, 'codigo');
-        $avisos  = [];
-        $excl    = false;
-        $fincas  = [];
-        $lotes   = [];
+        $empresa   = $f['empresa'];
+        $finca     = $f['finca'];
+        [$aD, $mD] = array_map('intval', explode('-', $f['desde']));
+        [$aH, $mH] = array_map('intval', explode('-', $f['hasta']));
+        $hoy       = date('Y-m');
+        $txt       = static fn (int $d) => strtolower(self::MESES[$mD]) . ' ' . ($aD - $d) . ' – ' . strtolower(self::MESES[$mH]) . ' ' . ($aH - $d);
+        $lotesBd   = array_column($this->model->lotes($empresa), null, 'codigo');
+        $periodos  = [];
+        $avisos    = [];
+        $excl      = false;
+        $fincas    = [];
+        $lotes     = [];
 
-        $agregar = function (array $r, string $serie, float $kilos) use (&$fincas, &$lotes, &$excl, $lotesBd, $siembra, $finca) {
+        for ($i = $aD * 12 + $mD - 1; $i <= $aH * 12 + $mH - 1; $i++) {
+            $periodos[sprintf('%04d-%02d', intdiv($i, 12), $i % 12 + 1)] = [intdiv($i, 12), $i % 12 + 1];
+        }
+
+        $agregar = function (array $r, string $serie, float $kilos, int $anio) use (&$fincas, &$lotes, &$excl, $lotesBd, $siembra, $finca, $periodos) {
+            $p = sprintf('%04d-%02d', $anio, (int) $r['mes']);
+
+            if (! isset($periodos[$p])) {
+                return;
+            }
+
             $lote = trim((string) ($r['lote'] ?? ''));
             $codF = $lote !== '' && isset($lotesBd[$lote]) ? $lotesBd[$lote]['finca'] : trim((string) ($r['finca'] ?? ''));
 
@@ -241,50 +297,65 @@ class TablerosController extends BaseController
                 return;
             }
 
-            $m = (int) $r['mes'];
-            $fincas[$codF][$serie][$m] = ($fincas[$codF][$serie][$m] ?? 0) + $kilos;
+            $fincas[$codF][$serie][$p] = ($fincas[$codF][$serie][$p] ?? 0) + $kilos;
 
             if ($lote !== '') {
-                $lotes[$lote][$serie][$m] = ($lotes[$lote][$serie][$m] ?? 0) + $kilos;
+                $lotes[$lote][$serie][$p] = ($lotes[$lote][$serie][$p] ?? 0) + $kilos;
             }
         };
 
         $existe = $this->model->presupuestoExiste();
         $hist   = [];
+        $prod   = [];
 
-        foreach ($this->model->historico($empresa, $anio - 1, $anio, $finca) as $r) {
+        foreach ($this->model->historico($empresa, $aD - 1, $aH, $finca) as $r) {
             $hist[(int) $r['anio']][] = $r;
         }
 
-        $act  = $this->produccionAnio($empresa, $anio, $finca, $lotesBd, $hist[$anio] ?? []);
-        $prev = $this->produccionAnio($empresa, $anio - 1, $finca, $lotesBd, $hist[$anio - 1] ?? []);
+        for ($a = $aD - 1; $a <= $aH; $a++) {
+            $prod[$a] = $this->produccionAnio($empresa, $a, $finca, $lotesBd, $hist[$a] ?? []);
 
-        foreach ($act['filas'] as $r) {
-            $agregar($r, 'real', $r['kilos']);
-        }
-
-        foreach ($prev['filas'] as $r) {
-            $agregar($r, 'anterior', $r['kilos']);
+            foreach ($prod[$a]['filas'] as $r) {
+                $agregar($r, 'real', $r['kilos'], $a);
+                $agregar($r, 'anterior', $r['kilos'], $a + 1);
+            }
         }
 
         $metaFinca = false;
 
-        foreach ($this->model->getPresupuesto($empresa, $anio, $finca) as $r) {
-            $metaFinca = $metaFinca || trim((string) $r['lote']) === '';
-            $agregar($r, 'meta', (float) $r['kilos']);
-        }
+        for ($a = $aD; $a <= $aH; $a++) {
+            foreach ($this->model->getPresupuesto($empresa, $a, $finca) as $r) {
+                $metaFinca = $metaFinca || (trim((string) $r['lote']) === '' && isset($periodos[sprintf('%04d-%02d', $a, (int) $r['mes'])]));
+                $agregar($r, 'meta', (float) $r['kilos'], $a);
+            }
 
-        foreach ($this->model->racimos($empresa, $anio) as $r) {
-            $agregar($r + ['finca' => ''], 'racimos', (float) $r['racimos']);
+            foreach ($this->model->racimos($empresa, $a) as $r) {
+                $agregar($r + ['finca' => ''], 'racimos', (float) $r['racimos'], $a);
+            }
         }
 
         foreach ($lotes as $codigo => $s) {
-            foreach ($s['racimos'] ?? [] as $m => $v) {
-                if ($v > 0 && ($s['real'][$m] ?? 0) > 0) {
-                    $agregar(['lote' => (string) $codigo, 'finca' => '', 'mes' => $m], 'pprKg', (float) $s['real'][$m]);
-                    $agregar(['lote' => (string) $codigo, 'finca' => '', 'mes' => $m], 'pprRac', (float) $v);
+            foreach ($s['racimos'] ?? [] as $p => $v) {
+                if ($v > 0 && ($s['real'][$p] ?? 0) > 0) {
+                    $agregar(['lote' => (string) $codigo, 'finca' => '', 'mes' => $periodos[$p][1]], 'pprKg', (float) $s['real'][$p], $periodos[$p][0]);
+                    $agregar(['lote' => (string) $codigo, 'finca' => '', 'mes' => $periodos[$p][1]], 'pprRac', (float) $v, $periodos[$p][0]);
                 }
             }
+        }
+
+        $conBas = [];
+        $haH    = [];
+
+        foreach ($periodos as [$a, $m]) {
+            foreach ($prod[$a]['fuentes'] as $codF => $ms) {
+                if (($ms[$m] ?? null) === 'bascula') {
+                    $conBas[$codF] = true;
+                }
+            }
+        }
+
+        for ($a = $aH; $a >= $aD; $a--) {
+            $haH += array_diff_key($prod[$a]['haHist'], $conBas);
         }
 
         $siembras = [];
@@ -306,22 +377,23 @@ class TablerosController extends BaseController
 
         krsort($siembras);
 
-        $suma  = static fn (array $s, string $serie, callable $en) => array_sum(array_filter($s[$serie] ?? [], static fn ($i) => $en((int) $i), ARRAY_FILTER_USE_KEY));
-        $hayM  = static fn (array $s) => isset($s['meta']);
+        $suma  = static fn (array $s, string $serie) => array_sum(array_filter($s[$serie] ?? [], static fn ($p) => $p <= $hoy, ARRAY_FILTER_USE_KEY));
+        $hayM  = static fn (array $s) => array_filter($s['meta'] ?? [], static fn ($p) => $p <= $hoy, ARRAY_FILTER_USE_KEY) !== [];
         $haF   = [];
         $filaL = [];
 
         foreach ($lotes as $codigo => $s) {
-            $l    = $lotesBd[$codigo] ?? ['finca' => '', 'nombre' => '', 'siembra' => 0, 'hectareas' => 0, 'palmas' => 0];
-            $ha   = isset($act['haHist'][$l['finca']]) ? (float) ($act['haHist'][$l['finca']][$codigo] ?? 0) : (float) $l['hectareas'];
-            $real = $suma($s, 'real', $enRango);
-            $meta = $hayM($s) ? $suma($s, 'meta', $enRango) : null;
-            $ant  = $suma($s, 'anterior', $enRango);
-            $rac  = $suma($s, 'racimos', $enRango);
-            $kgR  = $suma($s, 'pprKg', $enRango);
-            $racR = $suma($s, 'pprRac', $enRango);
+            $l    = $lotesBd[$codigo] ?? ['finca' => '', 'nombre' => '', 'siembra' => 0, 'hectareas' => 0, 'palmas' => 0, 'vigente' => 0];
+            $conH = isset($haH[$l['finca']]);
+            $ha   = $conH ? (float) ($haH[$l['finca']][$codigo] ?? 0) : (float) $l['hectareas'];
+            $real = $suma($s, 'real');
+            $meta = $hayM($s) ? $suma($s, 'meta') : null;
+            $ant  = $suma($s, 'anterior');
+            $rac  = $suma($s, 'racimos');
+            $kgR  = $suma($s, 'pprKg');
+            $racR = $suma($s, 'pprRac');
 
-            $haF[$l['finca']] = ($haF[$l['finca']] ?? 0) + $ha;
+            $haF[$l['finca']] = ($haF[$l['finca']] ?? 0) + ($conH || (int) $l['vigente'] === 1 ? $ha : 0);
             $filaL[] = [
                 'finca'        => $l['finca'],
                 'codigo'       => (string) $codigo,
@@ -349,12 +421,12 @@ class TablerosController extends BaseController
 
         foreach ($fincas as $codF => $s) {
             $ha   = $haF[$codF] ?? 0;
-            $real = $suma($s, 'real', $enRango);
-            $meta = $hayM($s) ? $suma($s, 'meta', $enRango) : null;
-            $ant  = $suma($s, 'anterior', $enRango);
-            $rac  = $suma($s, 'racimos', $enRango);
-            $kgR  = $suma($s, 'pprKg', $enRango);
-            $racR = $suma($s, 'pprRac', $enRango);
+            $real = $suma($s, 'real');
+            $meta = $hayM($s) ? $suma($s, 'meta') : null;
+            $ant  = $suma($s, 'anterior');
+            $rac  = $suma($s, 'racimos');
+            $kgR  = $suma($s, 'pprKg');
+            $racR = $suma($s, 'pprRac');
 
             $tot['real']     += $real;
             $tot['anterior'] += $ant;
@@ -382,7 +454,7 @@ class TablerosController extends BaseController
                 'racimos'      => (int) round($rac),
                 'ppr'          => $racR > 0 ? round($kgR / $racR, 2) : null,
                 'tonHa'        => $ha > 0 ? round($real / 1000 / $ha, 3) : null,
-                'fuente'       => $this->fuente(array_filter($act['fuentes'][$codF] ?? [], static fn ($i) => $enRango((int) $i) && $i <= $mes, ARRAY_FILTER_USE_KEY)),
+                'fuente'       => $this->fuente(array_map(static fn ($am) => $prod[$am[0]]['fuentes'][$codF][$am[1]] ?? null, array_filter($periodos, static fn ($p) => $p <= $hoy, ARRAY_FILTER_USE_KEY))),
                 'kgReal'       => $real,
             ];
         }
@@ -396,18 +468,19 @@ class TablerosController extends BaseController
 
         $meses = [];
 
-        for ($i = 1; $i <= 12; $i++) {
-            $real = $i > $mes ? null : (float) ($serieM['real'][$i] ?? 0);
-            $meta = isset($serieM['meta']) ? (float) ($serieM['meta'][$i] ?? 0) : null;
-            $ant  = (float) ($serieM['anterior'][$i] ?? 0);
-            $rac  = (float) ($serieM['racimos'][$i] ?? 0);
-            $kgR  = (float) ($serieM['pprKg'][$i] ?? 0);
-            $racR = (float) ($serieM['pprRac'][$i] ?? 0);
+        foreach ($periodos as $p => [$a, $i]) {
+            $real = $p > $hoy ? null : (float) ($serieM['real'][$p] ?? 0);
+            $meta = isset($serieM['meta']) ? (float) ($serieM['meta'][$p] ?? 0) : null;
+            $ant  = (float) ($serieM['anterior'][$p] ?? 0);
+            $rac  = (float) ($serieM['racimos'][$p] ?? 0);
+            $kgR  = (float) ($serieM['pprKg'][$p] ?? 0);
+            $racR = (float) ($serieM['pprRac'][$p] ?? 0);
 
             $meses[] = [
+                'periodo'      => $p,
+                'anio'         => $a,
                 'mes'          => $i,
-                'nombre'       => self::MESES[$i],
-                'enRango'      => $enRango($i),
+                'nombre'       => self::MESES[$i] . ' ' . $a,
                 'real'         => $real === null ? null : $this->ton($real),
                 'meta'         => $meta === null ? null : $this->ton($meta),
                 'anterior'     => $this->ton($ant),
@@ -416,38 +489,38 @@ class TablerosController extends BaseController
                 'racimos'      => $real === null ? null : (int) round($rac),
                 'ppr'          => $real !== null && $racR > 0 ? round($kgR / $racR, 2) : null,
                 'tonHa'        => $real !== null && $tot['ha'] > 0 ? round($real / 1000 / $tot['ha'], 3) : null,
-                'fuente'         => $real === null ? null : $this->fuente(array_column($act['fuentes'], $i)),
-                'fuenteAnterior' => $this->fuente(array_column($prev['fuentes'], $i)),
+                'fuente'         => $real === null ? null : $this->fuente(array_column($prod[$a]['fuentes'], $i)),
+                'fuenteAnterior' => $this->fuente(array_column($prod[$a - 1]['fuentes'], $i)),
             ];
         }
 
         $fuentes = [
-            'real'     => $this->fuente(array_column(array_filter($meses, static fn ($m) => $m['enRango']), 'fuente')),
-            'anterior' => $this->fuente(array_column(array_filter($meses, static fn ($m) => $m['enRango']), 'fuenteAnterior')),
+            'real'     => $this->fuente(array_column($meses, 'fuente')),
+            'anterior' => $this->fuente(array_column($meses, 'fuenteAnterior')),
         ];
 
-        foreach (['real' => $anio, 'anterior' => $anio - 1] as $serie => $a) {
+        foreach (['real' => 0, 'anterior' => 1] as $serie => $d) {
             if ($fuentes[$serie] === 'mixto') {
-                $avisos[] = 'La producción ' . ($serie === 'real' ? 'del periodo' : 'del año anterior') . ' (' . $a . ') combina báscula e histórico: por finca y mes se usa la báscula cuando tiene kilos y, si no, el histórico de producción.';
+                $avisos[] = 'La producción ' . ($serie === 'real' ? 'del periodo' : 'del periodo anterior') . ' (' . $txt($d) . ') combina báscula e histórico: por finca y mes se usa la báscula cuando tiene kilos y, si no, el histórico de producción.';
             }
         }
 
-        $haHist = array_intersect_key($act['haHist'], array_flip(array_column($filaF, 'codigo')));
+        $haHist = array_intersect_key($haH, array_flip(array_column($filaF, 'codigo')));
 
         if ($haHist !== []) {
-            $avisos[] = 'Sin báscula en ' . $anio . ' para ' . implode(', ', array_map(static fn ($c) => (string) ($nombres[$c] ?? $c), array_keys($haHist))) . ': las hectáreas y la t/ha se toman del histórico de producción de ese año.';
+            $avisos[] = 'Sin báscula en el periodo (' . $txt(0) . ') para ' . implode(', ', array_map(static fn ($c) => (string) ($nombres[$c] ?? $c), array_keys($haHist))) . ': las hectáreas y la t/ha se toman del histórico de producción del año más reciente del periodo que lo tenga.';
         }
 
         if (! $existe) {
             $avisos[] = 'La tabla de presupuesto de producción no existe: no hay meta para comparar.';
         } elseif ($tot['meta'] === null) {
-            $avisos[] = 'No hay presupuesto registrado para ' . $anio . ($finca !== '' ? ' en la finca seleccionada' : '') . '.';
+            $avisos[] = 'No hay presupuesto registrado para el periodo ' . $txt(0) . ($finca !== '' ? ' en la finca seleccionada' : '') . '.';
         } elseif ($metaFinca) {
             $avisos[] = 'Parte del presupuesto está registrado a nivel de finca (sin lote): suma en los totales pero no en la tabla por lote.';
         }
 
         try {
-            $metaTonHa = $this->model->metaTonHa($empresa, $anio, $finca);
+            $metaTonHa = $this->model->metaTonHa($empresa, $aH, $finca);
         } catch (\Throwable $e) {
             log_message('error', 'Error consultando la meta t/ha del tablero de producción: ' . $e->getMessage());
             $metaTonHa = [null, null];
@@ -466,12 +539,11 @@ class TablerosController extends BaseController
             'message'  => '',
             'avisos'   => $avisos,
             'unidad'   => 'ton',
-            'filtros'  => ['anio' => $anio, 'mes' => $mes, 'modo' => $f['modo'], 'finca' => $finca, 'siembra' => $siembra ?: null, 'ultimoMes' => $this->model->ultimoMesFacturado($empresa, $anio)],
+            'filtros'  => ['desde' => $f['desde'], 'hasta' => $f['hasta'], 'corte' => min($f['hasta'], $hoy), 'finca' => $finca, 'siembra' => $siembra ?: null, 'ultimoMes' => array_key_last(array_filter(array_column($meses, 'real', 'periodo'), static fn ($v) => $v > 0))],
             'opciones' => ['siembras' => array_keys($siembras)],
             'kpis'     => [
                 'real'           => $this->ton($tot['real']),
                 'meta'           => $tot['meta'] === null ? null : $this->ton($tot['meta']),
-                'metaAnual'      => isset($serieM['meta']) ? $this->ton(array_sum($serieM['meta'])) : null,
                 'anterior'       => $this->ton($tot['anterior']),
                 'cumplimiento'   => $tot['meta'] > 0 ? round($tot['real'] / $tot['meta'], 4) : null,
                 'difMeta'        => $tot['meta'] === null ? null : $this->ton($tot['real'] - $tot['meta']),
@@ -479,7 +551,7 @@ class TablerosController extends BaseController
                 'difAnterior'    => $this->ton($tot['real'] - $tot['anterior']),
                 'hectareas'      => round($tot['ha'], 2),
                 'tonHa'          => $tot['ha'] > 0 ? round($tot['real'] / 1000 / $tot['ha'], 3) : null,
-                'tonHaAnualizada' => $tot['ha'] > 0 ? round($tot['real'] / 1000 / $tot['ha'] * 12 / ($f['modo'] === 'mes' ? 1 : $mes), 3) : null,
+                'tonHaAnualizada' => $tot['ha'] > 0 ? round($tot['real'] / 1000 / $tot['ha'] * 12 / max(1, count(array_filter($meses, static fn ($m) => $m['real'] !== null))), 3) : null,
                 'metaTonHa'      => $metaTonHa[0],
                 'metaTonHaOrigen' => $metaTonHa[1],
                 'racimos'        => (int) round($tot['racimos']),
@@ -575,7 +647,7 @@ class TablerosController extends BaseController
             $ha = 0.0;
 
             foreach (array_keys($usadas) as $f) {
-                if (isset($p['haHist'][$f])) {
+                if ($a < (int) date('Y') && isset($p['haHist'][$f])) {
                     $conHa[$a] = true;
 
                     foreach ($p['haHist'][$f] as $lote => $h) {
@@ -613,7 +685,7 @@ class TablerosController extends BaseController
         }
 
         if ($conHa !== []) {
-            $avisos[] = 'En ' . implode(', ', array_keys($conHa)) . ' las hectáreas de las fincas sin báscula en el año se toman del histórico de producción; en las demás, de los lotes vigentes.';
+            $avisos[] = 'En ' . implode(', ', array_keys($conHa)) . ' las hectáreas de las fincas con hectáreas registradas en el histórico de producción del año se toman de ese histórico, haya o no báscula; en las demás fincas y en el año en curso, de los lotes vigentes.';
         }
 
         if ($hasta === (int) date('Y')) {
@@ -659,11 +731,10 @@ class TablerosController extends BaseController
 
         foreach ($his as $f => $ms) {
             ksort($ms);
-            $sinBascula = ! isset($fuentes[$f]);
 
             foreach ($ms as $m => $rs) {
                 foreach ($rs as $r) {
-                    if ($sinBascula && (float) $r['hectareas'] > 0) {
+                    if ((float) $r['hectareas'] > 0) {
                         $haHist[$f][trim((string) $r['lote'])] = (float) $r['hectareas'];
                     }
 
