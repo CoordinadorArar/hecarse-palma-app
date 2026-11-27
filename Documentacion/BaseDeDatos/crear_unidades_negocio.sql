@@ -8,14 +8,16 @@
      1) Crea, si no existen:
           dbo.aUnidadNegocio        Catálogo de unidades de negocio por empresa.
           dbo.aFincaUnidadNegocio   Unidades de negocio habilitadas en cada finca.
-     2) Siembra para la empresa @Empresa: PAL PALMA, BUF BUFALOS,
-        GTR GANADERIA TRADICIONAL, GCE GANADERIA CEBA.
+     2) Siembra para la empresa @Empresa (códigos de Siesa): 001 PALMA,
+        002 GANADERIA TRADICIONAL, 003 GANADERIA CEBA, 004 GANADERIA BUFALOS.
+        (Antes PAL/GTR/GCE/BUF: recodificados por
+        reorganizar_fincas_unidades_negocio.sql.)
      3) Agrega, si no existe, dbo.aLotes.unidadNegocio VARCHAR(10) NULL.
      4) Backfill (solo lotes con unidadNegocio NULL de @Empresa):
-          CRLLC2-25 -> BUF, DGCR26-01 -> GTR, DGCR26-02 -> GCE,
-          DGHT26-01 -> GTR (SUPUESTO A CONFIRMAR), resto -> PAL.
+          CRLLC2-25 -> 004, DGCR26-01 -> 002, DGCR26-02 -> 003,
+          DGHT26-01 -> 002, resto -> 001.
         Habilita en aFincaUnidadNegocio cada (finca, unidad) usada por algún
-        lote, más PAL en todas las fincas activas.
+        lote, más 001 en todas las fincas activas.
      5) Crea FK_aLotes_aFincaUnidadNegocio (empresa, finca, unidadNegocio):
         la unidad del lote debe estar habilitada en su finca.
      6) Registra el módulo "Unidades de negocio" (gestion-palma/unidades-negocio,
@@ -41,17 +43,17 @@ DECLARE @IdContenedor INT;
 DECLARE @IdHermano    INT;
 DECLARE @IdNuevo      INT;
 
--- Asignación inicial de lotes no palma (el resto queda en PAL).
+-- Asignación inicial de lotes no palma (el resto queda en 001).
 IF OBJECT_ID('tempdb..#mapa') IS NOT NULL
     DROP TABLE #mapa;
 
 CREATE TABLE #mapa (lote VARCHAR(50) NOT NULL PRIMARY KEY, unidad VARCHAR(10) NOT NULL);
 
 INSERT INTO #mapa (lote, unidad)
-VALUES ('CRLLC2-25', 'BUF'),
-       ('DGCR26-01', 'GTR'),
-       ('DGCR26-02', 'GCE'),
-       ('DGHT26-01', 'GTR');   -- GANADERIA HATO (finca 001): CONFIRMAR
+VALUES ('CRLLC2-25', '004'),
+       ('DGCR26-01', '002'),
+       ('DGCR26-02', '003'),
+       ('DGHT26-01', '002');
 
 BEGIN TRY
 
@@ -94,10 +96,10 @@ BEGIN TRY
 
     INSERT INTO dbo.aUnidadNegocio (empresa, codigo, descripcion, activo, fechaRegistro, usuarioRegistro)
     SELECT @Empresa, s.codigo, s.descripcion, 1, @Fecha, @Usuario
-      FROM (VALUES ('PAL', 'PALMA'),
-                   ('BUF', 'BUFALOS'),
-                   ('GTR', 'GANADERIA TRADICIONAL'),
-                   ('GCE', 'GANADERIA CEBA')) s (codigo, descripcion)
+      FROM (VALUES ('001', 'PALMA'),
+                   ('002', 'GANADERIA TRADICIONAL'),
+                   ('003', 'GANADERIA CEBA'),
+                   ('004', 'GANADERIA BUFALOS')) s (codigo, descripcion)
      WHERE NOT EXISTS (SELECT 1 FROM dbo.aUnidadNegocio u WHERE u.empresa = @Empresa AND u.codigo = s.codigo);
 
     PRINT CONCAT(N'Unidades de negocio sembradas: ', @@ROWCOUNT);
@@ -113,12 +115,12 @@ BEGIN TRY
     EXEC sp_executesql
         N'INSERT INTO dbo.aFincaUnidadNegocio (empresa, finca, unidadNegocio)
           SELECT DISTINCT x.empresa, x.finca, x.unidad
-            FROM (SELECT l.empresa, RTRIM(l.finca) AS finca, ISNULL(l.unidadNegocio, ISNULL(m.unidad, ''PAL'')) AS unidad
+            FROM (SELECT l.empresa, RTRIM(l.finca) AS finca, ISNULL(l.unidadNegocio, ISNULL(m.unidad, ''001'')) AS unidad
                     FROM dbo.aLotes l
                     LEFT JOIN #mapa m ON m.lote = l.codigo
                    WHERE l.empresa = @Empresa
                   UNION
-                  SELECT f.empresa, RTRIM(f.codigo), ''PAL''
+                  SELECT f.empresa, RTRIM(f.codigo), ''001''
                     FROM dbo.aFinca f
                    WHERE f.empresa = @Empresa AND f.activo = 1) x
            WHERE NOT EXISTS (SELECT 1 FROM dbo.aFincaUnidadNegocio fu
@@ -127,7 +129,7 @@ BEGIN TRY
           PRINT CONCAT(N''Habilitaciones finca-unidad creadas: '', @@ROWCOUNT);
 
           UPDATE l
-             SET l.unidadNegocio = ISNULL(m.unidad, ''PAL'')
+             SET l.unidadNegocio = ISNULL(m.unidad, ''001'')
             FROM dbo.aLotes l
             LEFT JOIN #mapa m ON m.lote = l.codigo
            WHERE l.empresa = @Empresa
@@ -238,7 +240,7 @@ SELECT fu.empresa, fu.finca, f.descripcion AS nombreFinca, f.activo AS fincaActi
 
 SELECT empresa, finca, codigo, descripcion, unidadNegocio, ccosto
   FROM dbo.aLotes
- WHERE unidadNegocio IS NULL OR unidadNegocio <> 'PAL'
+ WHERE unidadNegocio IS NULL OR unidadNegocio <> '001'
  ORDER BY empresa, finca, codigo;
 
 SELECT m.Id, m.Nombre, m.Ruta, m.Icono, m.IdLoseta, m.IdModulo AS IdModuloPadre,
